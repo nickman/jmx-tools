@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<groupId>org.helios.jmx-tools</groupId>
+	<artifactId>jmx-tools</artifactId>
+	<packaging>pom</packaging>
+	<version>1.0-SNAPSHOT</version>
+	<name>Helios JMXTools</name>
+	<modules>
+		<module>remoting</module>		
+	</modules>
+	<properties>
+		<chronicle.version>1.2-SNAPSHOT</chronicle.version>
+		<json.version>20090211</json.version>
+		<junit.version>4.8.2</junit.version>
+		<javassist.version>3.16.1-GA</javassist.version>
+		<snmp4j.version>1.9.1f</snmp4j.version>
+		<netty.version>3.5.8.Final</netty.version>
+		<nash.version>1.0-SNAPSHOT</nash.version>
+		<sigar.version>1.6.4</sigar.version>
+		<rrd4j.version>2.2-SNAPSHOT</rrd4j.version>
+		<h2.version>1.3.168</h2.version>
+		<spring.version>3.0.7.RELEASE</spring.version>
+		<gson.version>2.2.2</gson.version>
+		<groovy.version>2.0.1</groovy.version>
+		<jmx-optional.version>1.0-b02-SNAPSHOT</jmx-optional.version>
+		
+	</properties>
+	<dependencyManagement>
+		<dependencies>
+			<!--   TEST   -->
+			<dependency>
+				<groupId>junit</groupId>
+				<artifactId>junit</artifactId>
+				<version>${junit.version}</version>
+				<scope>test</scope>
+			</dependency>
+			<dependency>
+				<groupId>vanilla.java</groupId>
+				<artifactId>chronicle</artifactId>
+				<version>${chronicle.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.json</groupId>
+				<artifactId>json</artifactId>
+				<version>${json.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.javassist</groupId>
+				<artifactId>javassist</artifactId>
+				<version>${javassist.version}</version>
+			</dependency>
+			
+			<!-- JMXMP Server and Client Protocols -->
+			<dependency>
+			  <groupId>com.sun.jdmk</groupId>
+			  <artifactId>jmx-optional</artifactId>
+			  <version>${jmx-optional.version}</version>			  
+			</dependency>
+
+		      <dependency>
+			<groupId>io.netty</groupId>
+			<artifactId>netty</artifactId>
+			<version>${netty.version}</version>
+		      </dependency>
+			
+			<dependency>
+			  <groupId>org.snmp4j</groupId>
+			  <artifactId>snmp4j</artifactId>
+			  <version>${snmp4j.version}</version>
+			</dependency>		
+
+			
+			<!-- Nash Command Line Server -->
+			
+			<dependency>
+			  <groupId>org.helios</groupId>
+			  <artifactId>nash</artifactId>  
+			  <version>${nash.version}</version>
+			</dependency>
+			
+			<!-- SIGAR -->
+		      <dependency>
+			<groupId>org.hyperic</groupId>
+			<artifactId>sigar</artifactId>
+			<version>${sigar.version}</version>
+		      </dependency>
+
+			 
+		    <dependency>
+		      <groupId>com.h2database</groupId>
+		      <artifactId>h2</artifactId>
+		      <version>${h2.version}</version>
+		    </dependency>
+
+				<!--  Groovy Console -->
+				<dependency>
+  				<groupId>org.codehaus.groovy</groupId>
+  				<artifactId>groovy-all</artifactId>
+  				<version>${groovy.version}</version>
+			      </dependency>				
+				
+				<!-- JSON Marshalling -->
+				<dependency>
+				  <groupId>com.google.code.gson</groupId>
+				  <artifactId>gson</artifactId>
+				  <version>${gson.version}</version>
+				</dependency>
+				
+		    
+		    <dependency>
+		      <groupId>org.rrd4j</groupId>
+		      <artifactId>rrd4j</artifactId>
+		      <version>${rrd4j.version}</version>
+		    </dependency>
+
+
+			
+		</dependencies>
+	</dependencyManagement>
+</project>
