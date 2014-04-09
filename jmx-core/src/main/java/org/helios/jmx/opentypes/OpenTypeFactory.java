@@ -28,6 +28,7 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.lang.reflect.Type;
 import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.HashMap;
@@ -37,13 +38,17 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 
+import javax.management.openmbean.ArrayType;
 import javax.management.openmbean.CompositeType;
 import javax.management.openmbean.OpenType;
 import javax.management.openmbean.SimpleType;
+import javax.management.openmbean.TabularType;
 
 import org.helios.jmx.opentypes.annotations.ACompositeType;
 import org.helios.jmx.opentypes.annotations.ACompositeTypeItem;
 import org.helios.jmx.opentypes.annotations.AOpenType;
+
+
 
 /**
  * <p>Title: OpenTypeFactory</p>
@@ -58,10 +63,52 @@ public class OpenTypeFactory {
 	private static volatile OpenTypeFactory instance = null;
 	/** The singleton instance ctor lock */
 	private static final Object lock = new Object();
+
+	/** The com.sun internal MXBeanMappingFactory class name */
+	public static final String MX_MAPPING_FACTORY_NAME = "com.sun.jmx.mbeanserver.MXBeanMappingFactory";
+	/** The com.sun internal DefaultMXBeanMappingFactory class name */
+	public static final String MX_DEFAULT_MAPPING_FACTORY_NAME = "com.sun.jmx.mbeanserver.DefaultMXBeanMappingFactory";
+	
+	/** The com.sun internal MXBeanMapping class name */
+	public static final String MX_MAPPING_NAME = "com.sun.jmx.mbeanserver.MXBeanMapping";
+	
+	/** The com.sun internal MXBeanMappingFactory instance  */
+	protected static final Object mxMappingFactory;
+	/** The com.sun internal MXBeanMappingFactory mappingForType method  */
+	protected static final Method mappingForType;
+	/** The com.sun internal MXBeanMapping getOpenType method  */
+	protected static final Method getOpenType;
+	
+	static {
+		Object defaultMapper = null;
+		Method mappingMethod = null;
+		Method getOpenTypeMethod = null;
+		try {
+			Class<?> defaultFactoryClazz = Class.forName(MX_DEFAULT_MAPPING_FACTORY_NAME);
+			Class<?> factoryClazz = Class.forName(MX_MAPPING_FACTORY_NAME);			
+			defaultMapper = factoryClazz.getField("DEFAULT").get(null);
+			
+			mappingMethod = defaultFactoryClazz.getDeclaredMethod("mappingForType", Type.class, factoryClazz);
+			getOpenTypeMethod = Class.forName(MX_MAPPING_NAME).getDeclaredMethod("getOpenType");
+			System.out.println("Internal com.sun MXMapping Initialized");
+		} catch (Exception ex) {
+			ex.printStackTrace(System.err);
+			System.err.println("Internal com.sun MXMapping Not Available");
+		}
+		mxMappingFactory = defaultMapper;
+		mappingForType = mappingMethod;
+		getOpenType = getOpenTypeMethod;
+	}
 	
 	/** A cache of created composite types keyed by the type name */
 	protected final Map<String, CompositeType> compositeTypes;
-	/** A cache of created open types keyed by the underlying java type name */
+	/** A cache of simple types keyed by the underlying java type name */
+	protected final Map<String, SimpleType<?>> simpleTypes;
+	/** A cache of created array types keyed by the type name */
+	protected final Map<String, ArrayType<?>> arrayTypes;
+	/** A cache of created tabular types keyed by the type name */
+	protected final Map<String, TabularType> tabularTypes;
+	/** A cache of created open types that are not composite, simple, array or tabular keyed by the type name */
 	protected final Map<String, OpenType<?>> openTypes;
 	
 	/**
@@ -83,16 +130,29 @@ public class OpenTypeFactory {
 	 */
 	private OpenTypeFactory() {
 		compositeTypes = new ConcurrentHashMap<String, CompositeType>();
+		simpleTypes = new ConcurrentHashMap<String, SimpleType<?>>();
+		arrayTypes = new ConcurrentHashMap<String, ArrayType<?>>();
+		tabularTypes = new ConcurrentHashMap<String, TabularType>();
 		openTypes = new ConcurrentHashMap<String, OpenType<?>>();
 		try {
 			for(Field f: SimpleType.class.getDeclaredFields()) {
 				if(!Modifier.isStatic(f.getModifiers())) continue;
 				if(!f.getType().equals(SimpleType.class)) continue;
-				OpenType<?> ot = (OpenType<?>)f.get(null);
-				openTypes.put(ot.getClassName(), ot);
+				SimpleType<?> ot = (SimpleType<?>)f.get(null);
+				simpleTypes.put(ot.getClassName(), ot);
 			}
 		} catch (Exception ex) {
 			throw new RuntimeException("Failed to initialize OpenTypeFactory OpenType Cache", ex);
+		}
+	}
+	
+	protected OpenType<?> getOpenType(Class<?> clazz) {
+		if(clazz==null) throw new IllegalArgumentException("The passed class was null");
+		try {
+			Object mxMapping = mappingForType.invoke(mxMappingFactory, clazz, mxMappingFactory);
+			return (OpenType<?>)getOpenType.invoke(mxMapping);
+		} catch (Exception ex) {
+			throw new RuntimeException("Failed to invoke MXFactory for open type on [" + clazz.getName() + "]", ex);
 		}
 	}
 	
@@ -145,7 +205,7 @@ public class OpenTypeFactory {
 					itemDescription = m.getName() + " Value";
 				}
 				itemDescriptions.add(itemDescription);
-				itemTypes.add(annot.type());
+				//itemTypes.add(annot.type());
 				
 				
 			}
@@ -160,11 +220,11 @@ public class OpenTypeFactory {
 		try {
 			Class<?> javaType = typeAnn.type();
 			String javaTypeName = javaType.getName();
-			OpenType<?> openType = openTypes.get(javaTypeName);
-			if(openType==null) {
-				synchronized(openTypes) {
-					openType = openTypes.get(javaTypeName);
-					if(openType==null) {
+			SimpleType<?> simpleType = simpleTypes.get(javaTypeName);
+			if(simpleType==null) {
+				synchronized(simpleTypes) {
+					simpleType = simpleTypes.get(javaTypeName);
+					if(simpleType==null) {
 						String name = typeAnn.name();
 						String description = typeAnn.description();
 						if(name.isEmpty()) {
@@ -173,7 +233,7 @@ public class OpenTypeFactory {
 						if(description.isEmpty()) {
 							 description = javaTypeName + "OpenType Value";
 						}
-						openType = new OpenType(javaTypeName, name, description);
+						//openType = new OpenType(javaTypeName, name, description);
 					}
 				}
 			}
@@ -182,7 +242,7 @@ public class OpenTypeFactory {
 //				String  description() default "";
 			
 			
-			return openType;
+			return simpleType;
 		} catch (Exception ex) {
 			throw new RuntimeException("Failed to build OpenType", ex);
 		}
