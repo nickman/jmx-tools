@@ -10,7 +10,7 @@
 	<artifactId>remoting</artifactId>
 	<packaging>jar</packaging>
 	<version>1.0-SNAPSHOT</version>
-	<name>Helios JMXTools Remoting</name>
+	<name>Helios JMXTools :: Remoting</name>
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>

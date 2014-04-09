@@ -7,7 +7,8 @@
 	<version>1.0-SNAPSHOT</version>
 	<name>Helios JMXTools</name>
 	<modules>
-		<module>remoting</module>		
+		<module>jmx-core</module>		
+		<module>jmx-remoting</module>		
 	</modules>
 	<properties>
 		<chronicle.version>1.2-SNAPSHOT</chronicle.version>
