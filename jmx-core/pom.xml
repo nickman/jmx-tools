@@ -43,6 +43,20 @@
 			  <groupId>org.javassist</groupId>
 			  <artifactId>javassist</artifactId>
 			</dependency>
+			
+			<dependency>
+			  <groupId>cglib</groupId>
+			  <artifactId>cglib</artifactId>
+			  <version>3.0</version>
+			</dependency>
+			
+			<dependency>
+			  <groupId>org.objectweb.asm</groupId>
+			  <artifactId>com.springsource.org.objectweb.asm.util</artifactId>
+			  <version>3.2.0</version>
+			</dependency>
+			
+			
 		
 			<!-- Spring -->
 			<dependency>
@@ -95,8 +109,8 @@
 				<artifactId>maven-compiler-plugin</artifactId>
 				<version>2.0.2</version>
 				<configuration>
-					<source>1.6</source>
-					<target>1.6</target>
+					<source>1.7</source>
+					<target>1.7</target>
 				</configuration>
 			</plugin>
 		       <plugin>
