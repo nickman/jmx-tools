@@ -24,7 +24,13 @@
 		<spring.version>3.0.7.RELEASE</spring.version>
 		<gson.version>2.2.2</gson.version>
 		<groovy.version>2.0.1</groovy.version>
+		<spring.version>2.5.6</spring.version>
 		<jmx-optional.version>1.0-b02-SNAPSHOT</jmx-optional.version>
+		<high-scale-lib.version>1.1.4</high-scale-lib.version>
+		<log4j.version>1.2.16</log4j.version>
+		<javassist.version>3.18.0-GA</javassist.version>
+
+
 		
 	</properties>
 	<dependencyManagement>
@@ -51,6 +57,25 @@
 				<artifactId>javassist</artifactId>
 				<version>${javassist.version}</version>
 			</dependency>
+
+			<dependency>
+			  <groupId>com.github.stephenc.high-scale-lib</groupId>
+			  <artifactId>high-scale-lib</artifactId>
+			  <version>${high-scale-lib.version}</version>
+			</dependency>
+
+			<dependency>
+				<groupId>log4j</groupId>
+				<artifactId>log4j</artifactId>
+				<version>${log4j.version}</version>
+			</dependency>
+
+			<dependency>
+			  <groupId>org.javassist</groupId>
+			  <artifactId>javassist</artifactId>
+			  <version>${javassist.version}</version>
+			</dependency>
+			
 			
 			<!-- JMXMP Server and Client Protocols -->
 			<dependency>
@@ -69,8 +94,50 @@
 			  <groupId>org.snmp4j</groupId>
 			  <artifactId>snmp4j</artifactId>
 			  <version>${snmp4j.version}</version>
-			</dependency>		
+			</dependency>	
 
+			<!-- Spring -->
+			<dependency>
+			  <groupId>org.springframework</groupId>
+			  <artifactId>spring-core</artifactId>  
+			  <version>${spring.version}</version>
+			</dependency>
+
+			<dependency>
+			  <groupId>org.springframework</groupId>
+			  <artifactId>spring-context-support</artifactId>  
+			  <version>${spring.version}</version>
+			</dependency>
+
+			<dependency>
+			  <groupId>org.springframework</groupId>
+			  <artifactId>spring-aop</artifactId>  
+			  <version>${spring.version}</version>
+			</dependency>
+
+			<dependency>
+			  <groupId>org.springframework</groupId>
+			  <artifactId>spring-context</artifactId>  
+			  <version>${spring.version}</version>
+			</dependency>
+
+			<dependency>
+			  <groupId>org.springframework</groupId>
+			  <artifactId>spring-beans</artifactId>  
+			  <version>${spring.version}</version>
+			</dependency>
+
+			<dependency>
+			  <groupId>org.springframework</groupId>
+			  <artifactId>spring-aspects</artifactId>  
+			  <version>${spring.version}</version>
+			</dependency>
+
+			<dependency>
+			  <groupId>org.springframework</groupId>
+			  <artifactId>spring-agent</artifactId>  
+			  <version>${spring.version}</version>
+			</dependency>
 			
 			<!-- Nash Command Line Server -->
 			

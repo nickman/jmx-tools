@@ -110,6 +110,8 @@ public class OpenTypeFactory {
 	protected final Map<String, TabularType> tabularTypes;
 	/** A cache of created open types that are not composite, simple, array or tabular keyed by the type name */
 	protected final Map<String, OpenType<?>> openTypes;
+	/** A master cache of open type caches */
+	protected final Map<String, Map<String, ? extends OpenType<?>>> masterIndex;
 	
 	/**
 	 * Acquires the OpenTypeFactory instance
@@ -134,6 +136,7 @@ public class OpenTypeFactory {
 		arrayTypes = new ConcurrentHashMap<String, ArrayType<?>>();
 		tabularTypes = new ConcurrentHashMap<String, TabularType>();
 		openTypes = new ConcurrentHashMap<String, OpenType<?>>();
+		masterIndex = new ConcurrentHashMap<String, Map<String, ? extends OpenType<?>>>(); 
 		try {
 			for(Field f: SimpleType.class.getDeclaredFields()) {
 				if(!Modifier.isStatic(f.getModifiers())) continue;
@@ -217,6 +220,7 @@ public class OpenTypeFactory {
 	
 	public OpenType<?> getOpenType(AOpenType typeAnn) {
 		if(typeAnn==null) throw new IllegalArgumentException("The passed AOpenType was null");
+		
 		try {
 			Class<?> javaType = typeAnn.type();
 			String javaTypeName = javaType.getName();
