@@ -24,6 +24,8 @@
  */
 package org.helios.jmx.metrics;
 
+import java.util.Date;
+
 /**
  * <p>Title: DoubleIntervalAccumulator</p>
  * <p>Description: </p> 
@@ -99,15 +101,6 @@ public class DoubleIntervalAccumulator implements DoubleIntervalAccumulatorMBean
 	
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.jmx.metrics.IntervalAccumulatorMBean#getLastTime()
-	 */
-	@Override
-	public long getLastTime() {
-		return delegate.getLastTime();
-	}
-	
-	/**
-	 * {@inheritDoc}
 	 * @see org.helios.jmx.metrics.DoubleIntervalAccumulatorMBean#getDoubleMax()
 	 */
 	@Override
@@ -125,4 +118,38 @@ public class DoubleIntervalAccumulator implements DoubleIntervalAccumulatorMBean
 	}
 
 
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.metrics.DoubleIntervalAccumulatorMBean#getDoubleAverage()
+	 */
+	public double getDoubleAverage() {
+		return delegate.getDoubleAverage();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.metrics.IntervalAccumulatorMBean#getLastSampleTime()
+	 */
+	@Override
+	public long getLastSampleTime() {
+		return delegate.getLastSampleTime();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.metrics.IntervalAccumulatorMBean#getLastSampleDate()
+	 */
+	@Override
+	public Date getLastSampleDate() {
+		return new Date(delegate.getLastSampleTime());
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.metrics.IntervalAccumulatorMBean#reset()
+	 */
+	@Override
+	public void reset() {
+		delegate.reset();
+	}
 }

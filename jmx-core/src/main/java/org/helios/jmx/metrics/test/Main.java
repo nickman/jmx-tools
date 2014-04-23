@@ -24,10 +24,19 @@
  */
 package org.helios.jmx.metrics.test;
 
+import java.lang.reflect.Method;
+
 import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
-import org.springframework.beans.factory.support.PropertiesBeanDefinitionReader;
+import org.helios.jmx.IntervalAccumulatorInterceptor;
+import org.helios.jmx.metrics.IntervalAccumulator;
+import org.helios.rindle.util.helpers.SystemClock;
+import org.springframework.aop.Advisor;
+import org.springframework.aop.MethodMatcher;
+import org.springframework.aop.Pointcut;
+import org.springframework.aop.framework.Advised;
+import org.springframework.aop.support.DefaultPointcutAdvisor;
 import org.springframework.beans.factory.xml.XmlBeanDefinitionReader;
 import org.springframework.context.support.GenericApplicationContext;
 import org.springframework.core.io.ClassPathResource;
@@ -62,12 +71,44 @@ public class Main {
 			xmlReader.loadBeanDefinitions(new ClassPathResource("spring.xml"));
 			ctx.refresh();
 			log("Ready");
-			Instrumentable inst = (Instrumentable)ctx.getBean("InstPojo", Instrumentable.class); 
-			for(int i = 0; i < 10; i++) {
-				inst.getNthRandom(i);
-				inst.sleep();
+//			ProxyFactoryBean pfb = (ProxyFactoryBean)ctx.getBean("InstPojo", ProxyFactoryBean.class);
+			Instrumentable inst = (Instrumentable)ctx.getBean("InstPojo", Instrumentable.class);
+			log("Inst Class: [%s]", inst.getClass().getName());
+			log("Interfaces:========");
+			for(Class<?> clazz : inst.getClass().getInterfaces()) {
+				log("\t%s", clazz.getName());
 			}
-			log("Done");
+			
+			Advised advised = (Advised)inst;
+			log("Proxied Interfaces:========");
+			for(Class<?> proxied: advised.getProxiedInterfaces()) {
+				log("\t%s", proxied.getName());
+			}
+			log("Advisors:========");
+			for(Advisor advisor: advised.getAdvisors()) {
+				DefaultPointcutAdvisor dpa = (DefaultPointcutAdvisor)advisor;
+				log("\tPerInstance:%s, Advice:%s", dpa.isPerInstance(), dpa.getAdvice());
+				Pointcut pointcut = dpa.getPointcut();
+				MethodMatcher mm = pointcut.getMethodMatcher();
+				IntervalAccumulatorInterceptor interceptor = (IntervalAccumulatorInterceptor)advisor.getAdvice(); 
+				for(Method method: Instrumentable.class.getDeclaredMethods()) {
+					log("Method [%s] Matches: %s", method.getName(), mm.matches(method, advised.getTargetClass()));
+					if(mm.matches(method, advised.getTargetClass())) {
+						Class<?> target = advised.getTargetClass();
+						IntervalAccumulator ia = new IntervalAccumulator(target.getPackage().getName(), target.getSimpleName(), method.getName(), method.getParameterTypes());
+						interceptor.addAccumulator(method, ia);
+					}
+				}
+				
+			}
+			while(true) {
+				for(int i = 0; i < 10; i++) {
+//					inst.getNthRandom(i);
+					inst.sleep();
+				}
+				SystemClock.sleep(2000);
+			}
+			//log("Done");
 		} catch (Exception ex) {
 			ex.printStackTrace(System.err);
 			System.exit(-1);

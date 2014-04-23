@@ -24,48 +24,31 @@
  */
 package org.helios.jmx.metrics;
 
+import java.util.regex.Pattern;
+
 /**
- * <p>Title: DoubleIntervalAccumulatorMBean</p>
- * <p>Description: MBean interface for the double-view of an accumulator instance</p> 
+ * <p>Title: KeyFragment</p>
+ * <p>Description: Functional enumeration of the tokens supported for creating an accumulator key</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.jmx.metrics.DoubleIntervalAccumulatorMBean</code></p>
+ * <p><code>org.helios.jmx.metrics.KeyFragment</code></p>
  */
 
-public interface DoubleIntervalAccumulatorMBean extends IntervalAccumulatorMBean {
-	/**
-	 * Processes a new data point into this aggregator
-	 * @param value The value to process
-	 * @return this aggregator
-	 */
-	public IntervalAccumulator append(double value);
-
-
-	/**
-	 * Returns the double mean value
-	 * @return the double mean value
-	 */
-	public double getDoubleMean();
-
-	/**
-	 * Returns the double minimum value
-	 * @return the double minimum value
-	 */
-	public double getDoubleMin();
-
-	/**
-	 * Returns the double maximum value
-	 * @return the double maximum value
-	 */
-	public double getDoubleMax();
-
-
+public enum KeyFragment {
+	/** The package name, not including the class */
+	PACKAGE("p", Pattern.compile("\\{p\\}")),
+	/** The simple class name */
+	CLASS("c", Pattern.compile("\\{c\\}")),
+	/** The method or constructor name */
+	METHOD("m", Pattern.compile("\\{m\\}")),
+	/** The string value of an argument */
+	ARG("a", Pattern.compile("\\{a:\\d+?\\}"));
 	
-
-	/**
-	 * Returns the EWMA average
-	 * @return the EWMA average
-	 */
-	public double getDoubleAverage();
+	private KeyFragment(String code, Pattern pattern) {
+		this.code = code;
+		this.pattern = pattern;
+	}
 	
+	public final String code;
+	public final Pattern pattern;
 }

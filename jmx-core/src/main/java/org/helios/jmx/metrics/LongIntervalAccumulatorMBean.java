@@ -34,5 +34,14 @@ public interface LongIntervalAccumulatorMBean extends IntervalAccumulatorMBean {
 	 * @return the long maximum value
 	 */
 	public long getLongMax();
+	
+
+	
+	/**
+	 * Returns the EWMA average
+	 * @return the EWMA average
+	 */
+	public long getLongAverage();
+	
 
 }

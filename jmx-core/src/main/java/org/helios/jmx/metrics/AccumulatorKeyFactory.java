@@ -24,48 +24,52 @@
  */
 package org.helios.jmx.metrics;
 
+import java.lang.reflect.AccessibleObject;
+import java.util.Map;
+
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
+
 /**
- * <p>Title: DoubleIntervalAccumulatorMBean</p>
- * <p>Description: MBean interface for the double-view of an accumulator instance</p> 
+ * <p>Title: AccumulatorKeyFactory</p>
+ * <p>Description: </p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.jmx.metrics.DoubleIntervalAccumulatorMBean</code></p>
+ * <p><code>org.helios.jmx.metrics.AccumulatorKeyFactory</code></p>
  */
 
-public interface DoubleIntervalAccumulatorMBean extends IntervalAccumulatorMBean {
-	/**
-	 * Processes a new data point into this aggregator
-	 * @param value The value to process
-	 * @return this aggregator
-	 */
-	public IntervalAccumulator append(double value);
-
-
-	/**
-	 * Returns the double mean value
-	 * @return the double mean value
-	 */
-	public double getDoubleMean();
-
-	/**
-	 * Returns the double minimum value
-	 * @return the double minimum value
-	 */
-	public double getDoubleMin();
-
-	/**
-	 * Returns the double maximum value
-	 * @return the double maximum value
-	 */
-	public double getDoubleMax();
-
-
+public class AccumulatorKeyFactory {
+	/** A cache of accumulator keys keyed by the accessible object they were generated for */
+	protected static final Map<AccessibleObject, String> KEY_CACHE = new NonBlockingHashMap<AccessibleObject, String>();
 	
-
-	/**
-	 * Returns the EWMA average
-	 * @return the EWMA average
-	 */
-	public double getDoubleAverage();
+	/** The default mask if one is not provided */
+	public static final String DEFAULT_MASK = "";
 	
+	public static String getAccumulatorKey(AccessibleObject ao, String mask) {
+		if(ao==null) throw new IllegalArgumentException("The passed accessible object was null");
+		String key = KEY_CACHE.get(ao);
+		if(key==null) {
+			synchronized(KEY_CACHE) {
+				key = KEY_CACHE.get(ao);
+				if(key==null) {
+					if(mask==null || mask.isEmpty()) mask = DEFAULT_MASK;
+				}
+			}
+		}
+		
+		
+		return null;
+	}
+	
+	/**
+	 * @param args
+	 */
+	public static void main(String[] args) {
+		// TODO Auto-generated method stub
+
+	}
+	
+	public static void log(String format, Object...args) {
+		System.out.println(String.format(format, args));
+	}	
+
 }

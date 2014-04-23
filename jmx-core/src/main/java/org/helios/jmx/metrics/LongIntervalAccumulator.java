@@ -24,6 +24,8 @@
  */
 package org.helios.jmx.metrics;
 
+import java.util.Date;
+
 /**
  * <p>Title: LongIntervalAccumulator</p>
  * <p>Description: </p> 
@@ -115,17 +117,6 @@ public class LongIntervalAccumulator implements LongIntervalAccumulatorMBean {
 		return delegate.getId();
 	}
 
-
-	/**
-	 * {@inheritDoc}
-	 * @see org.helios.jmx.metrics.IntervalAccumulatorMBean#getLastTime()
-	 */
-	@Override
-	public long getLastTime() {
-		return delegate.getLastTime();
-	}
-
-
 	/**
 	 * {@inheritDoc}
 	 * @see org.helios.jmx.metrics.IntervalAccumulatorMBean#getCount()
@@ -133,6 +124,42 @@ public class LongIntervalAccumulator implements LongIntervalAccumulatorMBean {
 	@Override
 	public long getCount() {
 		return delegate.getCount();
+	}
+
+	
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.metrics.LongIntervalAccumulatorMBean#getLongAverage()
+	 */
+	public long getLongAverage() {
+		return delegate.getLongAverage();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.metrics.IntervalAccumulatorMBean#getLastSampleTime()
+	 */
+	@Override
+	public long getLastSampleTime() {
+		return delegate.getLastSampleTime();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.metrics.IntervalAccumulatorMBean#getLastSampleDate()
+	 */
+	@Override
+	public Date getLastSampleDate() {
+		return new Date(delegate.getLastSampleTime());
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.metrics.IntervalAccumulatorMBean#reset()
+	 */
+	@Override
+	public void reset() {
+		delegate.reset();
 	}
 
 

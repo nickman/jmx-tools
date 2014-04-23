@@ -24,6 +24,8 @@
  */
 package org.helios.jmx.metrics;
 
+import java.util.Date;
+
 /**
  * <p>Title: IntervalAccumulatorMBean</p>
  * <p>Description: Base untyped interface for accumulators</p> 
@@ -52,16 +54,27 @@ public interface IntervalAccumulatorMBean {
 	 */
 	public long getId();
 
-	/**
-	 * Returns the last timestamp of activity on this accumulator
-	 * @return the last timestamp of activity on this accumulator
-	 */
-	public long getLastTime();
 
 	/**
 	 * Returns the count of processed metrics
 	 * @return the count of processed metrics
 	 */
 	public long getCount();
+	
+	/**
+	 * Returns the last timestamp of activity on this accumulator
+	 * @return the last timestamp of activity on this accumulator
+	 */
+	public long getLastSampleTime();
+	
+	/**
+	 * Returns the last date of activity on this accumulator
+	 * @return the last date of activity on this accumulator
+	 */
+	public Date getLastSampleDate();
 
+	/**
+	 * Reset procedure after the flush procedure and init of a new aggregator
+	 */
+	public void reset();
 }

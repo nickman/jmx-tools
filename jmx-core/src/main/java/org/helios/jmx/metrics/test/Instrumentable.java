@@ -33,6 +33,6 @@ package org.helios.jmx.metrics.test;
  */
 
 public interface Instrumentable {
-	public int getNthRandom(int n);
+//	public int getNthRandom(int n);
 	public void sleep();
 }

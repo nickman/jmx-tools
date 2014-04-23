@@ -24,6 +24,11 @@
  */
 package org.helios.jmx.metrics;
 
+import java.util.Date;
+
+import javax.management.ObjectName;
+
+import org.helios.rindle.util.helpers.JMXHelper;
 import org.helios.rindle.util.unsafe.DeAllocateMe;
 import org.helios.rindle.util.unsafe.UnsafeAdapter;
 
@@ -39,6 +44,7 @@ public class IntervalAccumulator implements DeAllocateMe, LongIntervalAccumulato
 	/** The address[0] of the store for this aggregator */
 	protected final long[] address = new long[1];
 	
+	protected final ConcurrentDirectEWMA ewma = new ConcurrentDirectEWMA(50);
 	
 	/** The offset of the aggregator lock */
 	public final static byte XLOCK = 0;							// 8
@@ -78,11 +84,11 @@ public class IntervalAccumulator implements DeAllocateMe, LongIntervalAccumulato
 	/**
 	 * Creates a new PeriodAggregatorImpl
 	 * @param isDouble true for a double, false for a long
-	 * @param packageName 
-	 * @param className 
-	 * @param methodName 
-	 * @param signature 
-	 * @param altPattern 
+	 * @param packageName The class package name 
+	 * @param className The class name
+	 * @param methodName The method name
+	 * @param signature The method signature
+	 * @param altPattern The naming pattern
 	 */
 	public IntervalAccumulator(boolean isDouble, String packageName, String className, String methodName, Class<?>[] signature, String altPattern) {
 		address[0] = UnsafeAdapter.allocateAlignedMemory(TOTAL);
@@ -91,7 +97,25 @@ public class IntervalAccumulator implements DeAllocateMe, LongIntervalAccumulato
 		UnsafeAdapter.putLong(address[0], UnsafeAdapter.NO_LOCK);
 		UnsafeAdapter.putByte(address[0] + DOUBLE_OR_LONG, isDouble ? DOUBLE : LONG);
 		reset();
+		ObjectName on = JMXHelper.objectName(String.format("%s:class=%s,method=%s", packageName, className, methodName));
+		if(isDouble) {
+			JMXHelper.registerMBean(new DoubleIntervalAccumulator(this), on);
+		} else {
+			JMXHelper.registerMBean(new LongIntervalAccumulator(this), on);
+		}
 	}
+	
+	/**
+	 * Creates a new PeriodAggregatorImpl
+	 * @param packageName The class package name 
+	 * @param className The class name
+	 * @param methodName The method name
+	 * @param signature The method signature
+	 */
+	public IntervalAccumulator(String packageName, String className, String methodName, Class<?>[] signature) {
+		this(false, packageName, className, methodName, signature, null);
+	}
+	
 	
 	
 	/**
@@ -100,6 +124,7 @@ public class IntervalAccumulator implements DeAllocateMe, LongIntervalAccumulato
 	 */
 	@Override
 	public IntervalAccumulator append(final long value) {
+		ewma.append(value);
 		UnsafeAdapter.runInLock(address[0], new Runnable(){
 			public void run() {
 				final long newCount = increment();
@@ -161,7 +186,7 @@ public class IntervalAccumulator implements DeAllocateMe, LongIntervalAccumulato
 	/**
 	 * Reset procedure after the flush procedure and init of a new aggregator
 	 */
-	protected void reset() {
+	public void reset() {
 		if(isLong()) {
 			UnsafeAdapter.putLong(address[0] + MIN, Long.MAX_VALUE);
 			UnsafeAdapter.putLong(address[0] + MAX, Long.MIN_VALUE);
@@ -207,15 +232,6 @@ public class IntervalAccumulator implements DeAllocateMe, LongIntervalAccumulato
 
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.jmx.metrics.LongIntervalAccumulatorMBean#getLastTime()
-	 */
-	@Override
-	public long getLastTime() {
-		return UnsafeAdapter.getLong(address[0] + LAST_TIME);
-	}
-
-	/**
-	 * {@inheritDoc}
 	 * @see org.helios.jmx.metrics.LongIntervalAccumulatorMBean#getCount()
 	 */
 	@Override
@@ -223,18 +239,34 @@ public class IntervalAccumulator implements DeAllocateMe, LongIntervalAccumulato
 		return UnsafeAdapter.getLong(address[0] + COUNT);
 	}
 
+	/**
+	 * Indicates if this accumulator is a long 
+	 * @return true if this accumulator is a long, false otherwise
+	 */
 	public boolean isLong() {
 		return UnsafeAdapter.getByte(address[0] + DOUBLE_OR_LONG)==LONG;
 	}
 
+	/**
+	 * Indicates if this accumulator is a double 
+	 * @return true if this accumulator is a double, false otherwise
+	 */
 	public boolean isDouble() {
 		return UnsafeAdapter.getByte(address[0] + DOUBLE_OR_LONG)==DOUBLE;
 	}
 
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.metrics.DoubleIntervalAccumulatorMBean#getDoubleMean()
+	 */
 	public double getDoubleMean() {
 		return UnsafeAdapter.getDouble(address[0] + MEAN);
 	}
 
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.metrics.DoubleIntervalAccumulatorMBean#getDoubleMin()
+	 */
 	public double getDoubleMin() {
 		return UnsafeAdapter.getDouble(address[0] + MIN);
 	}
@@ -297,7 +329,7 @@ public class IntervalAccumulator implements DeAllocateMe, LongIntervalAccumulato
 		builder.append("Period [id=");
 		builder.append(getId());
 		builder.append(", LastTime=");
-		builder.append(getLastTime());
+		builder.append(getLastSampleTime());
 		final long cnt = getCount();
 		builder.append(", Count=");
 		builder.append(cnt);
@@ -349,6 +381,26 @@ public class IntervalAccumulator implements DeAllocateMe, LongIntervalAccumulato
 		if (address[0] != other.address[0])
 			return false;
 		return true;
+	}
+
+	public long getLastSampleTime() {
+		return ewma.getLastSample();
+	}
+	
+	public long getLongAverage() {
+		return (long)ewma.getAverage();
+	}
+	
+
+	
+
+	public double getDoubleAverage() {
+		return ewma.getAverage();
+	}
+
+	@Override
+	public Date getLastSampleDate() {
+		return null;
 	}
 
 

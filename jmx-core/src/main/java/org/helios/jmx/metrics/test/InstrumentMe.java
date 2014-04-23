@@ -51,7 +51,7 @@ public class InstrumentMe implements Instrumentable {
 
 	public void sleep() {
 		try {
-			Thread.currentThread().join(Math.abs(r.nextInt(10000)));
+			Thread.currentThread().join(Math.abs(r.nextInt(1000)));
 		} catch (Exception ex) {
 			throw new RuntimeException(ex);
 		}

@@ -25,47 +25,35 @@
 package org.helios.jmx.metrics;
 
 /**
- * <p>Title: DoubleIntervalAccumulatorMBean</p>
- * <p>Description: MBean interface for the double-view of an accumulator instance</p> 
+ * <p>Title: InterceptionRouter</p>
+ * <p>Description: Handles an {@link AccessibleObject} interception by allocating and returning an accumulator for the specified pointcut</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.jmx.metrics.DoubleIntervalAccumulatorMBean</code></p>
+ * <p><code>org.helios.jmx.metrics.InterceptionRouter</code></p>
  */
 
-public interface DoubleIntervalAccumulatorMBean extends IntervalAccumulatorMBean {
-	/**
-	 * Processes a new data point into this aggregator
-	 * @param value The value to process
-	 * @return this aggregator
-	 */
-	public IntervalAccumulator append(double value);
-
-
-	/**
-	 * Returns the double mean value
-	 * @return the double mean value
-	 */
-	public double getDoubleMean();
-
-	/**
-	 * Returns the double minimum value
-	 * @return the double minimum value
-	 */
-	public double getDoubleMin();
-
-	/**
-	 * Returns the double maximum value
-	 * @return the double maximum value
-	 */
-	public double getDoubleMax();
-
-
+public class InterceptionRouter implements InterceptionRouterMBean {
+	/** The singleton instance */
+	private static volatile InterceptionRouter instance = null;
+	/** The singleton instance ctor lock */
+	private static final Object lock = new Object();
 	
-
 	/**
-	 * Returns the EWMA average
-	 * @return the EWMA average
+	 * Acquires the InterceptionRouter singleton instance
+	 * @return the InterceptionRouter singleton instance
 	 */
-	public double getDoubleAverage();
+	public static InterceptionRouter getInstance() {
+		if(instance == null) {
+			synchronized(lock) {
+				if(instance == null) {
+					instance = new InterceptionRouter();
+				}
+			}
+		}
+		return instance;
+	}
 	
+	private InterceptionRouter() {
+		
+	}
 }

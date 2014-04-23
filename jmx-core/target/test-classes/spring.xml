@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:ctx="http://www.springframework.org/schema/context"
 	xmlns:aop="http://www.springframework.org/schema/aop"
 	xmlns:tx="http://www.springframework.org/schema/tx"
 	xmlns:p="http://www.springframework.org/schema/p"
@@ -8,6 +9,7 @@
 	xmlns:si="http://www.springframework.org/schema/integration"
 	xmlns:sif="http://www.springframework.org/schema/integration/file"
 	xsi:schemaLocation="
+		http://www.springframework.org/schema/context http://www.springframework.org/springframework/context/config/spring-context-2.5.xsd
 		http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-2.0.xsd
 		http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop-2.0.xsd
 		http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx-2.0.xsd
@@ -16,24 +18,39 @@
 		http://www.springframework.org/schema/integration/file http://www.springframework.org/schema/integration/file/spring-integration-file-1.0.xsd"		
 		>
 
-   <bean id="tracingOptimizedInterceptor"
-      class="org.springframework.aop.interceptor.PerformanceMonitorInterceptor">
-      	<constructor-arg value="true"></constructor-arg>
+   <bean id="tracingOptimizedInterceptor" scope="prototype"
+      class="org.helios.jmx.IntervalAccumulatorInterceptor">
+
       	
    </bean>
    
    
    <bean id="PlainPojo" class="org.helios.jmx.metrics.test.InstrumentMe" />
    
+   
+   <bean id="sleepAdvisor" class="org.springframework.aop.support.RegexpMethodPointcutAdvisor">
+	    <property name="advice">
+	        <ref local="tracingOptimizedInterceptor"/>
+	    </property>
+	    <property name="patterns">
+	        <list>
+	            <value>.*sleep.*</value>
+	            <value>.*absquatulate</value>
+	        </list>
+	    </property>
+	</bean>
+   
+   
+   
    <bean id="InstPojo" class="org.springframework.aop.framework.ProxyFactoryBean">
          <property name="proxyInterfaces" value="org.helios.jmx.metrics.test.Instrumentable"/>
       <property name="target" ref="PlainPojo"/>
+      <property name="optimize" value="true" />
       <property name="interceptorNames">
          <list>
             <idref local="tracingOptimizedInterceptor"/>
          </list>
       </property>
-   
    </bean>
    
    <!-- 
