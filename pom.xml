@@ -8,7 +8,8 @@
 	<name>Helios JMXTools</name>
 	<modules>
 		<module>jmx-core</module>		
-		<module>jmx-remoting</module>		
+		<module>jmx-remoting</module>
+		<module>jmx-tssh</module>
 	</modules>
 	<properties>
 		<chronicle.version>1.2-SNAPSHOT</chronicle.version>
@@ -29,6 +30,7 @@
 		<high-scale-lib.version>1.1.4</high-scale-lib.version>
 		<log4j.version>1.2.16</log4j.version>
 		<javassist.version>3.18.0-GA</javassist.version>
+		<ganymed.version>build210</ganymed.version>
 
 
 		
@@ -76,6 +78,12 @@
 			  <version>${javassist.version}</version>
 			</dependency>
 			
+			<dependency>
+			  <groupId>ch.ethz.ganymed</groupId>
+			  <artifactId>ganymed-ssh2</artifactId>
+			  <version>${ganymed.version}</version>
+			</dependency>
+
 			
 			<!-- JMXMP Server and Client Protocols -->
 			<dependency>

@@ -26,6 +26,7 @@ package org.helios.jmx.metrics;
 
 import java.lang.reflect.AccessibleObject;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
@@ -43,6 +44,9 @@ public class AccumulatorKeyFactory {
 	
 	/** The default mask if one is not provided */
 	public static final String DEFAULT_MASK = "";
+	
+	/** The pattern to parse the specified mask */
+	public static final Pattern KEY_FRAG_PATTERN = Pattern.compile("((?:\\{(a):(\\d+?)\\})|(?:\\{p\\})|(?:\\{c\\})|(?:\\{m\\}))");
 	
 	public static String getAccumulatorKey(AccessibleObject ao, String mask) {
 		if(ao==null) throw new IllegalArgumentException("The passed accessible object was null");

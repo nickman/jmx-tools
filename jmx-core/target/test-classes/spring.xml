@@ -43,7 +43,7 @@
    
    
    <bean id="InstPojo" class="org.springframework.aop.framework.ProxyFactoryBean">
-         <property name="proxyInterfaces" value="org.helios.jmx.metrics.test.Instrumentable"/>
+<!--          <property name="proxyInterfaces" value="org.helios.jmx.metrics.test.Instrumentable"/> -->
       <property name="target" ref="PlainPojo"/>
       <property name="optimize" value="true" />
       <property name="interceptorNames">
