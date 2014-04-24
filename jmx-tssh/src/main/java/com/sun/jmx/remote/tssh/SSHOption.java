@@ -39,25 +39,27 @@ import java.util.Map;
 
 public enum SSHOption {
 	/** The SSH user name */
-	USER("u", "tssh.user", System.getProperty("user.name")),
+	USER("u", "tssh.user", System.getProperty("user.name"), OptionReaders.STRING_READER),
 	/** The SSH user password */
-	PASSWORD("p", "tssh.password", null),
+	PASSWORD("p", "tssh.password", null, OptionReaders.STRING_READER),
 	/** The SSH private key (file, URL, char[] or CharSequence) */
-	KEY("k", "tssh.privatekey", String.format("%s%s.ssh%sid_dsa", System.getProperty("user.home"), File.separator, File.separator)),
+	KEY("k", "tssh.privatekey", String.format("%s%s.ssh%sid_dsa", System.getProperty("user.home"), File.separator, File.separator), OptionReaders.CHAR_ARR_READER),
 	/** The private key passphrase */
-	KEYPHR("kp", "tssh.passphrase", null),
+	KEYPHR("kp", "tssh.passphrase", null, OptionReaders.STRING_READER),
 	/** The SSH host to connect to */
-	HOST("h", "tssh.host", "localhost"),
+	HOST("h", "tssh.host", "localhost", OptionReaders.STRING_READER),
 	/** The listening port of the SSH host to connect to */
-	PORT("pt", "tssh.port", "22"),
+	PORT("pt", "tssh.port", 22, OptionReaders.INT_READER),
+	/** The local port of the SSH tunnel */
+	LOCAL_PORT("lp", "tssh.localport", 0, OptionReaders.INT_READER),	
 	/** Indicates if the server key should be validated */
-	SVRKEY("sk", "tssh.serverkey", "true"),
+	SVRKEY("sk", "tssh.serverkey", "true", OptionReaders.BOOLEAN_READER),
 	/** The local hosts file to use if server keys are validated */
-	HOSTFILE("hf", "tssh.hostfile", String.format("%s%s.ssh%sknown_hosts", System.getProperty("user.home"), File.separator, File.separator)),
+	HOSTFILE("hf", "tssh.hostfile", String.format("%s%s.ssh%sknown_hosts", System.getProperty("user.home"), File.separator, File.separator), OptionReaders.STRING_READER),
 	/** A URL or file name to load ssh params from as properties */
-	SSHPROPS("pr", "tssh.propfile", String.format("%s%s.ssh%sjmx.tssh", System.getProperty("user.home"), File.separator, File.separator)),
+	SSHPROPS("pr", "tssh.propfile", String.format("%s%s.ssh%sjmx.tssh", System.getProperty("user.home"), File.separator, File.separator), OptionReaders.STRING_READER),
 	/** The property prefix to use when reading from properties */
-	PROPSPREF("pref", "tssh.proppref", null);
+	PROPSPREF("pref", "tssh.proppref", null, OptionReaders.STRING_READER);
 	
 	/** A map of SSHOptions keyed by the short code */
 	public static final Map<String, SSHOption> CODE2ENUM;
@@ -86,11 +88,13 @@ public enum SSHOption {
 	 * @param shortCode The short code for the SSHOption
 	 * @param propertyName The system property or env variable name to get this value from
 	 * @param defaultValue The default value if no value can be found, null meaning no default
+	 * @param optionReader The value reader for this enum member
 	 */
-	private SSHOption(String shortCode, String propertyName, String defaultValue) {
+	private SSHOption(String shortCode, String propertyName, Object defaultValue, ISSHOptionReader<?> optionReader) {
 		this.shortCode = shortCode;
 		this.propertyName = propertyName;
 		this.defaultValue = defaultValue;
+		this.optionReader = optionReader;
 	}
 	
 	/** The short code for the SSHOption */
@@ -98,7 +102,9 @@ public enum SSHOption {
 	/** The system property or env variable name to get this value from */
 	public final String propertyName;
 	/** The default value if no value can be found, null meaning no default */
-	public final String defaultValue;
+	public final Object defaultValue;
+	
+	public final ISSHOptionReader<?> optionReader;
 	
 
 	
