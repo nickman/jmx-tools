@@ -120,6 +120,16 @@ public class SSHTunnelConnector {
 	 * JMXServiceURL encoded
 	 * SystemProp / EnvVar
 	 * Properties file
+	 * 
+	 * Prescedence:
+	 * ============
+	 * JMXServiceURL
+	 * Env Map
+	 * Prop File
+	 * System Prop
+	 * Env Var
+	 * Default [keys only]
+	 * 
 	 */
 
 }

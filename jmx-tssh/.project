@@ -1,9 +1,7 @@
-<?xml version="1.0" encoding="UTF-8"?>
 <projectDescription>
   <name>jmx-tssh</name>
-  <comment>NO_M2ECLIPSE_SUPPORT: Project files created with the maven-eclipse-plugin are not supported in M2Eclipse.</comment>
+  <comment/>
   <projects>
-    <project>jmx-optional</project>
     <project>jmx-core</project>
   </projects>
   <buildSpec>
