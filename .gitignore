@@ -4,4 +4,4 @@ file:
 log.*
 snapshot.*
 /bin
-/target
+/target/*
