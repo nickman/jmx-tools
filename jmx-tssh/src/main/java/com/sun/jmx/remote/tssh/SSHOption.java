@@ -25,9 +25,15 @@
 package com.sun.jmx.remote.tssh;
 
 import java.io.File;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Map;
+
+import javax.management.remote.JMXServiceURL;
+
+import org.apache.log4j.Logger;
 
 /**
  * <p>Title: SSHOption</p>
@@ -59,7 +65,7 @@ public enum SSHOption {
 	/** A URL or file name to load ssh params from as properties */
 	SSHPROPS("pr", "tssh.propfile", String.format("%s%s.ssh%sjmx.tssh", System.getProperty("user.home"), File.separator, File.separator), OptionReaders.STRING_READER),
 	/** The property prefix to use when reading from properties */
-	PROPSPREF("pref", "tssh.proppref", null, OptionReaders.STRING_READER);
+	PROPSPREF("pref", "tssh.proppref", "", OptionReaders.STRING_READER);
 	
 	/** A map of SSHOptions keyed by the short code */
 	public static final Map<String, SSHOption> CODE2ENUM;
@@ -84,6 +90,33 @@ public enum SSHOption {
 	}
 	
 	/**
+	 * Decodes the passed string to an SSHOption
+	 * @param key the key to decode
+	 * @return an SSHOption or null if one could not be identified
+	 */
+	public static SSHOption decode(String key) {
+		if(key==null || key.trim().isEmpty()) return null;
+		String name = key.trim().toUpperCase();
+		SSHOption opt = null;
+		try { 
+			opt = SSHOption.valueOf(name);
+			return opt;
+		} catch (Exception x) {/* No Op*/}
+		name = name.toLowerCase();
+		opt = CODE2ENUM.get(name);
+		if(opt!=null) return opt;
+		opt = PROP2ENUM.get(name);
+		if(opt!=null) return opt;
+		
+		try {
+			int ord = Integer.parseInt(name);
+			opt = ORD2ENUM.get(ord);
+			if(opt!=null) return opt;			
+		} catch (Exception x) {/* No Op*/}
+		return null;
+	}
+	
+	/**
 	 * Creates a new SSHOption
 	 * @param shortCode The short code for the SSHOption
 	 * @param propertyName The system property or env variable name to get this value from
@@ -103,10 +136,12 @@ public enum SSHOption {
 	public final String propertyName;
 	/** The default value if no value can be found, null meaning no default */
 	public final Object defaultValue;
-	
+	/** The option reader for this enum member */
 	public final ISSHOptionReader<?> optionReader;
 	
 
+	/** Static class logger */
+	public static final Logger log = Logger.getLogger(SSHOption.class);
 	
 }
 

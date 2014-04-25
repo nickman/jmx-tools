@@ -264,6 +264,10 @@ public class OptionReaders {
 			}
 			return val==null ? defaultValue : val.trim();
 		}
+		
+		public Object getRawOption(String key, Object defaultValue) {
+			return getOption(key, (String)defaultValue);
+		}
 	}
 	
 	/**
@@ -303,6 +307,11 @@ public class OptionReaders {
 			return defaultValue;
 		}
 		
+		public Object getRawOption(String key, Object defaultValue) {
+			return getOption(key, (Integer)defaultValue);
+		}
+		
+		
 	}
 	
 	/**
@@ -333,6 +342,11 @@ public class OptionReaders {
 			if(key==null || key.trim().isEmpty()) return defaultValue;
 			return charThis(STRING_READER.getOption(key, null));
 		}
+		
+		public Object getRawOption(String key, Object defaultValue) {
+			return getOption(key, (char[])defaultValue);
+		}
+		
 		
 		/**
 		 * Extracts the char array from the passed value
@@ -374,6 +388,11 @@ public class OptionReaders {
 			
 			return value==null ? defaultValue : decode(value.toString());
 		}
+		
+		public Object getRawOption(String key, Object defaultValue) {
+			return getOption(key, (Boolean)defaultValue);
+		}
+		
 		
 		private Boolean decode(String value) {
 			String v = value.trim().toLowerCase();
@@ -438,6 +457,11 @@ public class OptionReaders {
 			File f = new File(val.toString().trim());
 			return f.canRead() ? f : defaultValue;
 		}
+		
+		public Object getRawOption(String key, Object defaultValue) {
+			return getOption(key, (File)defaultValue);
+		}
+		
 	}
 	
 }
