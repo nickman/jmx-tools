@@ -268,6 +268,11 @@ public class OptionReaders {
 		public Object getRawOption(String key, Object defaultValue) {
 			return getOption(key, (String)defaultValue);
 		}
+		
+		public String convert(String value, String defaultValue) {
+			if(value==null || value.trim().isEmpty()) return defaultValue;
+			return value.trim();
+		}
 	}
 	
 	/**
@@ -311,6 +316,16 @@ public class OptionReaders {
 			return getOption(key, (Integer)defaultValue);
 		}
 		
+		public Integer convert(String value, Integer defaultValue) {
+			if(value==null || value.trim().isEmpty()) return defaultValue;
+			try {
+				return Integer.parseInt(value.trim());
+			} catch (Exception ex) {
+				return defaultValue;
+			}
+		}
+		
+		
 		
 	}
 	
@@ -330,7 +345,7 @@ public class OptionReaders {
 		@Override
 		public char[] getOption(Map env, String key, char[] defaultValue) {
 			if(env==null || key==null || key.trim().isEmpty()) return defaultValue;
-			return charThis(STRING_READER.getOption(env, key, null));
+			return defaultValue;
 		}
 
 		/**
@@ -340,6 +355,8 @@ public class OptionReaders {
 		@Override
 		public char[] getOption(String key, char[] defaultValue) {
 			if(key==null || key.trim().isEmpty()) return defaultValue;
+			char[] chars = getCharArr(key);
+			if(chars!=null) return chars;
 			return charThis(STRING_READER.getOption(key, null));
 		}
 		
@@ -361,7 +378,15 @@ public class OptionReaders {
 				return val.trim().toCharArray();
 			}
 			return null;			
-		}		
+		}
+		
+		public char[] convert(String value, char[] defaultValue) {
+			if(value==null || value.trim().isEmpty()) return defaultValue;
+			char[] chars = OptionReaders.getCharArr(value);
+			if(chars==null) return defaultValue;
+			return chars;
+		}
+		
 	}
 	
 	/**
@@ -393,6 +418,13 @@ public class OptionReaders {
 			return getOption(key, (Boolean)defaultValue);
 		}
 		
+		public Boolean convert(String value, Boolean defaultValue) {
+			if(value==null || value.trim().isEmpty()) return defaultValue;
+			String v = value.trim().toLowerCase();
+			if("true".equals(v) || "yes".equals(v) || "y".equals(v)) return true;
+			if("false".equals(v) || "no".equals(v) || "n".equals(v)) return false;
+			return defaultValue;
+		}
 		
 		private Boolean decode(String value) {
 			String v = value.trim().toLowerCase();
@@ -460,6 +492,11 @@ public class OptionReaders {
 		
 		public Object getRawOption(String key, Object defaultValue) {
 			return getOption(key, (File)defaultValue);
+		}
+		
+		public File convert(String value, File defaultValue) {
+			if(OptionReaders.isFile(value)) return new File(value.trim());
+			return defaultValue;
 		}
 		
 	}

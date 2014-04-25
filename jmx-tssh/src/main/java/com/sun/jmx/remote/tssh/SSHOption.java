@@ -47,13 +47,17 @@ public enum SSHOption {
 	/** The SSH user name */
 	USER("u", "tssh.user", System.getProperty("user.name"), OptionReaders.STRING_READER),
 	/** The SSH user password */
-	PASSWORD("p", "tssh.password", null, OptionReaders.STRING_READER),
+	PASS("p", "tssh.password", null, OptionReaders.STRING_READER),
+	/** The JMX user name */
+	JMXUSER("jmxu", "tssh.jmxuser", System.getProperty("user.name"), OptionReaders.STRING_READER),
+	/** The JMX user password */
+	JMXPASS("jmxp", "tssh.jmxpassword", null, OptionReaders.STRING_READER),	
 	/** The SSH private key (file, URL, char[] or CharSequence) */
 	KEY("k", "tssh.privatekey", String.format("%s%s.ssh%sid_dsa", System.getProperty("user.home"), File.separator, File.separator), OptionReaders.CHAR_ARR_READER),
 	/** The private key passphrase */
 	KEYPHR("kp", "tssh.passphrase", null, OptionReaders.STRING_READER),
-	/** The SSH host to connect to */
-	HOST("h", "tssh.host", "localhost", OptionReaders.STRING_READER),
+//	/** The SSH host to connect to */
+//	HOST("h", "tssh.host", "localhost", OptionReaders.STRING_READER),
 	/** The listening port of the SSH host to connect to */
 	PORT("pt", "tssh.port", 22, OptionReaders.INT_READER),
 	/** The local port of the SSH tunnel */
@@ -65,7 +69,11 @@ public enum SSHOption {
 	/** A URL or file name to load ssh params from as properties */
 	SSHPROPS("pr", "tssh.propfile", String.format("%s%s.ssh%sjmx.tssh", System.getProperty("user.home"), File.separator, File.separator), OptionReaders.STRING_READER),
 	/** The property prefix to use when reading from properties */
-	PROPSPREF("pref", "tssh.proppref", "", OptionReaders.STRING_READER);
+	PROPSPREF("pref", "tssh.proppref", "", OptionReaders.STRING_READER),
+	/** The sub-protocol, which for right now is only "ssh" */
+	SUBPROTO("subproto", "tssh.subproto", "ssh", OptionReaders.STRING_READER),
+	/** The delegate-protocol, which for right now is only "jmxmp" */
+	DELPROTO("delproto", "tssh.delproto", "jmxmp", OptionReaders.STRING_READER);
 	
 	/** A map of SSHOptions keyed by the short code */
 	public static final Map<String, SSHOption> CODE2ENUM;

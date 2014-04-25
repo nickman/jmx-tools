@@ -59,6 +59,8 @@ public interface ISSHOptionReader<T> {
 	public T getOption(String key, T defaultValue);
 	
 	public Object getRawOption(String key, Object defaultValue);
+	
+	public T convert(String value, T defaultValue);
 
 
 	

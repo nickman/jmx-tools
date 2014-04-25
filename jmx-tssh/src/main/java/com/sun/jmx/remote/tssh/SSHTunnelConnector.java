@@ -31,12 +31,17 @@ import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import javax.management.remote.JMXServiceURL;
 
 import org.helios.rindle.util.helpers.ConfigurationHelper;
 
+import ch.ethz.ssh2.ConnectionMonitor;
+import ch.ethz.ssh2.KnownHosts;
+import ch.ethz.ssh2.ServerHostKeyVerifier;
 import ch.ethz.ssh2.crypto.PEMDecoder;
 import ch.ethz.ssh2.signature.DSAPrivateKey;
 import ch.ethz.ssh2.signature.RSAPrivateKey;
@@ -49,11 +54,13 @@ import ch.ethz.ssh2.signature.RSAPrivateKey;
  * <p><code>com.sun.jmx.remote.tssh.SSHTunnelConnector</code></p>
  */
 
-public class SSHTunnelConnector {
+public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMonitor {
 	/** The SSH Host */
 	protected String host = null;
 	/** The SSHD listening port */
 	protected int port = 22;
+	/** The local listening port */
+	protected int localPort = 0;
 	/** The SSH user name */
 	protected String userName = null;
 	/** The SSH user password */
@@ -62,6 +69,25 @@ public class SSHTunnelConnector {
 	protected String passPhrase = null;
 	/** The characters of the private key */
 	protected char[] privateKey = null;
+	/** The delegate protocol */
+	protected String delegateProtocol = "jmxmp";
+	/** The sub protocol */
+	protected String subProtocol = "ssh";
+	
+	/** the key type */
+	protected String keyType = null;
+	
+	/** The ssh known hosts file name */
+	protected String knownHostsFile = null;
+	/** The ssh known hosts repository */
+	protected KnownHosts knownHosts = null;
+	
+	/** Validate server ssh key */
+	protected boolean validateServer = true;
+	
+	/** A map of known host instances keyed by the underlying file name */
+	protected static final Map<String, KnownHosts> KNOWN_HOSTS = new ConcurrentHashMap<String, KnownHosts>();
+	
 	
 	
 	
@@ -79,17 +105,115 @@ public class SSHTunnelConnector {
 	public static final Pattern SPLIT_TRIM_SSH = Pattern.compile("\\s*,\\s*");
 	/** Splitter for the SSH key-val pairs */
 	public static final Pattern SPLIT_SSH_ARG = Pattern.compile("\\s*=\\s*");
+	/** The pattern of the TSSH URL Path */
+	public static final Pattern TSSH_URL_PATH_PATTERN = Pattern.compile("/(.*?)/(.*?):(.*)");
 	
 	/**
 	 * Creates a new SSHTunnelConnector
-	 * @param jmxServiceURL 
-	 * @param env 
+	 * @param jmxServiceURL The JMXServiceURL requested to connect to 
+	 * @param env An optional environment map
 	 */
 	public SSHTunnelConnector(JMXServiceURL jmxServiceURL, Map env) {
 		if(jmxServiceURL==null) throw new IllegalArgumentException("The passed JMXServiceURL was null");
-		// "service:jmx:rmi://localhost:1099/ssh:nwhitehe[@localhost[:22]]], pw=XXXX ,key=c:/tmp/key_dsa,pp=YYYYY"
+
+		Map<SSHOption, Object> options = gather(jmxServiceURL, env);
+		for(Map.Entry<SSHOption, Object> entry: options.entrySet()) {
+			SSHOption option = entry.getKey();
+			Object optionValue = entry.getValue();
+			switch(option) {
+			case DELPROTO:
+				delegateProtocol = optionValue.toString();
+				break;
+//			case HOST:
+//				host = optionValue.toString();
+//				break;
+			case HOSTFILE:
+				if(OptionReaders.isFile(optionValue.toString())) {
+					knownHostsFile = optionValue.toString();
+					buildKnownHosts();
+				}
+				break;
+			case KEY:
+				privateKey = (char[])optionValue;
+				break;
+			case KEYPHR:
+				passPhrase = optionValue.toString();
+				break;
+			case LOCAL_PORT:
+				int lp = (Integer)optionValue;
+				if(lp!=0) {
+					localPort = lp;
+				}
+				break;
+			case PASS:
+				userPassword = optionValue.toString();
+				break;
+			case PORT:
+				port = (Integer)optionValue;
+				break;
+			case PROPSPREF:
+				break;
+			case SSHPROPS:
+				break;
+			case SUBPROTO:
+				subProtocol = optionValue.toString();
+				break;
+			case SVRKEY:
+				validateServer = (Boolean)optionValue;
+				break;
+			case USER:
+				userName = optionValue.toString();
+				break;
+			default:
+				break;
+			
+			}			
+		}
+		setKeyType();
+		try {
+			localPort = jmxServiceURL.getPort();
+		} catch (Exception ex) {/* No Op */}
+		try {
+			host = jmxServiceURL.getHost();
+		} catch (Exception ex) {/* No Op */}
+		
 	}
 	
+	public static Map createTunnel(JMXServiceURL jmxServiceURL, Map env) {
+		
+		return null;
+	}
+	
+	
+	/**
+	 * Builds the know host instance or resets if fails
+	 */
+	private void buildKnownHosts() {
+		if(knownHostsFile!=null && OptionReaders.isFile(knownHostsFile)) {
+			knownHostsFile = knownHostsFile.trim();
+			KnownHosts kh = KNOWN_HOSTS.get(knownHostsFile);
+			if(kh==null) {
+				synchronized(KNOWN_HOSTS) {
+					kh = KNOWN_HOSTS.get(knownHostsFile);
+					if(kh==null) {
+						try {
+							kh = new KnownHosts(new File(knownHostsFile));
+							KNOWN_HOSTS.put(knownHostsFile, kh);
+						} catch (Exception ex) {
+							knownHostsFile = null;
+							knownHosts = null;
+							throw new RuntimeException("Failed to build a known hosts instance from file [" + knownHostsFile + "]");
+						}
+					}
+				}
+			}
+			knownHosts = kh;
+		}
+		
+	}
+
+
+
 	public static void log(Object format, Object...args) {
 		System.out.println(String.format("[SSHTunnelConnector]" + format.toString(),args));
 	}
@@ -129,17 +253,52 @@ public class SSHTunnelConnector {
 	public static Map extractJMXServiceURLOpts(JMXServiceURL jmxServiceURL) {
 		if(jmxServiceURL==null) return Collections.EMPTY_MAP;
 		Map map = new HashMap();
-		String urlArgs = jmxServiceURL.getURLPath();
+		String urlArgs = jmxServiceURL.getURLPath();		
+		
+		Matcher m = TSSH_URL_PATH_PATTERN.matcher(urlArgs);
+		if(!m.matches()) {
+			throw new RuntimeException("Failed to recognize URL Path pattern [" + urlArgs + "]");
+		} 
+		String subProtocol = m.group(1);
+		map.put(SSHOption.SUBPROTO, subProtocol);
+		String delegateProtocol = m.group(2);
+		map.put(SSHOption.DELPROTO, delegateProtocol);
+		urlArgs = m.group(3);
+//		log("Extracted: protocolPrefix:[%s], delegateProtocol:[%s], Args:[%s]", subProtocol, delegateProtocol, urlArgs);
 		if(urlArgs==null || urlArgs.trim().isEmpty()) return Collections.EMPTY_MAP;
 		for(String pair: SPLIT_TRIM_SSH.split(urlArgs.trim())) {
+//			log("\tPair:[%s]", pair);
 			String[] kv = SPLIT_SSH_ARG.split(pair);
+			
 			if(kv!=null && kv.length==2) {
-				map.put(kv[0], kv[1]);
+//				log("\tSplit Pair:[%s:%s]", kv[0], kv[1]);
+				SSHOption option = SSHOption.decode(kv[0]);
+				if(option==null) continue;
+				Object optionValue = option.optionReader.convert(kv[1], null);
+				if(option!=null && optionValue != null) {
+					map.put(option, optionValue);
+				}
 			}
 		}
 		return map;
 	}
 	
+	
+	protected void setKeyType() {
+		if(privateKey!=null) {
+			try {
+				Object key = PEMDecoder.decode(privateKey, passPhrase);
+				if(key instanceof DSAPrivateKey) {
+					keyType = "dsa";
+				} if(key instanceof RSAPrivateKey) {
+					keyType = "rsa";
+				}
+			} catch (IOException iex) {
+				//privateKey = null;
+			}
+			
+		}
+	}
 	
 	/**
 	 * Validates an SSH key
@@ -170,8 +329,19 @@ public class SSHTunnelConnector {
 	public static void main(String[] args) {
 		try {
 			log("Testing Gather");
-			JMXServiceURL url = new JMXServiceURL("service:jmx:rmi://localhost:3000/ssh/rmi://localhost:9000/server");
-			gather(url, null);
+			// u h k pt
+			JMXServiceURL[] urls = new JMXServiceURL[] {
+					new JMXServiceURL("service:jmx:tssh://localhost:8006/ssh/jmxmp:u=nwhitehead,h=pdk-pt-ceas-03,pt=22,k=c,jmxu=admin"),
+					new JMXServiceURL("service:jmx:tssh://localhost:8006/ssh/jmxmp:u=nwhitehead,h=pdk-pt-ceas-03,pt=22,k=c:/users/nwhitehe/.ssh/id_dsa"),
+					new JMXServiceURL("service:jmx:tssh://localhost:8006/ssh/jmxmp:u=nwhitehead,h=pdk-pt-ceas-03,pt=22,k=c:/users/nwhitehe/.ssh/id_rsa_2048"),
+					new JMXServiceURL("service:jmx:tssh://localhost:8006/ssh/jmxmp:u=nwhitehead,h=pdk-pt-ceas-03,pt=22,k=c:/users/nwhitehe/.ssh/id_rsa_8092")
+			};
+			//JMXServiceURL url = new JMXServiceURL("service:jmx:tssh://localhost:8006/ssh/jmxmp:u=nwhitehead,h=pdk-pt-ceas-03,pt=22,k=c:/users/nwhitehe/.ssh/id_dsa");
+			//gather(url, null);
+			for(JMXServiceURL url: urls) {
+				SSHTunnelConnector stc = new SSHTunnelConnector(url, null);
+				log(stc.toString());
+			}
 		} catch (Exception ex) {
 			ex.printStackTrace(System.err);
 		}
@@ -185,22 +355,22 @@ public class SSHTunnelConnector {
 	 */
 	public static Map<SSHOption, Object> gather(JMXServiceURL serviceURL, Map env) {
 		Map<SSHOption, Object> top = new EnumMap<SSHOption, Object>(SSHOption.class);
-		merge(gatherDefaultKeys(), top);
+		merge(gatherDefaults(), top);
 		merge(gatherConfigHelper(), top);
 		merge(gatherFromSource(DEFAULT_PROPS), top);
 		merge(gatherFromSource(ConfigurationHelper.getSystemThenEnvProperty(SSHOption.SSHPROPS.propertyName, "")), top);
 		merge(gatherFromMap(env), top);
-		merge(gatherFromMap(extractJMXServiceURLOpts(serviceURL)), top);
-		if(!top.isEmpty()) {
-			StringBuilder b = new StringBuilder("\n\tFinal SSHoptions:\n\t===================================================");
-			for(Map.Entry<SSHOption, Object> entry: top.entrySet()) {
-				b.append("\n\t").append(entry.getKey()).append(":").append(entry.getValue());
-			}
-			b.append("\n\t===================================================\n");
-			log(b.toString());
-		} else {
-			log("Empty ????");
-		}
+		merge(extractJMXServiceURLOpts(serviceURL), top);
+//		if(!top.isEmpty()) {
+//			StringBuilder b = new StringBuilder("\n\tFinal SSHoptions:\n\t===================================================");
+//			for(Map.Entry<SSHOption, Object> entry: top.entrySet()) {
+//				b.append("\n\t").append(entry.getKey()).append(":").append(entry.getValue());
+//			}
+//			b.append("\n\t===================================================\n");
+//			log(b.toString());
+//		} else {
+//			log("Empty ????");
+//		}
 		
 		return top;
 	}	
@@ -280,7 +450,7 @@ public class SSHTunnelConnector {
 	 * Looks for the default keys (<b><code>${user.home}/.ssh/id_dsa</code></b> and <b><code>${user.home}/.ssh/id_rsa</code></b>) 
 	 * @return a map that may contain a {@link SSHOption#KEY} option and the key characters
 	 */
-	public static Map<SSHOption, Object> gatherDefaultKeys() {
+	public static Map<SSHOption, Object> gatherDefaults() {
 		Map<SSHOption, Object> keys = new EnumMap<SSHOption, Object>(SSHOption.class);
 		char[] key = null;
 		if(OptionReaders.isFile(DEFAULT_DSA)) {
@@ -291,6 +461,9 @@ public class SSHTunnelConnector {
 			key = OptionReaders.CHAR_ARR_READER.getOption(DEFAULT_RSA, null);
 			if(key!=null) keys.put(SSHOption.KEY, key);
 		}		
+		if(OptionReaders.isFile(SSHOption.HOSTFILE.defaultValue.toString())) {
+			keys.put(SSHOption.HOSTFILE, SSHOption.HOSTFILE.defaultValue.toString());
+		}
 		return keys;
 	}
 	
@@ -305,13 +478,105 @@ public class SSHTunnelConnector {
 		if(from!=null && !from.isEmpty() && into!=null) {
 			for(Map.Entry<SSHOption, Object> entry: from.entrySet()) {
 				if(into.containsKey(entry.getKey())) {
-					log("Replacing [%s/%s] with [%s/%s]", entry.getKey(), into.get(entry.getKey()), entry.getKey(), entry.getValue());
+//					log("Replacing [%s/%s] with [%s/%s]", entry.getKey(), into.get(entry.getKey()), entry.getKey(), entry.getValue());
 				} else {
-					log("Initing [%s/%s]", entry.getKey(), entry.getValue()); 
+//					log("Initing [%s/%s]", entry.getKey(), entry.getValue()); 
 				}
 				into.put(entry.getKey(), entry.getValue());
 			}
 		}
+	}
+
+
+
+	/**
+	 * {@inheritDoc}
+	 * @see java.lang.Object#toString()
+	 */
+	@Override
+	public String toString() {
+		final int maxLen = 10;
+		StringBuilder builder = new StringBuilder();
+		builder.append("SSHTunnelConnector [");
+		if (host != null) {
+			builder.append("host=");
+			builder.append(host);
+			builder.append(", ");
+		}
+		builder.append("port=");
+		builder.append(port);
+		builder.append(", localPort=");
+		builder.append(localPort);
+		builder.append(", ");
+		if (userName != null) {
+			builder.append("userName=");
+			builder.append(userName);
+			builder.append(", ");
+		}
+		if (userPassword != null) {
+			builder.append("userPassword=");
+			builder.append(userPassword);
+			builder.append(", ");
+		}
+		if (passPhrase != null) {
+			builder.append("passPhrase=");
+			builder.append(passPhrase);
+			builder.append(", ");
+		}
+		if (privateKey != null) {
+			builder.append("privateKey=(").append(keyType).append(") char[").append(privateKey.length).append("], ");
+		}
+		if (delegateProtocol != null) {
+			builder.append("delegateProtocol=");
+			builder.append(delegateProtocol);
+			builder.append(", ");
+		}
+		if (subProtocol != null) {
+			builder.append("subProtocol=");
+			builder.append(subProtocol);
+			builder.append(", ");
+		}
+		if (knownHostsFile != null) {
+			builder.append("knownHostsFile=");
+			builder.append(knownHostsFile);
+			builder.append(", ");
+		}
+		builder.append("validateServer=");
+		builder.append(validateServer);
+		builder.append("]");
+		return builder.toString();
+	}
+
+
+
+	/**
+	 * {@inheritDoc}
+	 * @see ch.ethz.ssh2.ServerHostKeyVerifier#verifyServerHostKey(java.lang.String, int, java.lang.String, byte[])
+	 */
+	@Override
+	public boolean verifyServerHostKey(String hostname, int port, String serverHostKeyAlgorithm, byte[] serverHostKey) throws Exception {
+		if(knownHosts!=null && !validateServer) {
+			int result = knownHosts.verifyHostkey(hostname, serverHostKeyAlgorithm, serverHostKey);
+			switch(result) {
+				case KnownHosts.HOSTKEY_HAS_CHANGED:
+					return false;
+				case KnownHosts.HOSTKEY_IS_NEW:
+					return false;
+				case KnownHosts.HOSTKEY_IS_OK:
+					return true;
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see ch.ethz.ssh2.ConnectionMonitor#connectionLost(java.lang.Throwable)
+	 */
+	@Override
+	public void connectionLost(Throwable reason) {
+		// TODO Auto-generated method stub
+		
 	}
 
 	
