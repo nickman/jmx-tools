@@ -43,6 +43,7 @@ import java.util.regex.Pattern;
 
 import javax.management.remote.JMXServiceURL;
 
+import org.helios.jmx.remote.InetAddressCache;
 import org.helios.rindle.util.helpers.ConfigurationHelper;
 
 import ch.ethz.ssh2.Connection;
@@ -90,9 +91,19 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 	protected String knownHostsFile = null;
 	/** The ssh known hosts repository */
 	protected KnownHosts knownHosts = null;
-	
 	/** Validate server ssh key */
 	protected boolean validateServer = true;
+
+	/** The SSH connect timeout in ms. */
+	protected int sshConnectTimeout = 0;
+	/** The SSH key exchange timeout in ms. */
+	protected int sshKeyExchangeTimeout = 0;
+	
+	/** The target jmx connector server host */
+	protected String jmxConnectorHost = null;
+	/** The target jmx connector server port */
+	protected int jmxConnectorPort = -1;
+	
 	
 	/** A map of known host instances keyed by the underlying file name */
 	protected static final Map<String, KnownHosts> KNOWN_HOSTS = new ConcurrentHashMap<String, KnownHosts>();
@@ -173,6 +184,19 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 			case USER:
 				userName = optionValue.toString();
 				break;
+			case SSHTO:
+				sshConnectTimeout = (Integer)optionValue;
+				break;
+			case SSHKTO:
+				sshKeyExchangeTimeout = (Integer)optionValue;
+				break;
+			case JMXHOST:
+				jmxConnectorHost = optionValue.toString();
+				break;
+			case JMXPORT:
+				jmxConnectorPort = (Integer)optionValue;
+				break;
+				
 			default:
 				break;
 			
@@ -190,7 +214,9 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 	}
 	
 	public static Map createTunnel(JMXServiceURL jmxServiceURL, Map env) {
-		
+		// TODO: 
+		// add jmxopts to map
+		// add connector to map
 		return null;
 	}
 	
@@ -198,24 +224,11 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 	 * Validates the most basic requirements to establish a connection 
 	 */
 	protected void validateRequirementsLevelOne() {
-		String[] aliases = getAliases(host);
+		String[] aliases = InetAddressCache.getInstance().getAliases(host);
 		if(port < 1 || port > 65534) throw new IllegalArgumentException("The configured port is out of range [" + port + "]");
 		if(userName==null || userName.trim().isEmpty()) throw new IllegalArgumentException("The configured user name is null or empty");
 	}
 	
-	/**
-	 * Returns the address and host name for the passed string
-	 * @param hostName The host string or address to resolve
-	 * @return a string array with the address and host name
-	 */
-	public static String[] getAliases(String hostName) {
-		try {
-			InetAddress ia = InetAddress.getByName(hostName);
-			return new String[] {ia.getHostAddress(), ia.getHostName()};
-		} catch (Exception ex) {
-			throw new RuntimeException("Failed to resolve host [" + hostName + "]", ex);
-		}
-	}
 
 	
 	/**
@@ -228,6 +241,7 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 		validateRequirementsLevelOne();
 		boolean authenticated = false;
 		try {
+			log("Connecting to: [" + host + ":" + port + "]");
 			conn = new Connection(host, port);
 			if(validateServer) {
 				conn.connect(this);
@@ -446,7 +460,9 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 			log("Testing Connect....");
 			Connection conn = null;
 			try {
-				JMXServiceURL surl = new JMXServiceURL("service:jmx:tssh://localhost:8006/ssh/jmxmp:u=nwhitehead,h=pdk-pt-ceas-03,pt=22,k=c,jmxu=admin,kp=helios");
+				//JMXServiceURL surl = new JMXServiceURL("service:jmx:tssh://localhost:8006/ssh/jmxmp:u=nwhitehead,h=pdk-pt-ceas-03,pt=22,k=c,jmxu=admin,kp=helios");
+				JMXServiceURL surl = new JMXServiceURL("service:jmx:tssh://10.12.114.48:8006/ssh/jmxmp:u=nwhitehe,h=10.12.114.48,pt=22,k=c,jmxu=admin,p=jer1029");
+				
 				SSHTunnelConnector connector = new SSHTunnelConnector(surl, null);
 				conn = connector.connectAndAuthenticate();
 				log("Connection: authed:" + conn.isAuthenticationComplete());
@@ -640,6 +656,15 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 		if (privateKey != null) {
 			builder.append("privateKey=(").append(keyType).append(") char[").append(privateKey.length).append("], ");
 		}
+		if (jmxConnectorHost != null) {
+			builder.append("jmxConnectorHost=");
+			builder.append(jmxConnectorHost);
+			builder.append(", ");
+		}
+		builder.append("jmxConnectorPort=");
+		builder.append(jmxConnectorPort);
+		builder.append(", ");
+		
 		if (delegateProtocol != null) {
 			builder.append("delegateProtocol=");
 			builder.append(delegateProtocol);
@@ -657,6 +682,10 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 		}
 		builder.append("validateServer=");
 		builder.append(validateServer);
+		
+		
+		
+		
 		builder.append("]");
 		return builder.toString();
 	}

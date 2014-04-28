@@ -48,6 +48,10 @@ public enum SSHOption {
 	USER("u", "tssh.user", System.getProperty("user.name"), OptionReaders.STRING_READER),
 	/** The SSH user password */
 	PASS("p", "tssh.password", null, OptionReaders.STRING_READER),
+	/** The JMX connector server host */
+	JMXHOST("jmxh", "tssh.jmxhost", "localhost", OptionReaders.STRING_READER),
+	/** The JMX connector server port */
+	JMXPORT("jmxp", "tssh.jmxport", -1, OptionReaders.INT_READER),	
 	/** The JMX user name */
 	JMXUSER("jmxu", "tssh.jmxuser", System.getProperty("user.name"), OptionReaders.STRING_READER),
 	/** The JMX user password */
@@ -73,9 +77,15 @@ public enum SSHOption {
 	/** The sub-protocol, which for right now is only "ssh" */
 	SUBPROTO("subproto", "tssh.subproto", "ssh", OptionReaders.STRING_READER),
 	/** The delegate-protocol, which for right now is only "jmxmp" */
-	DELPROTO("delproto", "tssh.delproto", "jmxmp", OptionReaders.STRING_READER);
+	DELPROTO("delproto", "tssh.delproto", "jmxmp", OptionReaders.STRING_READER),
+	/** The SSH connection timeout, non-negative, in millisecondsm where zero is no timeout */
+	SSHTO("to", "tssh.timeout", 1000, OptionReaders.INT_READER),
+	/** The SSH key exchange timeout, non-negative, in millisecondsm where zero is no timeout */
+	SSHKTO("kto", "tssh.kextimeout", 1000, OptionReaders.INT_READER);
+	
 	
 	/**
+	 * JMXHOST, JMXPORT
 	 * InteractiveCallback
 	 * connect timeout
 	 * kex timeout

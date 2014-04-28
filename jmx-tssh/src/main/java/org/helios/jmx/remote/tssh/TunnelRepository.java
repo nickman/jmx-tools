@@ -81,11 +81,24 @@ public class TunnelRepository {
 	 */
 	
 	public TunnelHandle tunnel(String bridgeHost, int bridgePort, String targetHost, int targetPort, int localPort) {
+		if(targetHost==null || targetHost.trim().isEmpty()) throw new IllegalArgumentException("Target host was null or empty");
+		if(targetPort < 1 || targetPort > 65535) throw new IllegalArgumentException("Target port was out of range [" + targetPort + "]");		
+		if(bridgePort < 1) {
+			if(bridgeHost==null || bridgeHost.trim().isEmpty()) {
+				bridgePort = targetPort;
+			} else {
+				bridgePort = 22;
+			}
+		}
+		if(bridgeHost==null || bridgeHost.trim().isEmpty()) bridgeHost = targetHost;
+		// Get a connection to the bridge host
+		
+		// Get a tunnel to the target host
 		
 		return null;
 	}
 	
-	public Connection connect(SSHTunnelConnector tunnelConnector) {
+	protected Connection connect(SSHTunnelConnector tunnelConnector) {
 		return null;
 	}
 
