@@ -29,11 +29,12 @@ import java.net.UnknownHostException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import javax.management.remote.JMXServiceURL;
+
 import org.helios.jmx.remote.InetAddressCache;
 
 import ch.ethz.ssh2.Connection;
 import ch.ethz.ssh2.ConnectionMonitor;
-import ch.ethz.ssh2.LocalPortForwarder;
 
 /**
  * <p>Title: TunnelRepository</p>
@@ -98,6 +99,12 @@ public class TunnelRepository {
 		// Get a tunnel to the target host
 		
 		return null;
+	}
+	
+	public Map tunnel(JMXServiceURL jmxServiceURL, Map env) {
+		if(env==null) env = new HashMap();
+		
+		return env;
 	}
 	
 	

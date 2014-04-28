@@ -212,7 +212,8 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 		
 	}
 	
-	public static Map createTunnel(JMXServiceURL jmxServiceURL, Map env) {
+	public static Map tunnel(JMXServiceURL jmxServiceURL, Map env) {
+		SSHTunnelConnector tunnelConnector = new SSHTunnelConnector(jmxServiceURL, env);
 		// TODO: 
 		// add jmxopts to map
 		// add connector to map
