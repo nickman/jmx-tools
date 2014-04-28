@@ -22,7 +22,7 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package org.helios.jmx.remote.tssh;
+package org.helios.jmx.remote.tunnel;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -47,7 +47,7 @@ import ch.ethz.ssh2.transport.ClientTransportManager;
  * <p>Description: Indexable wrapper for connections and tunnels</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.jmx.remote.tssh.ConnectionWrapper</code></p>
+ * <p><code>org.helios.jmx.remote.tunnel.ConnectionWrapper</code></p>
  */
 
 public class ConnectionWrapper implements Closeable, ConnectionMonitor, CloseListener<LocalPortForwarderWrapper> {
@@ -295,6 +295,20 @@ public class ConnectionWrapper implements Closeable, ConnectionMonitor, CloseLis
 		for(String key: closeable.getKeys()) {
 			tunnels.remove(key);
 		}
+	}
+
+	/**
+	 * @return
+	 */
+	public String getHostname() {
+		return connection.getHostname();
+	}
+
+	/**
+	 * @return
+	 */
+	public Object getPort() {
+		return connection.getPort();
 	}
 	
 	

@@ -22,66 +22,63 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package org.helios.jmx.remote.tssh;
+package org.helios.jmx.remote.tunnel;
 
 import java.io.File;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Map;
 
-import javax.management.remote.JMXServiceURL;
-
 import org.apache.log4j.Logger;
+import org.helios.jmx.remote.protocol.tunnel.ClientProvider;
 
 /**
  * <p>Title: SSHOption</p>
  * <p>Description: Functional enumeration of the SSH connection parameters</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.jmx.remote.tssh.SSHOption</code></p>
+ * <p><code>org.helios.jmx.remote.tunnel.SSHOption</code></p>
  */
 
 public enum SSHOption {
 	/** The SSH user name */
-	USER("u", "tssh.user", System.getProperty("user.name"), OptionReaders.STRING_READER),
+	USER("u", ClientProvider.PROTOCOL_NAME + ".user", System.getProperty("user.name"), OptionReaders.STRING_READER),
 	/** The SSH user password */
-	PASS("p", "tssh.password", null, OptionReaders.STRING_READER),
+	PASS("p", ClientProvider.PROTOCOL_NAME + ".password", null, OptionReaders.STRING_READER),
 	/** The JMX connector server host */
-	JMXHOST("jmxh", "tssh.jmxhost", "localhost", OptionReaders.STRING_READER),
+	JMXHOST("jmxh", ClientProvider.PROTOCOL_NAME + ".jmxhost", "localhost", OptionReaders.STRING_READER),
 	/** The JMX connector server port */
-	JMXPORT("jmxp", "tssh.jmxport", -1, OptionReaders.INT_READER),	
+	JMXPORT("jmxp", ClientProvider.PROTOCOL_NAME + ".jmxport", -1, OptionReaders.INT_READER),	
 	/** The JMX user name */
-	JMXUSER("jmxu", "tssh.jmxuser", System.getProperty("user.name"), OptionReaders.STRING_READER),
+	JMXUSER("jmxu", ClientProvider.PROTOCOL_NAME + ".jmxuser", System.getProperty("user.name"), OptionReaders.STRING_READER),
 	/** The JMX user password */
-	JMXPASS("jmxp", "tssh.jmxpassword", null, OptionReaders.STRING_READER),	
+	JMXPASS("jmxp", ClientProvider.PROTOCOL_NAME + ".jmxpassword", null, OptionReaders.STRING_READER),	
 	/** The SSH private key (file, URL, char[] or CharSequence) */
-	KEY("k", "tssh.privatekey", String.format("%s%s.ssh%sid_dsa", System.getProperty("user.home"), File.separator, File.separator), OptionReaders.CHAR_ARR_READER),
+	KEY("k", ClientProvider.PROTOCOL_NAME + ".privatekey", String.format("%s%s.ssh%sid_dsa", System.getProperty("user.home"), File.separator, File.separator), OptionReaders.CHAR_ARR_READER),
 	/** The private key passphrase */
-	KEYPHR("kp", "tssh.passphrase", null, OptionReaders.STRING_READER),
+	KEYPHR("kp", ClientProvider.PROTOCOL_NAME + ".passphrase", null, OptionReaders.STRING_READER),
 //	/** The SSH host to connect to */
-//	HOST("h", "tssh.host", "localhost", OptionReaders.STRING_READER),
+//	HOST("h", ClientProvider.PROTOCOL_NAME + ".host", "localhost", OptionReaders.STRING_READER),
 	/** The listening port of the SSH host to connect to */
-	PORT("pt", "tssh.port", 22, OptionReaders.INT_READER),
+	PORT("pt", ClientProvider.PROTOCOL_NAME + ".port", 22, OptionReaders.INT_READER),
 	/** The local port of the SSH tunnel */
-	LOCAL_PORT("lp", "tssh.localport", 0, OptionReaders.INT_READER),	
+	LOCAL_PORT("lp", ClientProvider.PROTOCOL_NAME + ".localport", 0, OptionReaders.INT_READER),	
 	/** Indicates if the server key should be validated */
-	SVRKEY("sk", "tssh.serverkey", "true", OptionReaders.BOOLEAN_READER),
+	SVRKEY("sk", ClientProvider.PROTOCOL_NAME + ".serverkey", "true", OptionReaders.BOOLEAN_READER),
 	/** The local hosts file to use if server keys are validated */
-	HOSTFILE("hf", "tssh.hostfile", String.format("%s%s.ssh%sknown_hosts", System.getProperty("user.home"), File.separator, File.separator), OptionReaders.STRING_READER),
+	HOSTFILE("hf", ClientProvider.PROTOCOL_NAME + ".hostfile", String.format("%s%s.ssh%sknown_hosts", System.getProperty("user.home"), File.separator, File.separator), OptionReaders.STRING_READER),
 	/** A URL or file name to load ssh params from as properties */
-	SSHPROPS("pr", "tssh.propfile", String.format("%s%s.ssh%sjmx.tssh", System.getProperty("user.home"), File.separator, File.separator), OptionReaders.STRING_READER),
+	SSHPROPS("pr", ClientProvider.PROTOCOL_NAME + ".propfile", String.format("%s%s.ssh%sjmx.tssh", System.getProperty("user.home"), File.separator, File.separator), OptionReaders.STRING_READER),
 	/** The property prefix to use when reading from properties */
-	PROPSPREF("pref", "tssh.proppref", "", OptionReaders.STRING_READER),
+	PROPSPREF("pref", ClientProvider.PROTOCOL_NAME + ".proppref", "", OptionReaders.STRING_READER),
 	/** The sub-protocol, which for right now is only "ssh" */
-	SUBPROTO("subproto", "tssh.subproto", "ssh", OptionReaders.STRING_READER),
+	SUBPROTO("subproto", ClientProvider.PROTOCOL_NAME + ".subproto", "ssh", OptionReaders.STRING_READER),
 	/** The delegate-protocol, which for right now is only "jmxmp" */
-	DELPROTO("delproto", "tssh.delproto", "jmxmp", OptionReaders.STRING_READER),
+	DELPROTO("delproto", ClientProvider.PROTOCOL_NAME + ".delproto", "jmxmp", OptionReaders.STRING_READER),
 	/** The SSH connection timeout, non-negative, in millisecondsm where zero is no timeout */
-	SSHTO("to", "tssh.timeout", 1000, OptionReaders.INT_READER),
+	SSHTO("to", ClientProvider.PROTOCOL_NAME + ".timeout", 1000, OptionReaders.INT_READER),
 	/** The SSH key exchange timeout, non-negative, in millisecondsm where zero is no timeout */
-	SSHKTO("kto", "tssh.kextimeout", 1000, OptionReaders.INT_READER);
+	SSHKTO("kto", ClientProvider.PROTOCOL_NAME + ".kextimeout", 1000, OptionReaders.INT_READER);
 	
 	
 	/**

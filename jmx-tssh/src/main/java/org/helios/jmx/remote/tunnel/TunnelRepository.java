@@ -22,12 +22,14 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package org.helios.jmx.remote.tssh;
+package org.helios.jmx.remote.tunnel;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+
+import org.helios.jmx.remote.InetAddressCache;
 
 import ch.ethz.ssh2.Connection;
 import ch.ethz.ssh2.ConnectionMonitor;
@@ -38,7 +40,7 @@ import ch.ethz.ssh2.LocalPortForwarder;
  * <p>Description: A repository of open SSH tunneling connections</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.jmx.remote.tssh.TunnelRepository</code></p>
+ * <p><code>org.helios.jmx.remote.tunnel.TunnelRepository</code></p>
  */
 
 public class TunnelRepository {
@@ -47,12 +49,10 @@ public class TunnelRepository {
 	/** The singleton ctor lock */
 	private static final Object lock = new Object();
 	
-	/** A map of open tunnel connections keyed by <b><code>&lt;hostname&gt;:&lt;remote-port&gt;</code></b> */
-	private final Map<String, Connection> connectionsByName = new ConcurrentHashMap<String, Connection>();
 	/** A map of open tunnel connections keyed by <b><code>&lt;address&gt;:&lt;remote-port&gt;</code></b> */
-	private final Map<String, Connection> connectionsByAddress = new ConcurrentHashMap<String, Connection>();
-	/** A map of open tunnels keyed by <b><code>&lt;address&gt;:&lt;local-port&gt:&lt;remote-port&gt;</code></b> */
-	private final Map<String, LocalPortForwarder> tunnelsByAddress = new ConcurrentHashMap<String, LocalPortForwarder>();
+	private final Map<String, ConnectionWrapper> connectionsByAddress = new ConcurrentHashMap<String, ConnectionWrapper>();
+	/** A map of open tunnels keyed by <b><code>&lt;address&gt;:&lt;remote-port&gt;</code></b> */
+	private final Map<String, LocalPortForwarderWrapper> tunnelsByAddress = new ConcurrentHashMap<String, LocalPortForwarderWrapper>();
 	
 	
 	/**
@@ -70,6 +70,8 @@ public class TunnelRepository {
 		return instance;
 	}
 	
+	
+	
 	/**
 	 * Creates a new tunnel
 	 * @param bridgeHost The host to bridge through, defaults to the target host
@@ -80,7 +82,7 @@ public class TunnelRepository {
 	 * @return the tunnel handle which provides the local port the tunnel is accessible through
 	 */
 	
-	public TunnelHandle tunnel(String bridgeHost, int bridgePort, String targetHost, int targetPort, int localPort) {
+	protected TunnelHandle tunnel(String bridgeHost, int bridgePort, String targetHost, int targetPort, int localPort) {
 		if(targetHost==null || targetHost.trim().isEmpty()) throw new IllegalArgumentException("Target host was null or empty");
 		if(targetPort < 1 || targetPort > 65535) throw new IllegalArgumentException("Target port was out of range [" + targetPort + "]");		
 		if(bridgePort < 1) {
@@ -98,17 +100,14 @@ public class TunnelRepository {
 		return null;
 	}
 	
-	protected Connection connect(SSHTunnelConnector tunnelConnector) {
-		return null;
-	}
-
+	
+	
 	
 	/**
 	 * Registers a newly established connection
 	 * @param conn the connection to register
 	 */
-	public void registerConnection(Connection conn) {
-		connectionsByName.put(nameKey(conn), conn);
+	protected void registerConnection(ConnectionWrapper conn) {
 		connectionsByAddress.put(addressKey(conn), conn);
 		conn.addConnectionMonitor(new ConnectionMonitor() {
 			@Override
@@ -126,8 +125,9 @@ public class TunnelRepository {
 	 * @return true if the connection exists
 	 */
 	public boolean hasConnectionFor(String host, int port) {
-		String key = String.format("%s:%s", host, port);
-		return connectionsByAddress.containsKey(key) || connectionsByName.containsKey(key); 
+		String[] aliases = InetAddressCache.getInstance().getAliases(host);
+		String key = String.format("%s:%s", aliases[0], port);
+		return connectionsByAddress.containsKey(key); 
 	}
 	
 	/**
@@ -167,7 +167,7 @@ public class TunnelRepository {
 	 * @param conn The connection to get a key for
 	 * @return the key
 	 */
-	public static String addressKey(Connection conn) {
+	public static String addressKey(ConnectionWrapper conn) {
 		try {
 			String address = InetAddress.getByName(conn.getHostname()).getHostAddress();
 			return String.format("%s:%s", address, conn.getPort());

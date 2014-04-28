@@ -22,7 +22,7 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package org.helios.jmx.remote.tssh;
+package org.helios.jmx.remote.tunnel;
 
 import java.io.CharArrayWriter;
 import java.io.File;
@@ -47,7 +47,7 @@ import org.helios.rindle.util.helpers.ConfigurationHelper;
  * <p>Description: SSHOption reader classes</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.jmx.remote.tssh.OptionReaders</code></p>
+ * <p><code>org.helios.jmx.remote.tunnel.OptionReaders</code></p>
  */
 
 public class OptionReaders {
@@ -232,12 +232,12 @@ public class OptionReaders {
 	 * <p>Description: String type SSH option reader</p> 
 	 * <p>Company: Helios Development Group LLC</p>
 	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
-	 * <p><code>org.helios.jmx.remote.tssh.OptionReades.StringReader</code></p>
+	 * <p><code>org.helios.jmx.remote.tunnel.OptionReades.StringReader</code></p>
 	 */
 	public static class StringReader implements ISSHOptionReader<String> {
 		/**
 		 * {@inheritDoc}
-		 * @see org.helios.jmx.remote.tssh.ISSHOptionReader#getOption(java.util.Map, java.lang.String, java.lang.Object)
+		 * @see org.helios.jmx.remote.tunnel.ISSHOptionReader#getOption(java.util.Map, java.lang.String, java.lang.Object)
 		 */
 		@Override
 		public String getOption(Map env, String key, String defaultValue) {
@@ -252,7 +252,7 @@ public class OptionReaders {
 
 		/**
 		 * {@inheritDoc}
-		 * @see org.helios.jmx.remote.tssh.ISSHOptionReader#getOption(java.lang.String, java.lang.Object)
+		 * @see org.helios.jmx.remote.tunnel.ISSHOptionReader#getOption(java.lang.String, java.lang.Object)
 		 */
 		@Override
 		public String getOption(String key, String defaultValue) {
@@ -280,13 +280,13 @@ public class OptionReaders {
 	 * <p>Description: Integer value option reader</p> 
 	 * <p>Company: Helios Development Group LLC</p>
 	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
-	 * <p><code>org.helios.jmx.remote.tssh.OptionReaders.IntReader</code></p>
+	 * <p><code>org.helios.jmx.remote.tunnel.OptionReaders.IntReader</code></p>
 	 */
 	public static class IntReader implements ISSHOptionReader<Integer> {
 
 		/**
 		 * {@inheritDoc}
-		 * @see org.helios.jmx.remote.tssh.ISSHOptionReader#getOption(java.util.Map, java.lang.String, java.lang.Object)
+		 * @see org.helios.jmx.remote.tunnel.ISSHOptionReader#getOption(java.util.Map, java.lang.String, java.lang.Object)
 		 */
 		@Override
 		public Integer getOption(Map env, String key, Integer defaultValue) {
@@ -300,7 +300,7 @@ public class OptionReaders {
 
 		/**
 		 * {@inheritDoc}
-		 * @see org.helios.jmx.remote.tssh.ISSHOptionReader#getOption(java.lang.String, java.lang.Object)
+		 * @see org.helios.jmx.remote.tunnel.ISSHOptionReader#getOption(java.lang.String, java.lang.Object)
 		 */
 		@Override
 		public Integer getOption(String key, Integer defaultValue) {
@@ -334,13 +334,13 @@ public class OptionReaders {
 	 * <p>Description: An option reader for char arrays</p> 
 	 * <p>Company: Helios Development Group LLC</p>
 	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
-	 * <p><code>org.helios.jmx.remote.tssh.OptionReaders.CharArrReader</code></p>
+	 * <p><code>org.helios.jmx.remote.tunnel.OptionReaders.CharArrReader</code></p>
 	 */
 	public static class CharArrReader implements ISSHOptionReader<char[]> {
 
 		/**
 		 * {@inheritDoc}
-		 * @see org.helios.jmx.remote.tssh.ISSHOptionReader#getOption(java.util.Map, java.lang.String, java.lang.Object)
+		 * @see org.helios.jmx.remote.tunnel.ISSHOptionReader#getOption(java.util.Map, java.lang.String, java.lang.Object)
 		 */
 		@Override
 		public char[] getOption(Map env, String key, char[] defaultValue) {
@@ -350,7 +350,7 @@ public class OptionReaders {
 
 		/**
 		 * {@inheritDoc}
-		 * @see org.helios.jmx.remote.tssh.ISSHOptionReader#getOption(java.lang.String, java.lang.Object)
+		 * @see org.helios.jmx.remote.tunnel.ISSHOptionReader#getOption(java.lang.String, java.lang.Object)
 		 */
 		@Override
 		public char[] getOption(String key, char[] defaultValue) {
@@ -394,13 +394,13 @@ public class OptionReaders {
 	 * <p>Description: Boolean type SSH option reader</p> 
 	 * <p>Company: Helios Development Group LLC</p>
 	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
-	 * <p><code>org.helios.jmx.remote.tssh.OptionReaders.BooleanReader</code></p>
+	 * <p><code>org.helios.jmx.remote.tunnel.OptionReaders.BooleanReader</code></p>
 	 */
 	public static class BooleanReader implements ISSHOptionReader<Boolean> {
 
 		/**
 		 * {@inheritDoc}
-		 * @see org.helios.jmx.remote.tssh.ISSHOptionReader#getOption(java.util.Map, java.lang.String, java.lang.Object)
+		 * @see org.helios.jmx.remote.tunnel.ISSHOptionReader#getOption(java.util.Map, java.lang.String, java.lang.Object)
 		 */
 		@Override
 		public Boolean getOption(Map env, String key, Boolean defaultValue) {
@@ -434,7 +434,7 @@ public class OptionReaders {
 
 		/**
 		 * {@inheritDoc}
-		 * @see org.helios.jmx.remote.tssh.ISSHOptionReader#getOption(java.lang.String, java.lang.Object)
+		 * @see org.helios.jmx.remote.tunnel.ISSHOptionReader#getOption(java.lang.String, java.lang.Object)
 		 */
 		@Override
 		public Boolean getOption(String key, Boolean defaultValue) {
@@ -453,12 +453,12 @@ public class OptionReaders {
 	 * <p>Description: File type SSH option reader</p> 
 	 * <p>Company: Helios Development Group LLC</p>
 	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
-	 * <p><code>org.helios.jmx.remote.tssh.OptionReaders.FileReader</code></p>
+	 * <p><code>org.helios.jmx.remote.tunnel.OptionReaders.FileReader</code></p>
 	 */
 	public static class FileReader implements ISSHOptionReader<File> {
 		/**
 		 * {@inheritDoc}
-		 * @see org.helios.jmx.remote.tssh.ISSHOptionReader#getOption(java.util.Map, java.lang.String, java.lang.Object)
+		 * @see org.helios.jmx.remote.tunnel.ISSHOptionReader#getOption(java.util.Map, java.lang.String, java.lang.Object)
 		 */
 		@Override
 		public File getOption(Map env, String key, File defaultValue) {
@@ -475,7 +475,7 @@ public class OptionReaders {
 
 		/**
 		 * {@inheritDoc}
-		 * @see org.helios.jmx.remote.tssh.ISSHOptionReader#getOption(java.lang.String, java.lang.Object)
+		 * @see org.helios.jmx.remote.tunnel.ISSHOptionReader#getOption(java.lang.String, java.lang.Object)
 		 */
 		@Override
 		public File getOption(String key, File defaultValue) {

@@ -22,7 +22,7 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package org.helios.jmx.remote.tssh;
+package org.helios.jmx.remote.tunnel;
 
 import java.util.Arrays;
 
@@ -33,7 +33,7 @@ import ch.ethz.ssh2.ConnectionInfo;
  * <p>Description: </p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.jmx.remote.tssh.ConnectionInfoWrapper</code></p>
+ * <p><code>org.helios.jmx.remote.tunnel.ConnectionInfoWrapper</code></p>
  */
 
 public class ConnectionInfoWrapper {

@@ -22,7 +22,7 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package org.helios.jmx.remote.tssh;
+package org.helios.jmx.remote.tunnel;
 
 import java.util.Map;
 
@@ -33,7 +33,7 @@ import javax.management.remote.JMXServiceURL;
  * <p>Description: Defines an SSHOption reader</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.jmx.remote.tssh.ISSHOptionReader</code></p>
+ * <p><code>org.helios.jmx.remote.tunnel.ISSHOptionReader</code></p>
  * @param <T> The expected type of the SSH option value
  */
 

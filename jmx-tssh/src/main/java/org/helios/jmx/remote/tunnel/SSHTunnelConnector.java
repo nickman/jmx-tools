@@ -22,14 +22,13 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package org.helios.jmx.remote.tssh;
+package org.helios.jmx.remote.tunnel;
 
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.net.InetAddress;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -61,7 +60,7 @@ import ch.ethz.ssh2.signature.RSAPrivateKey;
  * <p>Description: Gathers and encapsulates the data required to establish an SSH connection</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.jmx.remote.tssh.SSHTunnelConnector</code></p>
+ * <p><code>org.helios.jmx.remote.tunnel.SSHTunnelConnector</code></p>
  */
 
 public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMonitor {
@@ -119,7 +118,7 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 	/** The default RSA Private Key location and file name */
 	public static final String DEFAULT_RSA = String.format("%s%s.ssh%sid_rsa", System.getProperty("user.home"), File.separator, File.separator);
 	/** The default TSSH property config location and file name */
-	public static final String DEFAULT_PROPS = String.format("%s%s.ssh%stssh.properties", System.getProperty("user.home"), File.separator, File.separator);
+	public static final String DEFAULT_PROPS = String.format("%s%s.ssh%stunnel.properties", System.getProperty("user.home"), File.separator, File.separator);
 	
 	/** Splitter for the SSH args */
 	public static final Pattern SPLIT_TRIM_SSH = Pattern.compile("\\s*,\\s*");
@@ -345,7 +344,7 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 	 * <p>Description: Enumerates the sources where SSHOptions can be decoded from, in precdence order</p> 
 	 * <p>Company: Helios Development Group LLC</p>
 	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
-	 * <p><code>org.helios.jmx.remote.tssh.SSHTunnelConnector.OptionSource</code></p>
+	 * <p><code>org.helios.jmx.remote.tunnel.SSHTunnelConnector.OptionSource</code></p>
 	 */
 	public static enum OptionSource {
 		JMXServiceURL,
@@ -445,12 +444,12 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 			log("Testing Gather");
 			// u h k pt
 			JMXServiceURL[] urls = new JMXServiceURL[] {
-					new JMXServiceURL("service:jmx:tssh://localhost:8006/ssh/jmxmp:u=nwhitehead,h=pdk-pt-ceas-03,pt=22,k=c,jmxu=admin,kp=helios"),
-					new JMXServiceURL("service:jmx:tssh://localhost:8006/ssh/jmxmp:u=nwhitehead,h=pdk-pt-ceas-03,pt=22,k=c:/users/nwhitehe/.ssh/id_dsa"),
-					new JMXServiceURL("service:jmx:tssh://localhost:8006/ssh/jmxmp:u=nwhitehead,h=pdk-pt-ceas-03,pt=22,k=c:/users/nwhitehe/.ssh/id_rsa_2048"),
-					new JMXServiceURL("service:jmx:tssh://localhost:8006/ssh/jmxmp:u=nwhitehead,h=pdk-pt-ceas-03,pt=22,k=c:/users/nwhitehe/.ssh/id_rsa_8092")
+					new JMXServiceURL("service:jmx:tunnel://localhost:8006/ssh/jmxmp:u=nwhitehead,h=pdk-pt-ceas-03,pt=22,k=c,jmxu=admin,kp=helios"),
+					new JMXServiceURL("service:jmx:tunnel://localhost:8006/ssh/jmxmp:u=nwhitehead,h=pdk-pt-ceas-03,pt=22,k=c:/users/nwhitehe/.ssh/id_dsa"),
+					new JMXServiceURL("service:jmx:tunnel://localhost:8006/ssh/jmxmp:u=nwhitehead,h=pdk-pt-ceas-03,pt=22,k=c:/users/nwhitehe/.ssh/id_rsa_2048"),
+					new JMXServiceURL("service:jmx:tunnel://localhost:8006/ssh/jmxmp:u=nwhitehead,h=pdk-pt-ceas-03,pt=22,k=c:/users/nwhitehe/.ssh/id_rsa_8092")
 			};
-			//JMXServiceURL url = new JMXServiceURL("service:jmx:tssh://localhost:8006/ssh/jmxmp:u=nwhitehead,h=pdk-pt-ceas-03,pt=22,k=c:/users/nwhitehe/.ssh/id_dsa");
+			//JMXServiceURL url = new JMXServiceURL("service:jmx:tunnel://localhost:8006/ssh/jmxmp:u=nwhitehead,h=pdk-pt-ceas-03,pt=22,k=c:/users/nwhitehe/.ssh/id_dsa");
 			//gather(url, null);
 			for(JMXServiceURL url: urls) {
 				SSHTunnelConnector stc = new SSHTunnelConnector(url, null);
@@ -460,8 +459,8 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 			log("Testing Connect....");
 			Connection conn = null;
 			try {
-				//JMXServiceURL surl = new JMXServiceURL("service:jmx:tssh://localhost:8006/ssh/jmxmp:u=nwhitehead,h=pdk-pt-ceas-03,pt=22,k=c,jmxu=admin,kp=helios");
-				JMXServiceURL surl = new JMXServiceURL("service:jmx:tssh://10.12.114.48:8006/ssh/jmxmp:u=nwhitehe,h=10.12.114.48,pt=22,k=c,jmxu=admin,p=jer1029");
+				//JMXServiceURL surl = new JMXServiceURL("service:jmx:tunnel://localhost:8006/ssh/jmxmp:u=nwhitehead,h=pdk-pt-ceas-03,pt=22,k=c,jmxu=admin,kp=helios");
+				JMXServiceURL surl = new JMXServiceURL("service:jmx:tunnel://10.12.114.48:8006/ssh/jmxmp:u=nwhitehe,h=10.12.114.48,pt=22,k=c,jmxu=admin,p=jer1029");
 				
 				SSHTunnelConnector connector = new SSHTunnelConnector(surl, null);
 				conn = connector.connectAndAuthenticate();

@@ -2,7 +2,7 @@
  * Helios, OpenSource Monitoring
  * Brought to you by the Helios Development Group
  *
- * Copyright 2007, Helios Development Group and individual contributors
+ * Copyright 2014, Helios Development Group and individual contributors
  * as indicated by the @author tags. See the copyright.txt file in the
  * distribution for a full listing of individual contributors.
  *
@@ -22,22 +22,35 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package org.helios.jmx.remote.tssh;
+package org.helios.jmx.remote.protocol.tunnel;
 
-import java.io.Closeable;
+import java.io.IOException;
+import java.net.MalformedURLException;
+import java.util.Map;
+
+import javax.management.remote.JMXConnector;
+import javax.management.remote.JMXConnectorProvider;
+import javax.management.remote.JMXServiceURL;
+import javax.management.remote.jmxmp.JMXMPConnector;
 
 /**
- * <p>Title: TunnelHandle</p>
- * <p>Description: A closeable for tunnels that also provides the local port side of the tunnel</p> 
+ * <p>Title: ClientProvider</p>
+ * <p>Description: </p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.jmx.remote.tssh.TunnelHandle</code></p>
+ * <p><code>org.helios.jmx.remote.protocol.tunnel.ClientProvider</code></p>
  */
 
-public interface TunnelHandle extends Closeable {
-	/**
-	 * Returns the local side port of the tunnel
-	 * @return the local side port of the tunnel
-	 */
-	public int getLocalPort();
+public class ClientProvider implements JMXConnectorProvider {
+	
+	/** The protocol name */
+	public static final String PROTOCOL_NAME = "tunnel";
+
+    public JMXConnector newJMXConnector(JMXServiceURL serviceURL, Map environment) throws IOException {
+	if (!serviceURL.getProtocol().equals(PROTOCOL_NAME)) {
+	    throw new MalformedURLException("Protocol not [tunnel]: " +
+					    serviceURL.getProtocol());
+	}
+        return new JMXMPConnector(serviceURL, environment);
+    }
 }

@@ -22,7 +22,7 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package org.helios.jmx.remote.tssh;
+package org.helios.jmx.remote.tunnel;
 
 import java.io.Closeable;
 import java.net.InetAddress;
@@ -41,7 +41,7 @@ import ch.ethz.ssh2.LocalPortForwarder;
  * <p>Description: A wrapper for {@link LocalPortForwarder} instances</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.jmx.remote.tssh.LocalPortForwarderWrapper</code></p>
+ * <p><code>org.helios.jmx.remote.tunnel.LocalPortForwarderWrapper</code></p>
  */
 
 public class LocalPortForwarderWrapper implements Closeable {

@@ -102,8 +102,11 @@ public class TestServers {
 		String rmiHost = System.getProperty("java.rmi.server.hostname", "127.0.0.1");
 		new TestServers("service:jmx:rmi://localhost:8003/jndi/rmi://localhost:8004/jmxrmi", "localhost", 8004, "localhost");
 		new TestServers("service:jmx:rmi://localhost:8005/jndi/rmi://localhost:8009/jmxrmi", "localhost", 8009, "0.0.0.0");
+		// service:jmx:rmi://njwmintx:8005/jndi/rmi://njwmintx:8009/jmxrmi
 		new TestServers("service:jmx:jmxmp://localhost:8007", "localhost", -1, null);
+		// service:jmx:jmxmp://njwmintx:8007
 		new TestServers("service:jmx:jmxmp://0.0.0.0:8008", "0.0.0.0", -1, null);
+		//"service:jmx:jmxmp://njwmintx:8008
 	}
 	
 	/**
