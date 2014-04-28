@@ -22,7 +22,7 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package com.sun.jmx.remote.tssh;
+package org.helios.jmx.remote.tssh;
 
 import java.io.File;
 import java.util.Arrays;
@@ -40,7 +40,7 @@ import org.apache.log4j.Logger;
  * <p>Description: Functional enumeration of the SSH connection parameters</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>com.sun.jmx.remote.tssh.SSHOption</code></p>
+ * <p><code>org.helios.jmx.remote.tssh.SSHOption</code></p>
  */
 
 public enum SSHOption {
@@ -74,6 +74,15 @@ public enum SSHOption {
 	SUBPROTO("subproto", "tssh.subproto", "ssh", OptionReaders.STRING_READER),
 	/** The delegate-protocol, which for right now is only "jmxmp" */
 	DELPROTO("delproto", "tssh.delproto", "jmxmp", OptionReaders.STRING_READER);
+	
+	/**
+	 * InteractiveCallback
+	 * connect timeout
+	 * kex timeout
+	 */
+	
+	
+	
 	
 	/** A map of SSHOptions keyed by the short code */
 	public static final Map<String, SSHOption> CODE2ENUM;

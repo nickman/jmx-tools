@@ -30,7 +30,7 @@
 		<high-scale-lib.version>1.1.4</high-scale-lib.version>
 		<log4j.version>1.2.16</log4j.version>
 		<javassist.version>3.18.0-GA</javassist.version>
-		<ganymed.version>build210</ganymed.version>
+		<ganymed.version>262</ganymed.version>
 
 
 		

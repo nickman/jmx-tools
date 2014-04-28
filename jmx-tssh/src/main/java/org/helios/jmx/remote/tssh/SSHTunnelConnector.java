@@ -22,15 +22,21 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package com.sun.jmx.remote.tssh;
+package org.helios.jmx.remote.tssh;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.InetAddress;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -39,19 +45,22 @@ import javax.management.remote.JMXServiceURL;
 
 import org.helios.rindle.util.helpers.ConfigurationHelper;
 
+import ch.ethz.ssh2.Connection;
 import ch.ethz.ssh2.ConnectionMonitor;
 import ch.ethz.ssh2.KnownHosts;
 import ch.ethz.ssh2.ServerHostKeyVerifier;
+import ch.ethz.ssh2.Session;
+import ch.ethz.ssh2.StreamGobbler;
 import ch.ethz.ssh2.crypto.PEMDecoder;
 import ch.ethz.ssh2.signature.DSAPrivateKey;
 import ch.ethz.ssh2.signature.RSAPrivateKey;
 
 /**
  * <p>Title: SSHTunnelConnector</p>
- * <p>Description: </p> 
+ * <p>Description: Gathers and encapsulates the data required to establish an SSH connection</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>com.sun.jmx.remote.tssh.SSHTunnelConnector</code></p>
+ * <p><code>org.helios.jmx.remote.tssh.SSHTunnelConnector</code></p>
  */
 
 public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMonitor {
@@ -134,7 +143,7 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 				}
 				break;
 			case KEY:
-				privateKey = (char[])optionValue;
+				privateKey = (char[])optionValue;				 
 				break;
 			case KEYPHR:
 				passPhrase = optionValue.toString();
@@ -168,8 +177,9 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 				break;
 			
 			}			
+			setKeyType();
 		}
-		setKeyType();
+		
 		try {
 			localPort = jmxServiceURL.getPort();
 		} catch (Exception ex) {/* No Op */}
@@ -182,6 +192,96 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 	public static Map createTunnel(JMXServiceURL jmxServiceURL, Map env) {
 		
 		return null;
+	}
+	
+	/**
+	 * Validates the most basic requirements to establish a connection 
+	 */
+	protected void validateRequirementsLevelOne() {
+		String[] aliases = getAliases(host);
+		if(port < 1 || port > 65534) throw new IllegalArgumentException("The configured port is out of range [" + port + "]");
+		if(userName==null || userName.trim().isEmpty()) throw new IllegalArgumentException("The configured user name is null or empty");
+	}
+	
+	/**
+	 * Returns the address and host name for the passed string
+	 * @param hostName The host string or address to resolve
+	 * @return a string array with the address and host name
+	 */
+	public static String[] getAliases(String hostName) {
+		try {
+			InetAddress ia = InetAddress.getByName(hostName);
+			return new String[] {ia.getHostAddress(), ia.getHostName()};
+		} catch (Exception ex) {
+			throw new RuntimeException("Failed to resolve host [" + hostName + "]", ex);
+		}
+	}
+
+	
+	/**
+	 * Attempts to establish an authenticated connection based on the state of this connector
+	 * @return a connected and authenticated connection
+	 */
+	public Connection connectAndAuthenticate() {
+		Connection conn = null;
+		Set<String> authFailures = new LinkedHashSet<String>();
+		validateRequirementsLevelOne();
+		boolean authenticated = false;
+		try {
+			conn = new Connection(host, port);
+			if(validateServer) {
+				conn.connect(this);
+			} else {
+				conn.connect();
+			}
+			authenticated = conn.authenticateWithNone(userName);
+			if(authenticated) return conn;
+			authFailures.add("authenticateWithNone failed for user [" + userName + "]");
+			if(userPassword!=null) {
+				authenticated = conn.authenticateWithPassword(userName, userPassword);
+				if(authenticated) return conn;
+				authFailures.add("authenticateWithPassword failed for user [" + userName + "]");
+			} else {
+				authFailures.add("authenticateWithPassword skipped for [" + userName + "] since password was null");
+			}
+			authenticated = conn.authenticateWithPublicKey(userName, privateKey, passPhrase);
+			if(authenticated) return conn;
+			authFailures.add("authenticateWithPublicKey failed for user [" + userName + "]");
+			throw new RuntimeException("Unable to authenticate user [" + userName + "]. Attempted methods:" + authFailures.toString());
+		} catch (Exception ex) {
+			if(conn!=null) try { conn.close(); } catch (Exception x) {/* No Op */}
+			if(ex instanceof RuntimeException) {
+				throw (RuntimeException)ex;
+			}
+			throw new RuntimeException("Unexpected connection failure", ex);
+		} finally {
+//			if(conn!=null) try { conn.close(); } catch (Exception x) {/* No Op */}
+		}
+	}
+	
+	public static String dumpHostInfo(Connection conn) {
+		Session sess = null;
+		try {
+			sess = conn.openSession();
+			sess.execCommand("uname -a && date && uptime && who");
+			InputStream stdout = new StreamGobbler(sess.getStdout());
+			BufferedReader br = new BufferedReader(new InputStreamReader(stdout));
+			StringBuilder b = new StringBuilder();
+			while (true) {
+				String line = br.readLine();				
+				if (line == null) {
+					br.close();
+					break;
+				}
+				b.append("\n").append(line);
+			}
+			return b.toString();
+		} catch (Exception ex) {
+			throw new RuntimeException(ex);
+		} finally {
+			if(sess!=null) try { sess.close(); } catch (Exception x) {/* No Op */}
+		}
+			
 	}
 	
 	
@@ -231,7 +331,7 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 	 * <p>Description: Enumerates the sources where SSHOptions can be decoded from, in precdence order</p> 
 	 * <p>Company: Helios Development Group LLC</p>
 	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
-	 * <p><code>com.sun.jmx.remote.tssh.SSHTunnelConnector.OptionSource</code></p>
+	 * <p><code>org.helios.jmx.remote.tssh.SSHTunnelConnector.OptionSource</code></p>
 	 */
 	public static enum OptionSource {
 		JMXServiceURL,
@@ -331,7 +431,7 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 			log("Testing Gather");
 			// u h k pt
 			JMXServiceURL[] urls = new JMXServiceURL[] {
-					new JMXServiceURL("service:jmx:tssh://localhost:8006/ssh/jmxmp:u=nwhitehead,h=pdk-pt-ceas-03,pt=22,k=c,jmxu=admin"),
+					new JMXServiceURL("service:jmx:tssh://localhost:8006/ssh/jmxmp:u=nwhitehead,h=pdk-pt-ceas-03,pt=22,k=c,jmxu=admin,kp=helios"),
 					new JMXServiceURL("service:jmx:tssh://localhost:8006/ssh/jmxmp:u=nwhitehead,h=pdk-pt-ceas-03,pt=22,k=c:/users/nwhitehe/.ssh/id_dsa"),
 					new JMXServiceURL("service:jmx:tssh://localhost:8006/ssh/jmxmp:u=nwhitehead,h=pdk-pt-ceas-03,pt=22,k=c:/users/nwhitehe/.ssh/id_rsa_2048"),
 					new JMXServiceURL("service:jmx:tssh://localhost:8006/ssh/jmxmp:u=nwhitehead,h=pdk-pt-ceas-03,pt=22,k=c:/users/nwhitehe/.ssh/id_rsa_8092")
@@ -341,6 +441,20 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 			for(JMXServiceURL url: urls) {
 				SSHTunnelConnector stc = new SSHTunnelConnector(url, null);
 				log(stc.toString());
+			}
+			
+			log("Testing Connect....");
+			Connection conn = null;
+			try {
+				JMXServiceURL surl = new JMXServiceURL("service:jmx:tssh://localhost:8006/ssh/jmxmp:u=nwhitehead,h=pdk-pt-ceas-03,pt=22,k=c,jmxu=admin,kp=helios");
+				SSHTunnelConnector connector = new SSHTunnelConnector(surl, null);
+				conn = connector.connectAndAuthenticate();
+				log("Connection: authed:" + conn.isAuthenticationComplete());
+				conn.forceKeyExchange();				
+				log(dumpHostInfo(conn));
+				log(new ConnectionInfoWrapper(conn.getConnectionInfo()));
+			} finally {
+				if(conn!=null) try { conn.close(); } catch (Exception x) {}
 			}
 		} catch (Exception ex) {
 			ex.printStackTrace(System.err);
@@ -555,7 +669,7 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 	 */
 	@Override
 	public boolean verifyServerHostKey(String hostname, int port, String serverHostKeyAlgorithm, byte[] serverHostKey) throws Exception {
-		if(knownHosts!=null && !validateServer) {
+		if(knownHosts!=null && validateServer) {
 			int result = knownHosts.verifyHostkey(hostname, serverHostKeyAlgorithm, serverHostKey);
 			switch(result) {
 				case KnownHosts.HOSTKEY_HAS_CHANGED:
@@ -566,7 +680,7 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 					return true;
 			}
 		}
-		return true;
+		return false;
 	}
 
 	/**
@@ -577,6 +691,54 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 	public void connectionLost(Throwable reason) {
 		// TODO Auto-generated method stub
 		
+	}
+
+	public String getHost() {
+		return host;
+	}
+
+	public int getPort() {
+		return port;
+	}
+
+	public int getLocalPort() {
+		return localPort;
+	}
+
+	public String getUserName() {
+		return userName;
+	}
+
+	public String getUserPassword() {
+		return userPassword;
+	}
+
+	public String getPassPhrase() {
+		return passPhrase;
+	}
+
+	public char[] getPrivateKey() {
+		return privateKey;
+	}
+
+	public String getDelegateProtocol() {
+		return delegateProtocol;
+	}
+
+	public String getSubProtocol() {
+		return subProtocol;
+	}
+
+	public String getKeyType() {
+		return keyType;
+	}
+
+	public String getKnownHostsFile() {
+		return knownHostsFile;
+	}
+
+	public boolean isValidateServer() {
+		return validateServer;
 	}
 
 	
