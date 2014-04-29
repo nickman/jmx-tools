@@ -39,6 +39,8 @@ import javax.management.NotificationBroadcasterSupport;
 import javax.management.NotificationFilter;
 import javax.management.NotificationListener;
 import javax.management.ObjectName;
+import javax.management.Query;
+import javax.management.StringValueExp;
 
 import org.helios.jmx.concurrency.JMXManagedThreadPool;
 import org.helios.jmx.util.helpers.JMXHelper;
@@ -108,6 +110,67 @@ public class BatchAttributeService extends NotificationBroadcasterSupport implem
 		
 		return results;
 	}
+	
+	public static final ObjectName GLOBAL_WILDCARD = JMXHelper.objectName("*:*");
+	
+	/**
+	 * Returns a map of attribute values keyed by the attribute name, in a map keyed by ObjectName
+	 * @param type The name of the class or interface that target MBeans must inherrit from
+	 * @param preOp An optional pre-collect no-arg operation to invoke
+	 * @param postOp An optional post-collect no-arg operation to invoke
+	 * @param attrNames The attribute names to collect for from each located MBean
+	 * @return the map of values
+	 */
+	public Map<ObjectName, Map<String, Number>> batchGetNumerics(String type, String preOp, String postOp, String...attrNames) {
+		Map<ObjectName, Map<String, Number>> results = new HashMap<ObjectName, Map<String, Number>>();
+		ObjectName[] matches = JMXHelper.query(GLOBAL_WILDCARD, Query.isInstanceOf(new StringValueExp(type)));
+		for(ObjectName match: matches) {
+			Map<String, Number> valueMap = new HashMap<String, Number>(attrNames.length);
+			results.put(match, valueMap);
+			if(preOp!=null) {
+				try { JMXHelper.invoke(match, preOp); } catch (Exception ex) {}
+			}
+			for(Map.Entry<String, Object> entry: JMXHelper.getAttributes(match, attrNames).entrySet()) {
+				if(entry.getValue() instanceof Number) {
+					valueMap.put(entry.getKey(), (Number)entry.getValue());
+				}
+			}
+			if(postOp!=null) {
+				try { JMXHelper.invoke(match, postOp); } catch (Exception ex) {}
+			}			
+		}
+		return results;
+	}
+	
+	/**
+	 * Returns a map of attribute values keyed by the attribute name, in a map keyed by ObjectName
+	 * @param filter An ObjectName filter to narrow down the ObjectNames to query from
+	 * @param preOp An optional pre-collect no-arg operation to invoke
+	 * @param postOp An optional post-collect no-arg operation to invoke
+	 * @param attrNames The attribute names to collect for from each located MBean
+	 * @return the map of values
+	 */
+	public Map<ObjectName, Map<String, Number>> batchGetNumerics(ObjectName filter, String preOp, String postOp, String...attrNames) {
+		Map<ObjectName, Map<String, Number>> results = new HashMap<ObjectName, Map<String, Number>>();
+		ObjectName[] matches = JMXHelper.query(filter);
+		for(ObjectName match: matches) {
+			Map<String, Number> valueMap = new HashMap<String, Number>(attrNames.length);
+			results.put(match, valueMap);
+			if(preOp!=null) {
+				try { JMXHelper.invoke(match, preOp); } catch (Exception ex) {}
+			}
+			for(Map.Entry<String, Object> entry: JMXHelper.getAttributes(match, attrNames).entrySet()) {
+				if(entry.getValue() instanceof Number) {
+					valueMap.put(entry.getKey(), (Number)entry.getValue());
+				}
+			}
+			if(postOp!=null) {
+				try { JMXHelper.invoke(match, postOp); } catch (Exception ex) {}
+			}			
+		}
+		return results;		
+	}
+	
 	
 	/**
 	 * {@inheritDoc}

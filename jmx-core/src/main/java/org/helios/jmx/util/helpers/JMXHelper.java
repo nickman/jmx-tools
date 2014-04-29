@@ -68,6 +68,11 @@ public class JMXHelper {
 	
 	/** An object name filter that maps to all registered MBeans */
 	public static final ObjectName ALL_MBEANS_FILTER = objectName("*:*");
+	
+	/** A no arg op signature */
+	public static final String[] NO_ARG_SIGNATURE = {}; 
+	/** A no arg op arg array */
+	public static final Object[] NO_ARG_ARR = {}; 
 
 	
 	/**
@@ -733,6 +738,19 @@ public class JMXHelper {
 			throw new RuntimeException("Failed to invoke operation", e);
 		}
 	}
+	
+	/**
+	 * Invokes an operation on the mbean in the default MBeanServer
+	 * @param on the object name
+	 * @param action The name of the operation to invoke
+	 * @param args The argument values to pass to the invocation
+	 * @param signature The argument signature
+	 * @return the return value of the invocation
+	 */
+	public static Object invoke(ObjectName on, String action, Object[] args, String[] signature) {
+		return invoke(on, JMXHelper.getHeliosMBeanServer(), action, args, signature);
+	}
+	
 
 	/**
 	 * Invokes an operation on the mbean.
@@ -747,6 +765,59 @@ public class JMXHelper {
 		return invoke(objectName(on), server, action, args, signature);
 	}
 	
+	/**
+	 * Invokes an operation on the mbean in the default MBeanServer
+	 * @param on the object name
+	 * @param action The name of the operation to invoke
+	 * @param args The argument values to pass to the invocation
+	 * @param signature The argument signature
+	 * @return the return value of the invocation
+	 */
+	public static Object invoke(CharSequence on, String action, Object[] args, String[] signature) {
+		return invoke(on, JMXHelper.getHeliosMBeanServer(), action, args, signature);
+	}
+	
+	/**
+	 * Invokes a no arg operation on the mbean.
+	 * @param on the object name
+	 * @param server the mbean server
+	 * @param action The name of the operation to invoke
+	 * @return the return value of the invocation
+	 */	
+	public static Object invoke(CharSequence on, MBeanServerConnection server, String action) {
+		return invoke(objectName(on), server, action, NO_ARG_ARR, NO_ARG_SIGNATURE);
+	}
+	
+	/**
+	 * Invokes a no arg operation on the mbean.
+	 * @param on the object name
+	 * @param server the mbean server
+	 * @param action The name of the operation to invoke
+	 * @return the return value of the invocation
+	 */	
+	public static Object invoke(ObjectName on, MBeanServerConnection server, String action) {
+		return invoke(objectName(on), server, action, NO_ARG_ARR, NO_ARG_SIGNATURE);
+	}
+	
+	/**
+	 * Invokes a no arg operation on the mbean in the default MBeanServer
+	 * @param on the object name
+	 * @param action The name of the operation to invoke
+	 * @return the return value of the invocation
+	 */	
+	public static Object invoke(CharSequence on, String action) {
+		return invoke(objectName(on), JMXHelper.getHeliosMBeanServer(), action, NO_ARG_ARR, NO_ARG_SIGNATURE);
+	}
+	
+	/**
+	 * Invokes a no arg operation on the mbean in the default MBeanServer
+	 * @param on the object name
+	 * @param action The name of the operation to invoke
+	 * @return the return value of the invocation
+	 */	
+	public static Object invoke(ObjectName on, String action) {
+		return invoke(objectName(on), JMXHelper.getHeliosMBeanServer(), action, NO_ARG_ARR, NO_ARG_SIGNATURE);
+	}
 	
 	/**
 	 * Returns a set of ObjectNames matching the passed wildcard object names
