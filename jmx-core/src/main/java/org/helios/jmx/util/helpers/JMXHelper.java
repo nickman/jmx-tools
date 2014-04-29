@@ -2,7 +2,7 @@
 * Helios Development Group LLC, 2013. 
  *
  */
-package org.helios.rindle.util.helpers;
+package org.helios.jmx.util.helpers;
 
 
 
@@ -343,6 +343,24 @@ public class JMXHelper {
 			throw new RuntimeException("Failed to create Object Name", e);
 		}
 	}
+	
+	/**
+	 * Creates a new JMX object name divined from the passed class
+	 * @param clazz The class to create an ObjectName from
+	 * @return an ObjectName the created ObjectName
+	 */
+	public static ObjectName objectName(Class<?> clazz) {
+		try {
+			return new ObjectName(new StringBuilder(
+				clazz.getPackage().getName())
+				.append(":service=")
+				.append(clazz.getSimpleName())
+			.toString());
+		} catch (Exception e) {
+			throw new RuntimeException("Failed to create Object Name", e);
+		}
+	}
+	
 	
 	/**
 	 * Creates a new JMX object name.

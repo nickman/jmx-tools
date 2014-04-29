@@ -1,9 +1,9 @@
 /** Helios Development Group LLC, 2013 */
-package org.helios.rindle.util.unsafe.collections;
+package org.helios.jmx.util.unsafe.collections;
 
 import java.lang.reflect.Array;
 
-import org.helios.rindle.util.unsafe.UnsafeAdapter;
+import org.helios.jmx.util.unsafe.UnsafeAdapter;
 
 /**
  * <p>Title: UnsafeArray</p>

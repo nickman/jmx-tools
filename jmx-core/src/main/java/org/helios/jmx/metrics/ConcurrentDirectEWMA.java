@@ -26,8 +26,8 @@ package org.helios.jmx.metrics;
 
 import java.util.Date;
 
-import org.helios.rindle.util.unsafe.UnsafeAdapter;
-import org.helios.rindle.util.unsafe.UnsafeAdapter.SpinLock;
+import org.helios.jmx.util.unsafe.UnsafeAdapter;
+import org.helios.jmx.util.unsafe.UnsafeAdapter.SpinLock;
 
 /**
  * <p>Title: ConcurrentDirectEWMA</p>

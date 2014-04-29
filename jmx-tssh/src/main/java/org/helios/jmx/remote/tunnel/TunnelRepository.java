@@ -26,6 +26,7 @@ package org.helios.jmx.remote.tunnel;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 

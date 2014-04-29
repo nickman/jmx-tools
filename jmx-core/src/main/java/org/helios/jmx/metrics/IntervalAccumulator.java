@@ -28,9 +28,9 @@ import java.util.Date;
 
 import javax.management.ObjectName;
 
-import org.helios.rindle.util.helpers.JMXHelper;
-import org.helios.rindle.util.unsafe.DeAllocateMe;
-import org.helios.rindle.util.unsafe.UnsafeAdapter;
+import org.helios.jmx.util.helpers.JMXHelper;
+import org.helios.jmx.util.unsafe.DeAllocateMe;
+import org.helios.jmx.util.unsafe.UnsafeAdapter;
 
 /**
  * <p>Title: IntervalAccumulator</p>

@@ -31,7 +31,7 @@ import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.helios.jmx.IntervalAccumulatorInterceptor;
 import org.helios.jmx.metrics.IntervalAccumulator;
-import org.helios.rindle.util.helpers.SystemClock;
+import org.helios.jmx.util.helpers.SystemClock;
 import org.springframework.aop.Advisor;
 import org.springframework.aop.MethodMatcher;
 import org.springframework.aop.Pointcut;

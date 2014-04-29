@@ -22,7 +22,7 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package org.helios.rindle.util.helpers;
+package org.helios.jmx.util.helpers;
 
 import java.io.File;
 import java.util.Arrays;

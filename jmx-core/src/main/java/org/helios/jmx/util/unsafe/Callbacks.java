@@ -22,7 +22,7 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package org.helios.rindle.util.unsafe;
+package org.helios.jmx.util.unsafe;
 
 import java.util.concurrent.Callable;
 
@@ -31,7 +31,7 @@ import java.util.concurrent.Callable;
  * <p>Description: A collection of callbacks for use with the {@link UnsafeAdapter}</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.rindle.util.unsafe.Callbacks</code></p>
+ * <p><code>org.helios.jmx.util.unsafe.Callbacks</code></p>
  */
 
 public class Callbacks {
@@ -40,7 +40,7 @@ public class Callbacks {
 	 * <p>Description: The equivalent of a {@link Callable} but for a primitive long to avoid AutoBoxing</p> 
 	 * <p>Company: Helios Development Group LLC</p>
 	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
-	 * <p><code>org.helios.rindle.util.unsafe.Callbacks.LongCallable</code></p>
+	 * <p><code>org.helios.jmx.util.unsafe.Callbacks.LongCallable</code></p>
 	 */
 	public interface LongCallable {
 		    /**
@@ -56,7 +56,7 @@ public class Callbacks {
 	 * <p>Description: The equivalent of a {@link Callable} but for a primitive double to avoid AutoBoxing</p> 
 	 * <p>Company: Helios Development Group LLC</p>
 	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
-	 * <p><code>org.helios.rindle.util.unsafe.Callbacks.DoubleCallable</code></p>
+	 * <p><code>org.helios.jmx.util.unsafe.Callbacks.DoubleCallable</code></p>
 	 */
 	public interface DoubleCallable {
 		    /**
@@ -71,7 +71,7 @@ public class Callbacks {
 	 * <p>Description: The equivalent of a {@link Callable} but for a primitive int to avoid AutoBoxing</p> 
 	 * <p>Company: Helios Development Group LLC</p>
 	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
-	 * <p><code>org.helios.rindle.util.unsafe.Callbacks.IntCallable</code></p>
+	 * <p><code>org.helios.jmx.util.unsafe.Callbacks.IntCallable</code></p>
 	 */
 	public interface IntCallable {
 		    /**
@@ -86,7 +86,7 @@ public class Callbacks {
 	 * <p>Description: The equivalent of a {@link Callable} but for a primitive byte to avoid AutoBoxing</p> 
 	 * <p>Company: Helios Development Group LLC</p>
 	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
-	 * <p><code>org.helios.rindle.util.unsafe.Callbacks.ByteCallable</code></p>
+	 * <p><code>org.helios.jmx.util.unsafe.Callbacks.ByteCallable</code></p>
 	 */
 	public interface ByteCallable {
 		    /**
@@ -101,7 +101,7 @@ public class Callbacks {
 	 * <p>Description: The equivalent of a {@link Callable} but for a primitive boolean to avoid AutoBoxing</p> 
 	 * <p>Company: Helios Development Group LLC</p>
 	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
-	 * <p><code>org.helios.rindle.util.unsafe.Callbacks.BooleanCallable</code></p>
+	 * <p><code>org.helios.jmx.util.unsafe.Callbacks.BooleanCallable</code></p>
 	 */
 	public interface BooleanCallable {
 		    /**

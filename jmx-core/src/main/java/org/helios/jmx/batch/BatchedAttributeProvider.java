@@ -22,12 +22,16 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
+package org.helios.jmx.batch;
+
 /**
- * <p>Title: package-info</p>
+ * <p>Title: BatchedAttributeProvider</p>
  * <p>Description: </p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.jmx.opentypes.annotations.package-info</code></p>
+ * <p><code>org.helios.jmx.batch.BatchedAttributeProvider</code></p>
  */
 
-package org.helios.jmx.opentypes.annotations;
+public @interface BatchedAttributeProvider {
+
+}

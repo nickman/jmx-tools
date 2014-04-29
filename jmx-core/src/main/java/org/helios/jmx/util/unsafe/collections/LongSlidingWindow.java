@@ -1,5 +1,5 @@
 /** Helios Development Group LLC, 2013 */
-package org.helios.rindle.util.unsafe.collections;
+package org.helios.jmx.util.unsafe.collections;
 
 import java.nio.LongBuffer;
 import java.util.Arrays;
@@ -237,7 +237,7 @@ public class LongSlidingWindow  implements ILongSlidingWindow {
 	
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.rindle.util.unsafe.collections.ILongSlidingWindow#min()
+	 * @see org.helios.jmx.util.unsafe.collections.ILongSlidingWindow#min()
 	 */
 	@Override
 	public long min() {
@@ -249,7 +249,7 @@ public class LongSlidingWindow  implements ILongSlidingWindow {
 
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.rindle.util.unsafe.collections.ILongSlidingWindow#max()
+	 * @see org.helios.jmx.util.unsafe.collections.ILongSlidingWindow#max()
 	 */
 	@Override
 	public long max() {

@@ -2,7 +2,7 @@
 * Helios Development Group LLC, 2013. 
  *
  */
-package org.helios.rindle.util.helpers;
+package org.helios.jmx.util.helpers;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;

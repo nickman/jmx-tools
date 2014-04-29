@@ -1,7 +1,7 @@
 /**
  * 
  */
-package org.helios.rindle.util.unsafe;
+package org.helios.jmx.util.unsafe;
 
 /**
  * <p>Title: DeAllocateMe</p>
@@ -9,7 +9,7 @@ package org.helios.rindle.util.unsafe;
  * unsafe allocated memory</p>
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><b><code>org.helios.rindle.util.unsafe.DeAllocateMe</code></b>
+ * <p><b><code>org.helios.jmx.util.unsafe.DeAllocateMe</code></b>
  */
 
 public interface DeAllocateMe {

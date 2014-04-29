@@ -26,8 +26,8 @@ package org.helios.jmx.metrics;
 
 import java.util.Date;
 
-import org.helios.rindle.util.unsafe.DeAllocateMe;
-import org.helios.rindle.util.unsafe.UnsafeAdapter;
+import org.helios.jmx.util.unsafe.DeAllocateMe;
+import org.helios.jmx.util.unsafe.UnsafeAdapter;
 
 /**
  * <p>Title: DirectEWMA</p>
@@ -129,7 +129,7 @@ public class DirectEWMA implements DeAllocateMe {
 
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.rindle.util.unsafe.DeAllocateMe#getAddresses()
+	 * @see org.helios.jmx.util.unsafe.DeAllocateMe#getAddresses()
 	 */
 	@Override
 	public long[][] getAddresses() {

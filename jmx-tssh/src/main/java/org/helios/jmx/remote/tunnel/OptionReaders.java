@@ -38,7 +38,7 @@ import java.nio.charset.Charset;
 import java.util.Map;
 import java.util.Properties;
 
-import org.helios.rindle.util.helpers.ConfigurationHelper;
+import org.helios.jmx.util.helpers.ConfigurationHelper;
 
 
 

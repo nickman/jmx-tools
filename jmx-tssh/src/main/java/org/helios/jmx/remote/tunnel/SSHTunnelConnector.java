@@ -43,7 +43,7 @@ import java.util.regex.Pattern;
 import javax.management.remote.JMXServiceURL;
 
 import org.helios.jmx.remote.InetAddressCache;
-import org.helios.rindle.util.helpers.ConfigurationHelper;
+import org.helios.jmx.util.helpers.ConfigurationHelper;
 
 import ch.ethz.ssh2.Connection;
 import ch.ethz.ssh2.ConnectionMonitor;

@@ -1,7 +1,7 @@
 /**
  * Helios Development Group LLC, 2013
  */
-package org.helios.rindle.util.unsafe;
+package org.helios.jmx.util.unsafe;
 
 
 import java.io.File;
@@ -27,13 +27,13 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.log4j.Logger;
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
-import org.helios.rindle.util.helpers.JMXHelper;
-import org.helios.rindle.util.helpers.StringHelper;
-import org.helios.rindle.util.unsafe.Callbacks.BooleanCallable;
-import org.helios.rindle.util.unsafe.Callbacks.ByteCallable;
-import org.helios.rindle.util.unsafe.Callbacks.DoubleCallable;
-import org.helios.rindle.util.unsafe.Callbacks.IntCallable;
-import org.helios.rindle.util.unsafe.Callbacks.LongCallable;
+import org.helios.jmx.util.helpers.JMXHelper;
+import org.helios.jmx.util.helpers.StringHelper;
+import org.helios.jmx.util.unsafe.Callbacks.BooleanCallable;
+import org.helios.jmx.util.unsafe.Callbacks.ByteCallable;
+import org.helios.jmx.util.unsafe.Callbacks.DoubleCallable;
+import org.helios.jmx.util.unsafe.Callbacks.IntCallable;
+import org.helios.jmx.util.unsafe.Callbacks.LongCallable;
 
 import sun.misc.Unsafe;
 
@@ -43,7 +43,7 @@ import sun.misc.Unsafe;
  * the different supported signatures.</p>
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.rindle.util.unsafe.UnsafeAdapter</code></p>
+ * <p><code>org.helios.jmx.util.unsafe.UnsafeAdapter</code></p>
  */
 @SuppressWarnings({"javadoc", "restriction"})
 public class UnsafeAdapter {
@@ -289,7 +289,7 @@ public class UnsafeAdapter {
     	
     	/**
     	 * {@inheritDoc}
-    	 * @see org.helios.rindle.util.unsafe.UnsafeAdapter.UnsafeMemoryMBean#getState()
+    	 * @see org.helios.jmx.util.unsafe.UnsafeAdapter.UnsafeMemoryMBean#getState()
     	 */
     	@Override
     	public Map<String, Long> getState() {
@@ -307,7 +307,7 @@ public class UnsafeAdapter {
 
 		/**
 		 * {@inheritDoc}
-		 * @see org.helios.rindle.util.unsafe.UnsafeAdapter.UnsafeMemoryMBean#getTotalAllocatedMemory()
+		 * @see org.helios.jmx.util.unsafe.UnsafeAdapter.UnsafeMemoryMBean#getTotalAllocatedMemory()
 		 */
 		@Override
 		public long getTotalAllocatedMemory() {
@@ -317,7 +317,7 @@ public class UnsafeAdapter {
 		
 		/**
 		 * {@inheritDoc}
-		 * @see org.helios.rindle.util.unsafe.UnsafeAdapter.UnsafeMemoryMBean#getAlignedMemoryOverhead()
+		 * @see org.helios.jmx.util.unsafe.UnsafeAdapter.UnsafeMemoryMBean#getAlignedMemoryOverhead()
 		 */
 		public long getAlignedMemoryOverhead() {
 			if(!trackMem) return -1L;
@@ -326,7 +326,7 @@ public class UnsafeAdapter {
 
 		/**
 		 * {@inheritDoc}
-		 * @see org.helios.rindle.util.unsafe.UnsafeAdapter.UnsafeMemoryMBean#getTotalAllocationCount()
+		 * @see org.helios.jmx.util.unsafe.UnsafeAdapter.UnsafeMemoryMBean#getTotalAllocationCount()
 		 */
 		@Override
 		public int getTotalAllocationCount() {
@@ -336,7 +336,7 @@ public class UnsafeAdapter {
 
 		/**
 		 * {@inheritDoc}
-		 * @see org.helios.rindle.util.unsafe.UnsafeAdapter.UnsafeMemoryMBean#getTotalAllocatedMemoryKb()
+		 * @see org.helios.jmx.util.unsafe.UnsafeAdapter.UnsafeMemoryMBean#getTotalAllocatedMemoryKb()
 		 */
 		@Override
 		public long getTotalAllocatedMemoryKb() {
@@ -348,7 +348,7 @@ public class UnsafeAdapter {
 
 		/**
 		 * {@inheritDoc}
-		 * @see org.helios.rindle.util.unsafe.UnsafeAdapter.UnsafeMemoryMBean#getTotalAllocatedMemoryMb()
+		 * @see org.helios.jmx.util.unsafe.UnsafeAdapter.UnsafeMemoryMBean#getTotalAllocatedMemoryMb()
 		 */
 		@Override
 		public long getTotalAllocatedMemoryMb() {
@@ -360,7 +360,7 @@ public class UnsafeAdapter {
 
 //		/**
 //		 * {@inheritDoc}
-//		 * @see org.helios.rindle.util.unsafe.UnsafeAdapter.UnsafeMemoryMBean#getDeallocators()
+//		 * @see org.helios.jmx.util.unsafe.UnsafeAdapter.UnsafeMemoryMBean#getDeallocators()
 //		 */
 //		@Override
 //		public Set<String> getDeallocators() {
@@ -369,7 +369,7 @@ public class UnsafeAdapter {
 //
 //		/**
 //		 * {@inheritDoc}
-//		 * @see org.helios.rindle.util.unsafe.UnsafeAdapter.UnsafeMemoryMBean#getAllocators()
+//		 * @see org.helios.jmx.util.unsafe.UnsafeAdapter.UnsafeMemoryMBean#getAllocators()
 //		 */
 //		@Override
 //		public Set<String> getAllocators() {			
@@ -378,7 +378,7 @@ public class UnsafeAdapter {
 
 //		/**
 //		 * {@inheritDoc}
-//		 * @see org.helios.rindle.util.unsafe.UnsafeAdapter.UnsafeMemoryMBean#getNonDeallocatingAllocators()
+//		 * @see org.helios.jmx.util.unsafe.UnsafeAdapter.UnsafeMemoryMBean#getNonDeallocatingAllocators()
 //		 */
 //		@Override
 //		public Set<String> getNonDeallocatingAllocators() {
@@ -389,7 +389,7 @@ public class UnsafeAdapter {
 		
     	/**
     	 * {@inheritDoc}
-    	 * @see org.helios.rindle.util.unsafe.UnsafeAdapter.UnsafeMemoryMBean#getRefQueueSize()
+    	 * @see org.helios.jmx.util.unsafe.UnsafeAdapter.UnsafeMemoryMBean#getRefQueueSize()
     	 */
 		@Override
     	public long getRefQueueSize() {
@@ -2011,7 +2011,7 @@ public class UnsafeAdapter {
 	 * <p>Description: Defines a sping lock impl.</p> 
 	 * <p>Company: Helios Development Group LLC</p>
 	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
-	 * <p><code>org.helios.rindle.util.unsafe.UnsafeAdapterSpinLock</code></p>
+	 * <p><code>org.helios.jmx.util.unsafe.UnsafeAdapterSpinLock</code></p>
 	 */
 	public interface SpinLock {
 		/**
@@ -2052,7 +2052,7 @@ public class UnsafeAdapter {
 	 * <p>Description: Unsafe memory based spin lock for use withing JVM only</p> 
 	 * <p>Company: Helios Development Group LLC</p>
 	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
-	 * <p><code>org.helios.rindle.util.unsafe.UnsafeAdapter.MemSpinLock</code></p>
+	 * <p><code>org.helios.jmx.util.unsafe.UnsafeAdapter.MemSpinLock</code></p>
 	 */
 
 	public static class MemSpinLock implements SpinLock, DeAllocateMe {
@@ -2077,7 +2077,7 @@ public class UnsafeAdapter {
 		}
 		/**
 		 * {@inheritDoc}
-		 * @see org.helios.rindle.util.unsafe.DeAllocateMe#getAddresses()
+		 * @see org.helios.jmx.util.unsafe.DeAllocateMe#getAddresses()
 		 */
 		@Override
 		public long[][] getAddresses() {
@@ -2086,7 +2086,7 @@ public class UnsafeAdapter {
 
 		/**
 		 * {@inheritDoc}
-		 * @see org.helios.rindle.util.unsafe.UnsafeAdapter.SpinLock#xlock()
+		 * @see org.helios.jmx.util.unsafe.UnsafeAdapter.SpinLock#xlock()
 		 */
 		@Override
 		public void xlock() {
@@ -2095,7 +2095,7 @@ public class UnsafeAdapter {
 		
 		/**
 		 * {@inheritDoc}
-		 * @see org.helios.rindle.util.unsafe.UnsafeAdapter.SpinLock#xlock(boolean)
+		 * @see org.helios.jmx.util.unsafe.UnsafeAdapter.SpinLock#xlock(boolean)
 		 */
 		@Override
 		public void xlock(boolean barge) {
@@ -2104,7 +2104,7 @@ public class UnsafeAdapter {
 		
 		/**
 		 * {@inheritDoc}
-		 * @see org.helios.rindle.util.unsafe.UnsafeAdapter.SpinLock#xunlock()
+		 * @see org.helios.jmx.util.unsafe.UnsafeAdapter.SpinLock#xunlock()
 		 */
 		@Override
 		public void xunlock() {
@@ -2113,7 +2113,7 @@ public class UnsafeAdapter {
 		
 		/**
 		 * {@inheritDoc}
-		 * @see org.helios.rindle.util.unsafe.UnsafeAdapter.SpinLock#isLocked()
+		 * @see org.helios.jmx.util.unsafe.UnsafeAdapter.SpinLock#isLocked()
 		 */
 		@Override
 		public boolean isLocked() {
@@ -2122,7 +2122,7 @@ public class UnsafeAdapter {
 		
 		/**
 		 * {@inheritDoc}
-		 * @see org.helios.rindle.util.unsafe.UnsafeAdapter.SpinLock#isLockedByMe()
+		 * @see org.helios.jmx.util.unsafe.UnsafeAdapter.SpinLock#isLockedByMe()
 		 */
 		@Override
 		public boolean isLockedByMe() {
@@ -2136,7 +2136,7 @@ public class UnsafeAdapter {
 	 * <p>Description: Disk based spin lock that is sharable with other processes</p> 
 	 * <p>Company: Helios Development Group LLC</p>
 	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
-	 * <p><code>org.helios.rindle.util.unsafe.UnsafeAdapter.DiskSpinLock</code></p>
+	 * <p><code>org.helios.jmx.util.unsafe.UnsafeAdapter.DiskSpinLock</code></p>
 	 * FIXME: 
 	 */
 
@@ -2181,7 +2181,7 @@ public class UnsafeAdapter {
 		
 		/**
 		 * {@inheritDoc}
-		 * @see org.helios.rindle.util.unsafe.DeAllocateMe#getAddresses()
+		 * @see org.helios.jmx.util.unsafe.DeAllocateMe#getAddresses()
 		 */
 		@Override
 		public long[][] getAddresses() {
@@ -2198,7 +2198,7 @@ public class UnsafeAdapter {
 		
 /**
 		 * {@inheritDoc}
-		 * @see org.helios.rindle.util.unsafe.UnsafeAdapter.SpinLock#xlock(boolean)
+		 * @see org.helios.jmx.util.unsafe.UnsafeAdapter.SpinLock#xlock(boolean)
 		 */
 		@Override
 		public void xlock(boolean barge) {
@@ -2239,7 +2239,7 @@ public class UnsafeAdapter {
 	 * <p>Description: </p> 
 	 * <p>Company: Helios Development Group LLC</p>
 	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
-	 * <p><code>org.helios.rindle.util.unsafe.UnsafeAdapter.PIDThread</code></p>
+	 * <p><code>org.helios.jmx.util.unsafe.UnsafeAdapter.PIDThread</code></p>
 	 */
 	public static class PIDThread {
 		public final long threadId;

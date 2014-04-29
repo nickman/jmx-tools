@@ -26,7 +26,7 @@ package org.helios.jmx.metrics;
 
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.helios.rindle.util.helpers.ConfigurationHelper;
+import org.helios.jmx.util.helpers.ConfigurationHelper;
 
 
 /**
