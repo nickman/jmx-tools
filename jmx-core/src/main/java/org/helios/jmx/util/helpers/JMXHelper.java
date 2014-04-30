@@ -10,12 +10,18 @@ import java.beans.BeanInfo;
 import java.beans.Introspector;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
+import java.lang.reflect.AccessibleObject;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.URL;
 import java.rmi.registry.LocateRegistry;
+import java.rmi.registry.Registry;
 import java.rmi.server.RMISocketFactory;
+import java.rmi.server.UnicastRemoteObject;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -389,7 +395,100 @@ public class JMXHelper {
 		}		
 	}
 	
-
+	
+	/**
+	 * Creates a new JMX object name for a simple class
+	 * @param clazz The class to generate the ObjectName for
+	 * @param key The class name key
+	 * @return an ObjectName the created ObjectName
+	 */
+	public static ObjectName classObjectName(Class<?> clazz, String key) {
+		try {			
+			return new ObjectName(new StringBuilder(
+				clazz.getPackage().getName())
+				.append(":")
+				.append(key)
+				.append("=")
+				.append(clazz.getSimpleName())
+				.toString());
+		} catch (Exception e) {
+			throw new RuntimeException("Failed to create Object Name for [" + clazz + "]", e);
+		}
+	}	
+	
+	/**
+	 * Creates a new JMX ObjectName from the passed AccessibleObject
+	 * @param ao The AccessibleObject to create an ObjectName for
+	 * @return the ObjectName
+	 */
+	public static ObjectName objectName(AccessibleObject ao) {
+		try {
+			Class<?> clazz = getDeclaringClass(ao);
+			StringBuilder b = new StringBuilder(clazz.getPackage().getName()).append(":");
+			b.append("class=").append(clazz.getSimpleName()).append(",");
+			b.append("method=").append(getName(ao));
+			return new ObjectName(b.toString());
+		} catch (Exception e) {
+			throw new RuntimeException("Failed to create Object Name [" + getGenericString(ao) + "]", e);
+		}
+	}
+	
+	/**
+	 * Gets the declaring class of the passed AccessibleObject
+	 * @param ao the AccessibleObject to get the declaring class for
+	 * @return the declaring class
+	 */
+	public static Class<?> getDeclaringClass(AccessibleObject ao) {
+		if(ao==null) return null;
+		if(ao instanceof Method) {
+			return ((Method)ao).getDeclaringClass();
+		} else if(ao instanceof Constructor) {
+			return ((Constructor<?>)ao).getDeclaringClass();
+		} else if(ao instanceof Field) {
+			return ((Field)ao).getDeclaringClass();
+		} else {
+			throw new RuntimeException("Unknow AccessibleObject type [" + ao.getClass().getName() + "]");
+		}
+	}
+	
+	/**
+	 * Gets the name of the passed AccessibleObject
+	 * @param ao the AccessibleObject to get the name for
+	 * @return the name of the Accessible Object
+	 */
+	public static String getName(AccessibleObject ao) {
+		if(ao==null) return null;
+		if(ao instanceof Method) {
+			return ((Method)ao).getName();
+		} else if(ao instanceof Constructor) {
+			return ((Constructor<?>)ao).getDeclaringClass().getSimpleName();
+		} else if(ao instanceof Field) {
+			return ((Field)ao).getName();
+		} else {
+			throw new RuntimeException("Unknow AccessibleObject type [" + ao.getClass().getName() + "]");
+		}
+	}
+	
+	/**
+	 * Gets the generic string of the passed AccessibleObject
+	 * @param ao the AccessibleObject to get the generic string for
+	 * @return the generic string of the Accessible Object
+	 */
+	public static String getGenericString(AccessibleObject ao) {		
+		if(ao==null) return null;
+		if(ao instanceof Method) {
+			return ((Method)ao).toGenericString();
+		} else if(ao instanceof Constructor) {
+			return ((Constructor<?>)ao).toGenericString();
+		} else if(ao instanceof Field) {
+			Field f = (Field)ao;
+			return String.format("%s:%s(%s)", f.getDeclaringClass().getName(), f.getName(), f.getType().getName());
+		} else {
+			throw new RuntimeException("Unknow AccessibleObject type [" + ao.getClass().getName() + "]");
+		}
+	}
+	
+	
 	
 	
 	/**
@@ -404,6 +503,24 @@ public class JMXHelper {
 			throw new RuntimeException("Failed to create Object Name [" + on + "]", e);
 		}
 	}	
+	
+	/**
+	 * Creates a new JMX ObjectName from the passed class and method name
+	 * @param clazz The class 
+	 * @param methodName The method name to create an ObjectName for
+	 * @return the ObjectName
+	 */
+	public static ObjectName objectName(Class<?> clazz, String methodName) {
+		try {
+			StringBuilder b = new StringBuilder(clazz.getPackage().getName()).append(":");
+			b.append("class=").append(clazz.getSimpleName()).append(",");
+			b.append("method=").append(methodName);
+			return new ObjectName(b.toString());
+		} catch (Exception e) {
+			throw new RuntimeException("Failed to create Object Name [" + clazz.getName() + "/" + methodName + "]", e);
+		}
+	}
+		
 	
 	/**
 	 * Creates a new JMX object name by appending properties on the end of an existing name
@@ -1326,6 +1443,49 @@ while(m.find()) {
 			throw new RuntimeException("Failed to start RMIRegistry on [" + bindInterface + ":" + port + "]", e);
 		}
 	}
+	
+	public static void stopRMIRegistry(final String bindInterface,  final int port) {
+		try {
+			Registry reg = LocateRegistry.getRegistry(bindInterface, port);
+			for(String s: reg.list()) {
+				if(s.startsWith("RMIRegistry:") && s.endsWith(String.format(":%s___", port))) {
+					Registry x = (Registry)reg.lookup(s);
+					UnicastRemoteObject.unexportObject(x, true);
+					break;
+				}
+			}
+		} catch (Exception e) {
+			throw new RuntimeException("Failed to stop RMIRegistry on [" + bindInterface + ":" + port + "]", e);
+		}
+	}
+	
+	public static void main(String[] args) {
+		fireUpRMIRegistry("0.0.0.0",  20384);
+		log("Registry started on [%s:%s]", "0.0.0.0",  20384);
+		stopRMIRegistry("localhost", 20384);
+		log("Registry stopped");
+	}	
+	
+	/**
+	 * Generates a unique key for an RMI registry end point
+	 * @param bindInterface The network interface
+	 * @param port The listening port
+	 * @return the key
+	 */
+	public static String registryKey(final String bindInterface,  final int port) {
+		return String.format("RMIRegistry:%s:%s___", bindInterface, port);
+	}
+	
+	
+	/**
+	 * Simple out formatted logger
+	 * @param fmt The format of the message
+	 * @param args The message arguments
+	 */
+	public static void log(String fmt, Object...args) {
+		System.out.println(String.format(fmt, args));
+	}
+	
 	
 	/**
 	 * Registers a new classloader MBean (an MLet) on the passed MBeanServer

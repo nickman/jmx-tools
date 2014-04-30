@@ -85,6 +85,10 @@ public class UnsafeAdapter {
     /** The size of a <b><code>char[]</code></b> array offset */
     public final static int CHAR_ARRAY_OFFSET;
     
+    /** A zero byte value const */
+    public static final byte ZERO_BYTE = 0;
+    /** A one byte value const */
+    public static final byte ONE_BYTE = 1;
     
     /** The maximum size of a memory allocation request which can be aligned */
     public static final long MAX_ALIGNED_MEM = 1073741824;   // 1,073,741,824

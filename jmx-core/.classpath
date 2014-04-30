@@ -11,7 +11,6 @@
     </attributes>
   </classpathentry>
   <classpathentry kind="src" path="/jmx-optional"/>
-  <classpathentry kind="src" path="/jmx-core"/>
   <classpathentry kind="var" path="M2_REPO/io/netty/netty/3.5.8.Final/netty-3.5.8.Final.jar" sourcepath="M2_REPO/io/netty/netty/3.5.8.Final/netty-3.5.8.Final-sources.jar">
     <attributes>
       <attribute value="jar:file:/C:/Users/nwhitehe/.m2/repository/io/netty/netty/3.5.8.Final/netty-3.5.8.Final-javadoc.jar!/" name="javadoc_location"/>
@@ -51,11 +50,6 @@
   <classpathentry kind="var" path="M2_REPO/log4j/log4j/1.2.16/log4j-1.2.16.jar" sourcepath="M2_REPO/log4j/log4j/1.2.16/log4j-1.2.16-sources.jar">
     <attributes>
       <attribute value="jar:file:/C:/Users/nwhitehe/.m2/repository/log4j/log4j/1.2.16/log4j-1.2.16-javadoc.jar!/" name="javadoc_location"/>
-    </attributes>
-  </classpathentry>
-  <classpathentry kind="var" path="M2_REPO/ch/ethz/ganymed/ganymed-ssh2/262/ganymed-ssh2-262.jar" sourcepath="M2_REPO/ch/ethz/ganymed/ganymed-ssh2/262/ganymed-ssh2-262-sources.jar">
-    <attributes>
-      <attribute value="jar:file:/C:/Users/nwhitehe/.m2/repository/ch/ethz/ganymed/ganymed-ssh2/262/ganymed-ssh2-262-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
 </classpath>

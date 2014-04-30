@@ -26,6 +26,8 @@ package org.helios.jmx.metrics;
 
 import java.util.Date;
 
+import javax.management.ObjectName;
+
 import org.helios.jmx.util.unsafe.UnsafeAdapter;
 import org.helios.jmx.util.unsafe.UnsafeAdapter.SpinLock;
 
@@ -37,9 +39,18 @@ import org.helios.jmx.util.unsafe.UnsafeAdapter.SpinLock;
  * <p><code>org.helios.rindle.period.impl.ConcurrentDirectEWMA</code></p>
  */
 
-public class ConcurrentDirectEWMA extends DirectEWMA {
+public class ConcurrentDirectEWMA extends DirectEWMA implements ConcurrentDirectEWMAMBean {
 	/** The spin lock to guard the EWMA */
 	protected final SpinLock lock = UnsafeAdapter.allocateSpinLock();
+
+	/**
+	 * Creates a new ConcurrentDirectEWMA
+	 * @param windowSize The length of the sliding window in ms.
+	 * @param objectName The object name to register the EWMA with
+	 */
+	public ConcurrentDirectEWMA(long windowSize, ObjectName objectName) {
+		super(windowSize, TOTAL, objectName);		
+	}
 
 	/**
 	 * Creates a new ConcurrentDirectEWMA
@@ -48,6 +59,7 @@ public class ConcurrentDirectEWMA extends DirectEWMA {
 	public ConcurrentDirectEWMA(long windowSize) {
 		super(windowSize, TOTAL);		
 	}
+	
 
 	/**
 	 * Returns the timestamp of the last sample as a long UTC.
@@ -61,6 +73,43 @@ public class ConcurrentDirectEWMA extends DirectEWMA {
 			lock.xunlock();
 		}
 	}
+	
+
+	@Override
+	public long error() {
+		lock.xlock();
+		try {
+			return super.error();
+		} finally {
+			lock.xunlock();
+		}		
+	}
+	
+
+	@Override
+	public void reset() {
+		if(lock==null) {
+			super.reset();
+			return;
+		}
+		lock.xlock();
+		try {
+			super.reset();
+		} finally {
+			lock.xunlock();
+		}				
+	}
+
+
+	@Override
+	public long getErrors() {
+		lock.xlock();
+		try {
+			return UnsafeAdapter.getLong(address[0] + ERRORS);
+		} finally {
+			lock.xunlock();
+		}
+	}	
 	
 	@Override
 	public void append(double sample) {
@@ -79,7 +128,48 @@ public class ConcurrentDirectEWMA extends DirectEWMA {
 	public double getAverage() {
 		lock.xlock();
 		try {
-			return UnsafeAdapter.getDouble(address[0] + AVERAGE);
+			return super.getAverage();
+		} finally {
+			lock.xunlock();
+		}
+	}
+	
+
+	@Override
+	public long getCount() {
+		lock.xlock();
+		try {
+			return super.getCount();
+		} finally {
+			lock.xunlock();
+		}
+	}
+	
+	@Override
+	public double getMaximum() {
+		lock.xlock();
+		try {
+			return super.getMaximum();
+		} finally {
+			lock.xunlock();
+		}
+	}
+	
+	@Override
+	public double getMean() {
+		lock.xlock();
+		try {
+			return super.getMean();
+		} finally {
+			lock.xunlock();
+		}
+	}
+	
+	@Override
+	public double getMinimum() {
+		lock.xlock();
+		try {
+			return super.getMinimum();
 		} finally {
 			lock.xunlock();
 		}
