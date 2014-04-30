@@ -3,5 +3,7 @@
 file:
 log.*
 snapshot.*
-/bin
-/target/*
+bin/
+target/
+/.project
+/.classpath
