@@ -25,12 +25,15 @@
 package org.helios.jmx.batch;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.atomic.AtomicLong;
 
 import javax.management.ListenerNotFoundException;
+import javax.management.MBeanAttributeInfo;
+import javax.management.MBeanInfo;
 import javax.management.MBeanNotificationInfo;
 import javax.management.MBeanServerDelegate;
 import javax.management.MBeanServerNotification;
@@ -39,7 +42,11 @@ import javax.management.NotificationBroadcasterSupport;
 import javax.management.NotificationFilter;
 import javax.management.NotificationListener;
 import javax.management.ObjectName;
+import javax.management.openmbean.CompositeData;
+import javax.management.openmbean.CompositeType;
+import javax.management.openmbean.OpenType;
 
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.helios.jmx.concurrency.JMXManagedThreadPool;
 import org.helios.jmx.util.helpers.JMXHelper;
 
@@ -62,6 +69,12 @@ public class BatchAttributeService extends NotificationBroadcasterSupport implem
 	
 	/** This services's JMX ObjectName */
 	private final ObjectName objectName = JMXHelper.objectName(getClass());
+	
+    /** A map of numeric typed composite fields in composite types, keyed by the ObjectName/Attribute Name */
+    private final Map<ObjectName, Map<String, String[]>> compositeNumerics = new NonBlockingHashMap<ObjectName, Map<String, String[]>>();
+    /** A map of MBean attribute names that are either numeric or compsites containing numerics keyed by the ObjectName */
+    private final Map<ObjectName, String[]> allNumerics = new NonBlockingHashMap<ObjectName, String[]>();
+    
 	
 	/** The bean's notification MBeanInfos */
 	private static final MBeanNotificationInfo[] MBEAN_INFO = new  MBeanNotificationInfo[] {
@@ -103,11 +116,88 @@ public class BatchAttributeService extends NotificationBroadcasterSupport implem
 		JMXHelper.addNotificationListener(MBeanServerDelegate.DELEGATE_NAME, this, this, null);
 	}
 	
-	public Map<ObjectName, Map<String, Object>> batchGet() {
-		Map<ObjectName, Map<String, Object>> results = new HashMap<ObjectName, Map<String, Object>>();
+	public Map<ObjectName, Map<String, Object>> batchGetAttributes(Map<ObjectName, Map<String, String>> criteria) {
+		Map<ObjectName, Map<String, Object>> map = new HashMap<ObjectName, Map<String, Object>>();
 		
-		return results;
+		return map;
 	}
+	
+	/**
+	 * Returns a map of arrays of composite type keys that represent numeric data keyed by the MBean's attribute name
+	 * @param objectName The object name to get the map for
+	 * @return the map of numeric keys
+	 */
+	protected Map<String, String[]> getCompositeNumerics(ObjectName objectName) {
+		Map<String, String[]> map = compositeNumerics.get(objectName);
+		if(map==null) {
+			synchronized(compositeNumerics) {
+				map = compositeNumerics.get(objectName);
+				if(map==null) {
+					map = new HashMap<String, String[]>();
+					MBeanInfo infos = JMXHelper.getMBeanInfo(objectName);
+					for(MBeanAttributeInfo info: infos.getAttributes()) {
+						Set<String> numericKeys = new HashSet<String>();
+						try {                                          
+							if(CompositeData.class.isAssignableFrom(Class.forName(info.getType()))) {
+								CompositeData cd = (CompositeData)JMXHelper.getAttribute(objectName, info.getName());
+								CompositeType ct = cd.getCompositeType();
+								for(String key: ct.keySet()) {
+									OpenType<?> ot = ct.getType(key);
+									try {
+										if(Number.class.isAssignableFrom(Class.forName(ot.getClassName()))) {
+											numericKeys.add(key);
+										}
+									} catch (Exception x) { /* No Op */ }
+								}
+								map.put(info.getName(), numericKeys.toArray(new String[numericKeys.size()]));
+							}
+						} catch (Exception x) { /* No Op */ }
+					}
+				}
+				compositeNumerics.put(objectName, map);
+			}
+		}
+		return map;
+	}
+
+	/**
+	 * Returns an array of attribute names of attributes with numeric types, or composite types containing numeric types
+	 * @param objectName The MBean's ObjectName
+	 * @return the array of numeric attribute names
+	 */
+	 protected String[] getAllNumerics(ObjectName objectName) {
+		String[] attrNames = allNumerics.get(objectName);
+		if(attrNames==null) {
+			synchronized(allNumerics) {
+				attrNames = allNumerics.get(objectName);
+				if(attrNames==null) {
+					Set<String> numericKeys = new HashSet<String>();
+					MBeanInfo infos = JMXHelper.getMBeanInfo(objectName);
+					for(MBeanAttributeInfo info: infos.getAttributes()) {
+						try {
+							Class<?> clazz = Class.forName(info.getType());
+							if(Number.class.isAssignableFrom(clazz)) {
+								numericKeys.add(info.getName());
+							} else if(CompositeData.class.isAssignableFrom(clazz)) {
+								CompositeData cd = (CompositeData)JMXHelper.getAttribute(objectName, info.getName());
+								CompositeType ct = cd.getCompositeType();
+								for(String key: ct.keySet()) {
+									OpenType<?> ot = ct.getType(key);
+									try {
+										if(Number.class.isAssignableFrom(Class.forName(ot.getClassName()))) {
+											numericKeys.add(info.getName() + "/" + key);
+										}
+									} catch (Exception x) { /* No Op */ }
+								}                                                     
+							}
+						} catch (Exception x) { /* No Op */ }
+					}
+					attrNames = numericKeys.toArray(new String[numericKeys.size()]);
+				}
+			}
+		}
+		return attrNames;
+	 }
 	
 	/**
 	 * {@inheritDoc}
