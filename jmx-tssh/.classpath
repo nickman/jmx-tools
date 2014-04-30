@@ -5,7 +5,11 @@
   <classpathentry kind="output" path="target/classes"/>
   <classpathentry kind="var" path="M2_REPO/aopalliance/aopalliance/1.0/aopalliance-1.0.jar" sourcepath="M2_REPO/aopalliance/aopalliance/1.0/aopalliance-1.0-sources.jar"/>
   <classpathentry kind="var" path="M2_REPO/asm/asm/3.3.1/asm-3.3.1.jar"/>
-  <classpathentry kind="var" path="M2_REPO/cglib/cglib/2.2.2/cglib-2.2.2.jar"/>
+  <classpathentry kind="var" path="M2_REPO/cglib/cglib/2.2.2/cglib-2.2.2.jar" sourcepath="M2_REPO/cglib/cglib/2.2.2/cglib-2.2.2-sources.jar">
+    <attributes>
+      <attribute value="jar:file:/home/nwhitehead/.m2/repository/cglib/cglib/2.2.2/cglib-2.2.2-javadoc.jar!/" name="javadoc_location"/>
+    </attributes>
+  </classpathentry>
   <classpathentry kind="var" path="M2_REPO/commons-logging/commons-logging/1.1.1/commons-logging-1.1.1.jar" sourcepath="M2_REPO/commons-logging/commons-logging/1.1.1/commons-logging-1.1.1-sources.jar">
     <attributes>
       <attribute value="jar:file:/home/nwhitehead/.m2/repository/commons-logging/commons-logging/1.1.1/commons-logging-1.1.1-javadoc.jar!/" name="javadoc_location"/>
