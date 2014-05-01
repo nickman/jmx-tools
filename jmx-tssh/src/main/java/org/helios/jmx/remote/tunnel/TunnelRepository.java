@@ -51,9 +51,11 @@ public class TunnelRepository {
 	/** The singleton ctor lock */
 	private static final Object lock = new Object();
 	
-	/** A map of open tunnel connections keyed by <b><code>&lt;address&gt;:&lt;remote-port&gt;</code></b> */
+	/** A map of open tunnel connections keyed by <b><code>&lt;address&gt;:&lt;remote-sshPort&gt;</code></b> */
 	private final Map<String, ConnectionWrapper> connectionsByAddress = new ConcurrentHashMap<String, ConnectionWrapper>();
-	/** A map of open tunnels keyed by <b><code>&lt;address&gt;:&lt;remote-port&gt;</code></b> */
+	/** A map of open tunnels keyed by <b><code>&lt;address&gt;:&lt;local-sshPort&gt;:&lt;remote-sshPort&gt;</code></b> */
+	private final Map<String, LocalPortForwarderWrapper> tunnelsByAddressWithLocal = new ConcurrentHashMap<String, LocalPortForwarderWrapper>();
+	/** A map of open tunnels keyed by <b><code>&lt;address&gt;:&lt;remote-sshPort&gt;</code></b> */
 	private final Map<String, LocalPortForwarderWrapper> tunnelsByAddress = new ConcurrentHashMap<String, LocalPortForwarderWrapper>();
 	
 	
@@ -76,28 +78,21 @@ public class TunnelRepository {
 	
 	/**
 	 * Creates a new tunnel
-	 * @param bridgeHost The host to bridge through, defaults to the target host
-	 * @param bridgePort The port to bridge through, defaults to 22 or the target port if the bridge host is null
-	 * @param targetHost The host to tunnel to
-	 * @param targetPort The port to tunnel to
-	 * @param localPort the local port, which can be 0 for a dynamically assigned port
-	 * @return the tunnel handle which provides the local port the tunnel is accessible through
+	 * @param sshHost The sshHost to bridge through, defaults to the target jmxHost
+	 * @param sshPort The sshPort to bridge through, defaults to 22
+	 * @param jmxHost The JMX connector endpoint host
+	 * @param jmxPort The JMX connector endpoint port
+	 * @param localPort The local port. If zero is passed, a port will be auto assigned
+	 * @return a tunnel handle used to close the tunnel and that provides the local port assignment
 	 */
-	
-	protected TunnelHandle tunnel(String bridgeHost, int bridgePort, String targetHost, int targetPort, int localPort) {
-		if(targetHost==null || targetHost.trim().isEmpty()) throw new IllegalArgumentException("Target host was null or empty");
-		if(targetPort < 1 || targetPort > 65535) throw new IllegalArgumentException("Target port was out of range [" + targetPort + "]");		
-		if(bridgePort < 1) {
-			if(bridgeHost==null || bridgeHost.trim().isEmpty()) {
-				bridgePort = targetPort;
-			} else {
-				bridgePort = 22;
-			}
-		}
-		if(bridgeHost==null || bridgeHost.trim().isEmpty()) bridgeHost = targetHost;
-		// Get a connection to the bridge host
+	protected TunnelHandle tunnel(String sshHost, int sshPort, String jmxHost, int jmxPort, int localPort) {
+		if(jmxHost==null || jmxHost.trim().isEmpty()) throw new IllegalArgumentException("Target JMX Host was null or empty");
+		if(jmxPort < 1 || jmxPort > 65535) throw new IllegalArgumentException("Target jmxPort was out of range [" + jmxPort + "]");		
+		if(sshHost==null || sshHost.trim().isEmpty()) sshHost = jmxHost;
+		if(sshPort < 0 || sshPort > 65535) sshPort = 22;		
+		// Get a connection to the bridge sshHost
 		
-		// Get a tunnel to the target host
+		// Get a tunnel to the target sshHost
 		
 		return null;
 	}
@@ -128,8 +123,8 @@ public class TunnelRepository {
 	
 	/**
 	 * Determines if the repo has an open connection to this remote socket
-	 * @param host The remote host name or address
-	 * @param port The remote port
+	 * @param sshHost The remote sshHost name or address
+	 * @param sshPort The remote sshPort
 	 * @return true if the connection exists
 	 */
 	public boolean hasConnectionFor(String host, int port) {
@@ -139,25 +134,63 @@ public class TunnelRepository {
 	}
 	
 	/**
-	 * Determines if the repo has an open tunnel to this remote socket and the local port
-	 * @param host The remote host name or address
-	 * @param port The remote port
-	 * @param localPort The local port
+	 * Determines if an open connection exists for the passed tunnel connector
+	 * @param tunnelConnector The tunnel connector specifying the requested connection
+	 * @return true if a connection as specified exists, false otherwise
+	 */
+	public boolean hasConnectionFor(SSHTunnelConnector tunnelConnector) {
+		return hasConnectionFor(tunnelConnector.getSSHHost(), tunnelConnector.getSSHPort());
+	}
+	
+	/**
+	 * Creates a connection for the passed tunnel connector if the specified connection does not exist
+	 * @param tunnelConnector the connector specifying the target sshHost and sshPort to connect to
+	 */
+	public void connect(SSHTunnelConnector tunnelConnector) {
+		if(!hasConnectionFor(tunnelConnector)) {
+			synchronized(connectionsByAddress) {
+				if(!hasConnectionFor(tunnelConnector)) {
+					Connection connection = tunnelConnector.connectAndAuthenticate();
+					ConnectionWrapper cw = new ConnectionWrapper(connection, true);
+					registerConnection(cw);
+				}
+			}
+		}
+	}
+	
+	
+	
+	/**
+	 * Determines if the repo has an open tunnel to this remote socket and the local sshPort
+	 * @param sshHost The remote sshHost name or address
+	 * @param sshPort The remote sshPort
+	 * @param localPort The local sshPort
 	 * @return true if the tunnel exists
 	 */
 	public boolean hasTunnelFor(String host, int port, int localPort) {
 		try {
 			String name = InetAddress.getByName(host).getHostAddress();
 			String key = String.format("%s:%s:%s", name, localPort, port);
-			return tunnelsByAddress.containsKey(key);
+			return tunnelsByAddressWithLocal.containsKey(key);
 		} catch (UnknownHostException e) {
 			return false;
 		}		
 	}
 	
+	public boolean hasTunnelFor(SSHTunnelConnector tunnelConnector) {
+		if(tunnelConnector.getLocalPort()==0) {
+			
+		} else {
+			return hasTunnelFor(tunnelConnector.getSSHHost(), tunnelConnector.getSSHPort(), tunnelConnector.getLocalPort()); 
+		}
+		
+	}
+	
+	
+	
 	
 	/**
-	 * Generates a host name key for a connection
+	 * Generates a sshHost name key for a connection
 	 * @param conn The connection to get a key for
 	 * @return the key
 	 */
@@ -185,9 +218,9 @@ public class TunnelRepository {
 	}
 	
 	/**
-	 * Generates a host name key for a tunnel
+	 * Generates a sshHost name key for a tunnel
 	 * @param conn The connection that established the tunnel
-	 * @param localPort The local port of the tunnel
+	 * @param localPort The local sshPort of the tunnel
 	 * @return the key
 	 */
 	public static String nameKey(Connection conn, int localPort) {
@@ -202,7 +235,7 @@ public class TunnelRepository {
 	/**
 	 * Generates an address name key for a tunnel
 	 * @param conn The connection to get a key for
-	 * @param localPort The local port of the tunnel
+	 * @param localPort The local sshPort of the tunnel
 	 * @return the key 
 	 */
 	public static String addressKey(Connection conn, int localPort) {

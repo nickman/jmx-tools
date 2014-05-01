@@ -46,7 +46,7 @@ public class InetAddressCache {
 	/** The singleton ctor lock */
 	private static final Object lock = new Object();
 	
-	/** A cache of host address/host name arrays keyed by the inquired name */
+	/** A cache of sshHost address/sshHost name arrays keyed by the inquired name */
 	protected final NonBlockingHashMap<String, String[]> nameCache = new NonBlockingHashMap<String, String[]>();
 	
 	/** IPV4 Pattern */
@@ -91,9 +91,9 @@ public class InetAddressCache {
 	
 	
 	/**
-	 * Returns the address and host name for the passed string
-	 * @param hostName The host string or address to resolve
-	 * @return a string array with the address and host name
+	 * Returns the address and sshHost name for the passed string
+	 * @param hostName The sshHost string or address to resolve
+	 * @return a string array with the address and sshHost name
 	 */
 	public String[] getAliases(String hostName) {
 		try {
@@ -113,7 +113,7 @@ public class InetAddressCache {
 			}
 			return item;
 		} catch (Exception ex) {
-			throw new RuntimeException("Failed to resolve host [" + hostName + "]", ex);
+			throw new RuntimeException("Failed to resolve sshHost [" + hostName + "]", ex);
 		}
 	}	
 	

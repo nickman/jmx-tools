@@ -22,31 +22,23 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package org.helios.vm.attach.test;
+package org.helios.jmx.metrics.ewma;
 
 /**
- * <p>Title: TestClass</p>
- * <p>Description: </p> 
+ * <p>Title: EWMAKey</p>
+ * <p>Description: A synthetic key that uniquely identifies a {@link DirectEWMA} in a {@link EWMAGroup}</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.vm.attach.test.TestClass</code></p>
+ * <p><code>org.helios.jmx.metrics.ewma.EWMAKey</code></p>
  */
 
-public class TestClass {
-	private String name = null;
+public class EWMAKey {
+
 	/**
-	 * Creates a new TestClass
+	 * Creates a new EWMAKey
 	 */
-	public TestClass(String name) {
-		this.name = name;
+	public EWMAKey() {
+		// TODO Auto-generated constructor stub
 	}
-	
-	public String getName() {
-		return name;
-	}
-	
-//	public String greet(String greeting) {
-//		return String.format("%s %s", greeting, name);
-//	}
 
 }

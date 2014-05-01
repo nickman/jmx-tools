@@ -53,16 +53,16 @@ import ch.ethz.ssh2.transport.ClientTransportManager;
 public class ConnectionWrapper implements Closeable, ConnectionMonitor, CloseListener<LocalPortForwarderWrapper> {
 	/** The connection to wrap */
 	private final Connection connection;
-	/** The host name */
+	/** The sshHost name */
 	private final String host;
-	/** The port */
+	/** The sshPort */
 	private final int port;
 	/** The socket */
 	private final Socket socket;
 	/** Indicates if the tunnel should be closed when the usage drops to zero */
 	protected final boolean closeOnZeroUsage;
 	
-	/** A map of tunnels keyed by keyed by <b><code>&lt;local-port&gt;:&lt;remote-host&gt;:&lt;remote-port&gt;</code> */
+	/** A map of tunnels keyed by keyed by <b><code>&lt;local-sshPort&gt;:&lt;remote-sshHost&gt;:&lt;remote-sshPort&gt;</code> */
 	protected final Map<String, LocalPortForwarderWrapper> tunnels = new ConcurrentHashMap<String, LocalPortForwarderWrapper>();
 	
 	/** A set of close listeners */
@@ -117,8 +117,8 @@ public class ConnectionWrapper implements Closeable, ConnectionMonitor, CloseLis
 	
 	/**
 	 * Creates a new tunnel
-	 * @param host The host to tunnel to
-	 * @param port The port to tunnel to
+	 * @param sshHost The sshHost to tunnel to
+	 * @param sshPort The sshPort to tunnel to
 	 * @return the tunnel handle
 	 */
 	public TunnelHandle tunnel(String host, int port) {
@@ -128,9 +128,9 @@ public class ConnectionWrapper implements Closeable, ConnectionMonitor, CloseLis
 	
 	/**
 	 * Creates a new tunnel
-	 * @param host The host to tunnel to
-	 * @param port The port to tunnel to
-	 * @param localPort the local port
+	 * @param sshHost The sshHost to tunnel to
+	 * @param sshPort The sshPort to tunnel to
+	 * @param localPort the local sshPort
 	 * @return the tunnel handle
 	 */
 	@SuppressWarnings("resource")
@@ -170,16 +170,16 @@ public class ConnectionWrapper implements Closeable, ConnectionMonitor, CloseLis
 	}
 	
 	/**
-	 * Returns the address and host name for the passed string
-	 * @param hostName The host string or address to resolve
-	 * @return a string array with the address and host name
+	 * Returns the address and sshHost name for the passed string
+	 * @param hostName The sshHost string or address to resolve
+	 * @return a string array with the address and sshHost name
 	 */
 	public static String[] getAliases(String hostName) {
 		try {
 			InetAddress ia = InetAddress.getByName(hostName);
 			return new String[] {ia.getHostAddress(), ia.getHostName()};
 		} catch (Exception ex) {
-			throw new RuntimeException("Failed to resolve host [" + hostName + "]", ex);
+			throw new RuntimeException("Failed to resolve sshHost [" + hostName + "]", ex);
 		}
 	}
 	

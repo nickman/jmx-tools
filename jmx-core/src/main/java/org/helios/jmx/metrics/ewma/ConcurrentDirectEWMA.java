@@ -22,7 +22,7 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package org.helios.jmx.metrics;
+package org.helios.jmx.metrics.ewma;
 
 import java.util.Date;
 
@@ -75,6 +75,10 @@ public class ConcurrentDirectEWMA extends DirectEWMA implements ConcurrentDirect
 	}
 	
 
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.metrics.ewma.DirectEWMA#error()
+	 */
 	@Override
 	public long error() {
 		lock.xlock();
@@ -86,6 +90,10 @@ public class ConcurrentDirectEWMA extends DirectEWMA implements ConcurrentDirect
 	}
 	
 
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.metrics.ewma.DirectEWMA#reset()
+	 */
 	@Override
 	public void reset() {
 		if(lock==null) {
@@ -101,6 +109,10 @@ public class ConcurrentDirectEWMA extends DirectEWMA implements ConcurrentDirect
 	}
 
 
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.metrics.ewma.DirectEWMA#getErrors()
+	 */
 	@Override
 	public long getErrors() {
 		lock.xlock();
@@ -111,6 +123,10 @@ public class ConcurrentDirectEWMA extends DirectEWMA implements ConcurrentDirect
 		}
 	}	
 	
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.metrics.ewma.DirectEWMA#append(double)
+	 */
 	@Override
 	public void append(double sample) {
 		lock.xlock();
@@ -122,8 +138,8 @@ public class ConcurrentDirectEWMA extends DirectEWMA implements ConcurrentDirect
 	}
 	
 	/**
-	 * Returns the last computed average.
-	 * @return the last computed average 
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.metrics.ewma.DirectEWMA#getAverage()
 	 */
 	public double getAverage() {
 		lock.xlock();
@@ -135,6 +151,10 @@ public class ConcurrentDirectEWMA extends DirectEWMA implements ConcurrentDirect
 	}
 	
 
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.metrics.ewma.DirectEWMA#getCount()
+	 */
 	@Override
 	public long getCount() {
 		lock.xlock();
@@ -145,6 +165,10 @@ public class ConcurrentDirectEWMA extends DirectEWMA implements ConcurrentDirect
 		}
 	}
 	
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.metrics.ewma.DirectEWMA#getMaximum()
+	 */
 	@Override
 	public double getMaximum() {
 		lock.xlock();
@@ -155,6 +179,10 @@ public class ConcurrentDirectEWMA extends DirectEWMA implements ConcurrentDirect
 		}
 	}
 	
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.metrics.ewma.DirectEWMA#getMean()
+	 */
 	@Override
 	public double getMean() {
 		lock.xlock();
@@ -165,6 +193,10 @@ public class ConcurrentDirectEWMA extends DirectEWMA implements ConcurrentDirect
 		}
 	}
 	
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.metrics.ewma.DirectEWMA#getMinimum()
+	 */
 	@Override
 	public double getMinimum() {
 		lock.xlock();

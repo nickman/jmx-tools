@@ -34,6 +34,7 @@ import java.util.Set;
 import javassist.ClassPool;
 import javassist.CtClass;
 import javassist.CtConstructor;
+import javassist.CtField;
 import javassist.CtMethod;
 import javassist.CtNewMethod;
 import javassist.LoaderClassPath;
@@ -86,20 +87,22 @@ public class InterceptTest {
 			for(Method method: clazz.getDeclaredMethods()) {
 				log("Instrumenting [%s]", method.getName());
 				CtMethod ctm = ctClazz.getDeclaredMethod(method.getName(), getSignature(cp, method.getParameterTypes()));
-				
-				CtClass invoker = cp.makeClass(clazz.getPackage().getName() + "." + clazz.getSimpleName() + cnt);
+				String invokerClazzName = clazz.getPackage().getName() + "." + clazz.getSimpleName() + cnt;
+				CtClass invoker = cp.makeClass(invokerClazzName);
 				CtMethod invokerMethod = CtNewMethod.copy(ctm, "invoke", invoker, null);
-				invoker.addConstructor(new CtConstructor(new CtClass[] {}, invoker));
+				CtConstructor ctor = new CtConstructor(new CtClass[] {}, invoker);
+				invoker.addConstructor(ctor);
+				ctor.setBody("{}");
 				invoker.addMethod(invokerMethod);
 				invokers.add(invoker);
-				Class<?> invokerClass = invoker.toClass();
-				log("Created [%s]", invokerClass.getName());
+
 				
 				ctClazz.removeMethod(ctm);
-				ctm.addLocalVariable("invoker", invoker);
+				ctClazz.addField(new CtField(invoker, "invoker", ctClazz), " new " + invokerClazzName + "();");
+//				ctm.addLocalVariable("invoker", invoker);
 				log("Invoker: [%s]", invoker.getName());
-				ctm.insertBefore("invoker = new " + invoker.getName() + "();");
-				//ctm.setBody("{ return invoker.invoke($$); }");
+//				ctm.insertBefore("invoker = new " + invoker.getName() + "();");
+				ctm.setBody("{ return invoker.invoke($$); }");
 				ctClazz.addMethod(ctm);				
 //				ctm.getMethodInfo().				
 				cnt++;

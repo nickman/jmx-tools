@@ -84,7 +84,7 @@ public class TestServers {
 				log("RMIRegistry: [%s]", rmiRegistry);
 			}
 			connectorServer = JMXConnectorServerFactory.newJMXConnectorServer(surl, null, server);
-			ObjectName on = new ObjectName(String.format("%s:service=JMXConnectorServer,protocol=%s,host=%s,port=%s", getClass().getPackage().getName(), surl.getProtocol(), surl.getHost(), surl.getPort()));
+			ObjectName on = new ObjectName(String.format("%s:service=JMXConnectorServer,protocol=%s,sshHost=%s,sshPort=%s", getClass().getPackage().getName(), surl.getProtocol(), surl.getHost(), surl.getPort()));
 			server.registerMBean(connectorServer, on);
 			connectorServer.start();
 			log("Started [%s]", on);

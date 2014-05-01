@@ -22,7 +22,7 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package org.helios.jmx.metrics;
+package org.helios.jmx.metrics.ewma;
 
 import java.util.Date;
 
@@ -116,6 +116,10 @@ public class DirectEWMA implements DeAllocateMe, DirectEWMAMBean, EWMAAppender {
 	}
 
 	
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.metrics.ewma.DirectEWMAMBean#reset()
+	 */
 	@Override
 	public void reset() {
 		UnsafeAdapter.putLong(address[0] + LAST_SAMPLE, 0L);
@@ -130,29 +134,49 @@ public class DirectEWMA implements DeAllocateMe, DirectEWMAMBean, EWMAAppender {
 	
 	
 
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.metrics.ewma.DirectEWMAMBean#getLastSample()
+	 */
 	@Override
 	public long getLastSample() {
 		return UnsafeAdapter.getLong(address[0] + LAST_SAMPLE);
 	}
 	
 
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.metrics.ewma.DirectEWMAMBean#getAverage()
+	 */
 	@Override
 	public double getAverage() {
 		return UnsafeAdapter.getDouble(address[0] + AVERAGE);
 	}
 	
 
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.metrics.ewma.DirectEWMAMBean#getMinimum()
+	 */
 	@Override
 	public double getMinimum() {
 		return UnsafeAdapter.getDouble(address[0] + MINIMUM);
 	}
 	
 
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.metrics.ewma.DirectEWMAMBean#getMaximum()
+	 */
 	@Override
 	public double getMaximum() {
 		return UnsafeAdapter.getDouble(address[0] + MAXIMUM);
 	}	
 
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.metrics.ewma.DirectEWMAMBean#getMean()
+	 */
 	@Override
 	public double getMean() {
 		return UnsafeAdapter.getDouble(address[0] + MEAN);
@@ -160,18 +184,30 @@ public class DirectEWMA implements DeAllocateMe, DirectEWMAMBean, EWMAAppender {
 	
 	
 
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.metrics.ewma.DirectEWMAMBean#getCount()
+	 */
 	@Override
 	public long getCount() {
 		return UnsafeAdapter.getLong(address[0] + COUNT);
 	}	
 	
 
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.metrics.ewma.DirectEWMAMBean#getWindow()
+	 */
 	@Override
 	public long getWindow() {
 		return UnsafeAdapter.getLong(address[0] + WINDOW);
 	}
 	
 
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.metrics.ewma.DirectEWMAMBean#append(double)
+	 */
 	@Override
 	public void append(double sample) {
 		final long now = System.currentTimeMillis();
@@ -210,12 +246,20 @@ public class DirectEWMA implements DeAllocateMe, DirectEWMAMBean, EWMAAppender {
 	}	
 	
 
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.metrics.ewma.DirectEWMAMBean#increment()
+	 */
 	@Override
 	public long increment() {
 		return increment(1L);
 	}
 
 
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.metrics.ewma.DirectEWMAMBean#increment(long)
+	 */
 	@Override
 	public long increment(long value) {
 		long newval = UnsafeAdapter.getLong(address[0] + COUNT) + value;
@@ -223,13 +267,6 @@ public class DirectEWMA implements DeAllocateMe, DirectEWMAMBean, EWMAAppender {
 		return newval;
 	}
 	
-//	public long incrementErrors() {
-//		long newval = UnsafeAdapter.getLong(address[0] + ERRORS) + 1;
-//		UnsafeAdapter.putLong(address[0] + ERRORS, newval);
-//		return newval;	
-//		
-//		return UnsafeAdapter.getLong(address[0] + ERRORS);
-//	}
 	
 	/**
 	 * {@inheritDoc}
@@ -245,12 +282,20 @@ public class DirectEWMA implements DeAllocateMe, DirectEWMAMBean, EWMAAppender {
 	}
 
 
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.util.unsafe.DeAllocateMe#getAddresses()
+	 */
 	@Override
 	public long[][] getAddresses() {
 		return new long[][]{address};
 	}
 
 
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.metrics.ewma.DirectEWMAMBean#error()
+	 */
 	@Override
 	public long error() {
 		long newval = UnsafeAdapter.getLong(address[0] + ERRORS) + 1;
@@ -258,6 +303,10 @@ public class DirectEWMA implements DeAllocateMe, DirectEWMAMBean, EWMAAppender {
 		return newval;	
 	}
 
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.metrics.ewma.DirectEWMAMBean#getErrors()
+	 */
 	@Override
 	public long getErrors() {
 		return UnsafeAdapter.getLong(address[0] + ERRORS);

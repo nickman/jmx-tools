@@ -28,6 +28,7 @@ import java.util.Date;
 
 import javax.management.ObjectName;
 
+import org.helios.jmx.metrics.ewma.ConcurrentDirectEWMA;
 import org.helios.jmx.util.helpers.JMXHelper;
 import org.helios.jmx.util.unsafe.DeAllocateMe;
 import org.helios.jmx.util.unsafe.UnsafeAdapter;

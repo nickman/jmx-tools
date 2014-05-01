@@ -45,16 +45,16 @@ import ch.ethz.ssh2.LocalPortForwarder;
  */
 
 public class LocalPortForwarderWrapper implements Closeable {
-	/** The wrapped port forwarder */
+	/** The wrapped sshPort forwarder */
 	protected final LocalPortForwarder localPortForwarder;
 	
-	/** The remote host name */
+	/** The remote sshHost name */
 	protected final String hostName;
-	/** The remote host address */
+	/** The remote sshHost address */
 	protected final String hostAddress;
-	/** The remote port connected to */
+	/** The remote sshPort connected to */
 	protected final int remotePort;
-	/** The local port tunneled to the remote port */
+	/** The local sshPort tunneled to the remote sshPort */
 	protected final int localPort;
 	/** Indicates if the tunnel should be closed when the usage drops to zero */
 	protected final boolean closeOnZeroUsage;
@@ -69,9 +69,9 @@ public class LocalPortForwarderWrapper implements Closeable {
 	
 	/**
 	 * Creates a new LocalPortForwarderWrapper
-	 * @param localPortForwarder The wrapped port forwarder
-	 * @param remoteHost The remote host tunneled to
-	 * @param remotePort The remote port tunneled to
+	 * @param localPortForwarder The wrapped sshPort forwarder
+	 * @param remoteHost The remote sshHost tunneled to
+	 * @param remotePort The remote sshPort tunneled to
 	 * @param closeOnZeroUsage Indicates if the tunnel should be closed when the usage drops to zero
 	 */
 	public LocalPortForwarderWrapper(LocalPortForwarder localPortForwarder, String remoteHost, int remotePort, boolean closeOnZeroUsage) {		
@@ -84,7 +84,7 @@ public class LocalPortForwarderWrapper implements Closeable {
 			hostAddress = iaddr.getHostAddress();
 			hostName = iaddr.getHostName();
 		} catch (Exception ex) {
-			throw new RuntimeException("Failed to resolve remote host [" + remoteHost + "]", ex);
+			throw new RuntimeException("Failed to resolve remote sshHost [" + remoteHost + "]", ex);
 		}
 	}
 	
@@ -125,8 +125,8 @@ public class LocalPortForwarderWrapper implements Closeable {
 	}
 
 	/**
-	 * Returns the unwrapped port forward
-	 * @return the unwrapped port forward
+	 * Returns the unwrapped sshPort forward
+	 * @return the unwrapped sshPort forward
 	 */
 	public LocalPortForwarder getLocalPortForwarder() {
 		return localPortForwarder;
@@ -134,8 +134,8 @@ public class LocalPortForwarderWrapper implements Closeable {
 
 
 	/**
-	 * Returns the remote host name
-	 * @return the remote host name
+	 * Returns the remote sshHost name
+	 * @return the remote sshHost name
 	 */
 	public String getHostName() {
 		return hostName;
@@ -143,32 +143,32 @@ public class LocalPortForwarderWrapper implements Closeable {
 
 
 	/**
-	 * Returns the remote host address
-	 * @return the remote host address
+	 * Returns the remote sshHost address
+	 * @return the remote sshHost address
 	 */
 	public String getHostAddress() {
 		return hostAddress;
 	}
 
 	/**
-	 * Returns the remote port
-	 * @return the remote port
+	 * Returns the remote sshPort
+	 * @return the remote sshPort
 	 */
 	public int getRemotePort() {
 		return remotePort;
 	}
 
 	/**
-	 * Returns the local port
-	 * @return the local port
+	 * Returns the local sshPort
+	 * @return the local sshPort
 	 */
 	public int getLocalPort() {
 		return localPort;
 	}
 
 	/**
-	 * Returns the port forwarder's local socket address
-	 * @return the port forwarder's local socket address
+	 * Returns the sshPort forwarder's local socket address
+	 * @return the sshPort forwarder's local socket address
 	 */
 	public InetSocketAddress getLocalSocketAddress() {
 		return localPortForwarder.getLocalSocketAddress();
@@ -183,7 +183,7 @@ public class LocalPortForwarderWrapper implements Closeable {
 	}
 
 	/**
-	 * Closes the wrapped port forwarder
+	 * Closes the wrapped sshPort forwarder
 	 */
 	public void close() {
 		if(open.compareAndSet(true, false)) {

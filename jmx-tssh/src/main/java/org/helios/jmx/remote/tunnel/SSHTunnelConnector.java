@@ -65,10 +65,15 @@ import ch.ethz.ssh2.signature.RSAPrivateKey;
 
 public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMonitor {
 	/** The SSH Host */
-	protected String host = null;
-	/** The SSHD listening port */
-	protected int port = 22;
-	/** The local listening port */
+	protected String sshHost = null;
+	/** The SSHD listening sshPort */
+	protected int sshPort = 22;
+	/** The target jmx connector server sshHost */
+	protected String jmxConnectorHost = null;
+	/** The target jmx connector server sshPort */
+	protected int jmxConnectorPort = -1;
+	
+	/** The local listening sshPort */
 	protected int localPort = 0;
 	/** The SSH user name */
 	protected String userName = null;
@@ -98,13 +103,9 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 	/** The SSH key exchange timeout in ms. */
 	protected int sshKeyExchangeTimeout = 0;
 	
-	/** The target jmx connector server host */
-	protected String jmxConnectorHost = null;
-	/** The target jmx connector server port */
-	protected int jmxConnectorPort = -1;
 	
 	
-	/** A map of known host instances keyed by the underlying file name */
+	/** A map of known sshHost instances keyed by the underlying file name */
 	protected static final Map<String, KnownHosts> KNOWN_HOSTS = new ConcurrentHashMap<String, KnownHosts>();
 	
 	
@@ -144,7 +145,7 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 				delegateProtocol = optionValue.toString();
 				break;
 //			case HOST:
-//				host = optionValue.toString();
+//				sshHost = optionValue.toString();
 //				break;
 			case HOSTFILE:
 				if(OptionReaders.isFile(optionValue.toString())) {
@@ -168,7 +169,7 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 				userPassword = optionValue.toString();
 				break;
 			case PORT:
-				port = (Integer)optionValue;
+				sshPort = (Integer)optionValue;
 				break;
 			case PROPSPREF:
 				break;
@@ -189,31 +190,39 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 			case SSHKTO:
 				sshKeyExchangeTimeout = (Integer)optionValue;
 				break;
-			case JMXHOST:
-				jmxConnectorHost = optionValue.toString();
-				break;
-			case JMXPORT:
-				jmxConnectorPort = (Integer)optionValue;
-				break;
+//			case JMXHOST:
+//				jmxConnectorHost = optionValue.toString();
+//				break;
+//			case JMXPORT:
+//				jmxConnectorPort = (Integer)optionValue;
+//				break;
 				
 			default:
 				break;
 			
 			}			
 			setKeyType();
-		}
-		
+		}		
 		try {
-			localPort = jmxServiceURL.getPort();
+			jmxConnectorPort = jmxServiceURL.getPort();
 		} catch (Exception ex) {/* No Op */}
 		try {
-			host = jmxServiceURL.getHost();
-		} catch (Exception ex) {/* No Op */}
-		
+			jmxConnectorHost = jmxServiceURL.getHost();
+		} catch (Exception ex) {/* No Op */}		
 	}
+	
+	/*
+	 * sshHost/sshPort: from jmxServiceURL.getHost() - The actual target endpoint, may also be the SSH sshHost to tunnel through (the bridge sshHost)
+	 * jmxConnectorHost/jmxConnectorPort:  option [jmxh] specified, the SSH bridge sshHost. If not specified, is the same as the sshHost 
+	 */
 	
 	public static Map tunnel(JMXServiceURL jmxServiceURL, Map env) {
 		SSHTunnelConnector tunnelConnector = new SSHTunnelConnector(jmxServiceURL, env);
+		if(!TunnelRepository.getInstance().hasConnectionFor(tunnelConnector.getSSHHost(), tunnelConnector.getSSHPort())) {
+			ConnectionWrapper conn = new ConnectionWrapper(tunnelConnector.connectAndAuthenticate(), true);
+			TunnelRepository.getInstance().registerConnection(conn);
+		}
+		//TunnelRepository.getInstance().tunnel(bridgeHost, bridgePort, targetHost, targetPort, localPort)
 		// TODO: 
 		// add jmxopts to map
 		// add connector to map
@@ -224,8 +233,8 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 	 * Validates the most basic requirements to establish a connection 
 	 */
 	protected void validateRequirementsLevelOne() {
-		String[] aliases = InetAddressCache.getInstance().getAliases(host);
-		if(port < 1 || port > 65534) throw new IllegalArgumentException("The configured port is out of range [" + port + "]");
+		String[] aliases = InetAddressCache.getInstance().getAliases(sshHost);
+		if(sshPort < 1 || sshPort > 65534) throw new IllegalArgumentException("The configured sshPort is out of range [" + sshPort + "]");
 		if(userName==null || userName.trim().isEmpty()) throw new IllegalArgumentException("The configured user name is null or empty");
 	}
 	
@@ -241,12 +250,13 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 		validateRequirementsLevelOne();
 		boolean authenticated = false;
 		try {
-			log("Connecting to: [" + host + ":" + port + "]");
-			conn = new Connection(host, port);
+			log("Connecting to: [" + sshHost + ":" + sshPort + "]");
+			conn = new Connection(sshHost, sshPort);
+			
 			if(validateServer) {
-				conn.connect(this);
+				conn.connect(this, sshConnectTimeout, sshKeyExchangeTimeout);
 			} else {
-				conn.connect();
+				conn.connect(null, sshConnectTimeout, sshKeyExchangeTimeout);
 			}
 			authenticated = conn.authenticateWithNone(userName);
 			if(authenticated) return conn;
@@ -300,7 +310,7 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 	
 	
 	/**
-	 * Builds the know host instance or resets if fails
+	 * Builds the know sshHost instance or resets if fails
 	 */
 	private void buildKnownHosts() {
 		if(knownHostsFile!=null && OptionReaders.isFile(knownHostsFile)) {
@@ -628,13 +638,13 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 		final int maxLen = 10;
 		StringBuilder builder = new StringBuilder();
 		builder.append("SSHTunnelConnector [");
-		if (host != null) {
-			builder.append("host=");
-			builder.append(host);
+		if (sshHost != null) {
+			builder.append("sshHost=");
+			builder.append(sshHost);
 			builder.append(", ");
 		}
-		builder.append("port=");
-		builder.append(port);
+		builder.append("sshPort=");
+		builder.append(sshPort);
 		builder.append(", localPort=");
 		builder.append(localPort);
 		builder.append(", ");
@@ -722,12 +732,12 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 		
 	}
 
-	public String getHost() {
-		return host;
+	public String getSSHHost() {
+		return sshHost==null ? jmxConnectorHost : sshHost;
 	}
 
-	public int getPort() {
-		return port;
+	public int getSSHPort() {
+		return sshPort;
 	}
 
 	public int getLocalPort() {
@@ -768,6 +778,14 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 
 	public boolean isValidateServer() {
 		return validateServer;
+	}
+
+	public String getJmxConnectorHost() {
+		return jmxConnectorHost;
+	}
+
+	public int getJmxConnectorPort() {
+		return jmxConnectorPort;
 	}
 
 	

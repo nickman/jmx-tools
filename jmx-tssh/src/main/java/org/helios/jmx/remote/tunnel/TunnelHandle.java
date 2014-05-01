@@ -28,7 +28,7 @@ import java.io.Closeable;
 
 /**
  * <p>Title: TunnelHandle</p>
- * <p>Description: A closeable for tunnels that also provides the local port side of the tunnel</p> 
+ * <p>Description: A closeable for tunnels that also provides the local sshPort side of the tunnel</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
  * <p><code>org.helios.jmx.remote.tunnel.TunnelHandle</code></p>
@@ -36,8 +36,8 @@ import java.io.Closeable;
 
 public interface TunnelHandle extends Closeable {
 	/**
-	 * Returns the local side port of the tunnel
-	 * @return the local side port of the tunnel
+	 * Returns the local side sshPort of the tunnel
+	 * @return the local side sshPort of the tunnel
 	 */
 	public int getLocalPort();
 }

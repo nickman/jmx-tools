@@ -45,10 +45,10 @@ public enum SSHOption {
 	USER("u", ClientProvider.PROTOCOL_NAME + ".user", System.getProperty("user.name"), OptionReaders.STRING_READER),
 	/** The SSH user password */
 	PASS("p", ClientProvider.PROTOCOL_NAME + ".password", null, OptionReaders.STRING_READER),
-	/** The JMX connector server host */
-	JMXHOST("jmxh", ClientProvider.PROTOCOL_NAME + ".jmxhost", "localhost", OptionReaders.STRING_READER),
-	/** The JMX connector server port */
-	JMXPORT("jmxp", ClientProvider.PROTOCOL_NAME + ".jmxport", -1, OptionReaders.INT_READER),	
+//	/** The JMX connector server sshHost */
+//	JMXHOST("jmxh", ClientProvider.PROTOCOL_NAME + ".jmxhost", "localhost", OptionReaders.STRING_READER),
+//	/** The JMX connector server sshPort */
+//	JMXPORT("jmxp", ClientProvider.PROTOCOL_NAME + ".jmxport", -1, OptionReaders.INT_READER),	
 	/** The JMX user name */
 	JMXUSER("jmxu", ClientProvider.PROTOCOL_NAME + ".jmxuser", System.getProperty("user.name"), OptionReaders.STRING_READER),
 	/** The JMX user password */
@@ -57,11 +57,11 @@ public enum SSHOption {
 	KEY("k", ClientProvider.PROTOCOL_NAME + ".privatekey", String.format("%s%s.ssh%sid_dsa", System.getProperty("user.home"), File.separator, File.separator), OptionReaders.CHAR_ARR_READER),
 	/** The private key passphrase */
 	KEYPHR("kp", ClientProvider.PROTOCOL_NAME + ".passphrase", null, OptionReaders.STRING_READER),
-//	/** The SSH host to connect to */
-//	HOST("h", ClientProvider.PROTOCOL_NAME + ".host", "localhost", OptionReaders.STRING_READER),
-	/** The listening port of the SSH host to connect to */
+	/** The SSH sshHost to connect to */
+	HOST("h", ClientProvider.PROTOCOL_NAME + ".host", "localhost", OptionReaders.STRING_READER),
+	/** The listening sshPort of the SSH sshHost to connect to */
 	PORT("pt", ClientProvider.PROTOCOL_NAME + ".port", 22, OptionReaders.INT_READER),
-	/** The local port of the SSH tunnel */
+	/** The local sshPort of the SSH tunnel */
 	LOCAL_PORT("lp", ClientProvider.PROTOCOL_NAME + ".localport", 0, OptionReaders.INT_READER),	
 	/** Indicates if the server key should be validated */
 	SVRKEY("sk", ClientProvider.PROTOCOL_NAME + ".serverkey", "true", OptionReaders.BOOLEAN_READER),
@@ -86,6 +86,15 @@ public enum SSHOption {
 	 * InteractiveCallback
 	 * connect timeout
 	 * kex timeout
+	 * 
+	 * JMXServiceURL.getHost/Port specified in URL (no option) --> tunnels to this endpoint
+	 * Tunnel connection:
+	 * ==================
+	 * Defaults to JMXServiceURL.getHost:22
+	 * Overriden with options: HOST / PORT
+	 * 
+	 * 
+	 * 
 	 */
 	
 	

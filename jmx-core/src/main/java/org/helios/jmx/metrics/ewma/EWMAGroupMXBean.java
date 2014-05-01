@@ -22,31 +22,16 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package org.helios.vm.attach.test;
+package org.helios.jmx.metrics.ewma;
 
 /**
- * <p>Title: TestClass</p>
- * <p>Description: </p> 
+ * <p>Title: EWMAGroupMXBean</p>
+ * <p>Description: Bootstrap MXBean interface for {@link EWMAGroup}</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.vm.attach.test.TestClass</code></p>
+ * <p><code>org.helios.jmx.metrics.ewma.EWMAGroupMXBean</code></p>
  */
 
-public class TestClass {
-	private String name = null;
-	/**
-	 * Creates a new TestClass
-	 */
-	public TestClass(String name) {
-		this.name = name;
-	}
-	
-	public String getName() {
-		return name;
-	}
-	
-//	public String greet(String greeting) {
-//		return String.format("%s %s", greeting, name);
-//	}
+public interface EWMAGroupMXBean {
 
 }

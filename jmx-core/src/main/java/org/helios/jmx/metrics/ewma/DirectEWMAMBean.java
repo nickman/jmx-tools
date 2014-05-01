@@ -22,7 +22,7 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package org.helios.jmx.metrics;
+package org.helios.jmx.metrics.ewma;
 
 /**
  * <p>Title: DirectEWMAMBean</p>
