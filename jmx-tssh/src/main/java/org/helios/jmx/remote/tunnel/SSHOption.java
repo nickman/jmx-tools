@@ -58,7 +58,7 @@ public enum SSHOption {
 	/** The private key passphrase */
 	KEYPHR("kp", ClientProvider.PROTOCOL_NAME + ".passphrase", null, OptionReaders.STRING_READER),
 	/** The SSH sshHost to connect to */
-	HOST("h", ClientProvider.PROTOCOL_NAME + ".host", "localhost", OptionReaders.STRING_READER),
+	HOST("h", ClientProvider.PROTOCOL_NAME + ".host", null, OptionReaders.STRING_READER),
 	/** The listening sshPort of the SSH sshHost to connect to */
 	PORT("pt", ClientProvider.PROTOCOL_NAME + ".port", 22, OptionReaders.INT_READER),
 	/** The local sshPort of the SSH tunnel */

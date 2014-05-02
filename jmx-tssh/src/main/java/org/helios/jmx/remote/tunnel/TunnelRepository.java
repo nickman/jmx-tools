@@ -24,6 +24,7 @@
  */
 package org.helios.jmx.remote.tunnel;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.HashMap;
@@ -53,9 +54,9 @@ public class TunnelRepository {
 	
 	/** A map of open tunnel connections keyed by <b><code>&lt;address&gt;:&lt;remote-sshPort&gt;</code></b> */
 	private final Map<String, ConnectionWrapper> connectionsByAddress = new ConcurrentHashMap<String, ConnectionWrapper>();
-	/** A map of open tunnels keyed by <b><code>&lt;address&gt;:&lt;local-sshPort&gt;:&lt;remote-sshPort&gt;</code></b> */
+	/** A map of open tunnels keyed by <b><code>&lt;address&gt;:&lt;local-Port&gt;:&lt;remote-jmxPort&gt;</code></b> */
 	private final Map<String, LocalPortForwarderWrapper> tunnelsByAddressWithLocal = new ConcurrentHashMap<String, LocalPortForwarderWrapper>();
-	/** A map of open tunnels keyed by <b><code>&lt;address&gt;:&lt;remote-sshPort&gt;</code></b> */
+	/** A map of open tunnels keyed by <b><code>&lt;address&gt;:&lt;remote-jmxPort&gt;</code></b> */
 	private final Map<String, LocalPortForwarderWrapper> tunnelsByAddress = new ConcurrentHashMap<String, LocalPortForwarderWrapper>();
 	
 	
@@ -76,32 +77,72 @@ public class TunnelRepository {
 	
 	
 	
+//	/**
+//	 * Creates a new tunnel
+//	 * @param sshHost The sshHost to bridge through, defaults to the target jmxHost
+//	 * @param sshPort The sshPort to bridge through, defaults to 22
+//	 * @param jmxHost The JMX connector endpoint host
+//	 * @param jmxPort The JMX connector endpoint port
+//	 * @param localPort The local port. If zero is passed, a port will be auto assigned
+//	 * @return a tunnel handle used to close the tunnel and that provides the local port assignment
+//	 */
 	/**
-	 * Creates a new tunnel
-	 * @param sshHost The sshHost to bridge through, defaults to the target jmxHost
-	 * @param sshPort The sshPort to bridge through, defaults to 22
-	 * @param jmxHost The JMX connector endpoint host
-	 * @param jmxPort The JMX connector endpoint port
-	 * @param localPort The local port. If zero is passed, a port will be auto assigned
-	 * @return a tunnel handle used to close the tunnel and that provides the local port assignment
+	 * Creates or acquires a new tunnel
+	 * @param tunnelConnector The tunnel connector
+	 * @return a handle to the tunnel
 	 */
-	protected TunnelHandle tunnel(String sshHost, int sshPort, String jmxHost, int jmxPort, int localPort) {
-		if(jmxHost==null || jmxHost.trim().isEmpty()) throw new IllegalArgumentException("Target JMX Host was null or empty");
-		if(jmxPort < 1 || jmxPort > 65535) throw new IllegalArgumentException("Target jmxPort was out of range [" + jmxPort + "]");		
-		if(sshHost==null || sshHost.trim().isEmpty()) sshHost = jmxHost;
-		if(sshPort < 0 || sshPort > 65535) sshPort = 22;		
-		// Get a connection to the bridge sshHost
-		
-		// Get a tunnel to the target sshHost
-		
-		return null;
+	@SuppressWarnings("resource")
+	public TunnelHandle tunnel(SSHTunnelConnector tunnelConnector) {
+		String jmxHost = tunnelConnector.getJmxConnectorHost();
+		int jmxPort = tunnelConnector.getJmxConnectorPort();
+		int localPort = tunnelConnector.getLocalPort();		
+		LocalPortForwarderWrapper tunnel = null;
+		final String key;
+		if(localPort < 1) {
+			localPort = 0;
+			key = String.format("%s:%s", jmxHost, jmxPort);
+			tunnel = tunnelsByAddress.get(key);
+			if(tunnel == null) {
+				synchronized(tunnelsByAddress) {
+					tunnelsByAddress.get(key);
+					if(tunnel == null) {
+						ConnectionWrapper cw = _connect(tunnelConnector);
+						try {
+							tunnel = new LocalPortForwarderWrapper(
+									cw.createLocalPortForwarder(localPort, jmxHost, jmxPort),
+									jmxHost, jmxPort, true
+							);
+							registerTunnel(tunnel);
+						} catch (IOException e) {
+							throw new RuntimeException("Failed to tunnel to [" + jmxHost + ":" + jmxPort + "]", e);
+						}
+					}
+				}
+			}
+		} else {
+			key = String.format("%s:%s:%s", jmxHost, localPort, jmxPort);
+			tunnel = tunnelsByAddressWithLocal.get(key);
+			if(tunnel == null) {
+				synchronized(tunnelsByAddressWithLocal) {
+					tunnelsByAddressWithLocal.get(key);
+					if(tunnel == null) {
+						ConnectionWrapper cw = _connect(tunnelConnector);
+						try {
+							tunnel = new LocalPortForwarderWrapper(
+									cw.createLocalPortForwarder(localPort, jmxHost, jmxPort),
+									jmxHost, jmxPort, true
+							);
+							registerTunnel(tunnel);
+						} catch (IOException e) {
+							throw new RuntimeException("Failed to tunnel to [" + jmxHost + ":" + jmxPort + "] with local port [" + localPort + "]", e);
+						}
+					}
+				}
+			}
+		}		
+		return tunnel;
 	}
 	
-	public Map tunnel(JMXServiceURL jmxServiceURL, Map env) {
-		if(env==null) env = new HashMap();
-		
-		return env;
-	}
 	
 	
 	
@@ -122,9 +163,19 @@ public class TunnelRepository {
 	}
 	
 	/**
+	 * Registers a new tunnel
+	 * @param tunnel the tunnel to register
+	 */
+	protected void registerTunnel(LocalPortForwarderWrapper tunnel) {
+		tunnelsByAddress.put(String.format("%s:%s", tunnel.getHostAddress(), tunnel.getRemotePort()), tunnel);
+		tunnelsByAddressWithLocal.put(String.format("%s::%s%s", tunnel.getHostAddress(), tunnel.getLocalPort(), tunnel.getRemotePort()), tunnel);
+	}
+	
+	
+	/**
 	 * Determines if the repo has an open connection to this remote socket
-	 * @param sshHost The remote sshHost name or address
-	 * @param sshPort The remote sshPort
+	 * @param host The remote sshHost name or address
+	 * @param port The remote sshPort
 	 * @return true if the connection exists
 	 */
 	public boolean hasConnectionFor(String host, int port) {
@@ -139,8 +190,18 @@ public class TunnelRepository {
 	 * @return true if a connection as specified exists, false otherwise
 	 */
 	public boolean hasConnectionFor(SSHTunnelConnector tunnelConnector) {
-		return hasConnectionFor(tunnelConnector.getSSHHost(), tunnelConnector.getSSHPort());
+		return getConnectionFor(tunnelConnector)!=null;
 	}
+	
+	/**
+	 * Returns a connection for the passed tunnel connector if one has been created
+	 * @param tunnelConnector The tunnel connector specifying the connection
+	 * @return the ConnectionWrapper or null if one was not found
+	 */
+	protected ConnectionWrapper getConnectionFor(SSHTunnelConnector tunnelConnector) {
+		return connectionsByAddress.get(String.format("%s:%s", tunnelConnector.getSSHHost(), tunnelConnector.getSSHPort())); 
+	}
+	
 	
 	/**
 	 * Creates a connection for the passed tunnel connector if the specified connection does not exist
@@ -156,6 +217,27 @@ public class TunnelRepository {
 				}
 			}
 		}
+	}
+	
+	/**
+	 * Acquires a connection for the passed tunnel connector, creating one if one does not exist
+	 * @param tunnelConnector The tunnel connector specifying the connection
+	 * @return a connection
+	 */
+	@SuppressWarnings("resource")
+	protected ConnectionWrapper _connect(SSHTunnelConnector tunnelConnector) {
+		ConnectionWrapper cw = getConnectionFor(tunnelConnector);
+		if(cw==null) {
+			synchronized(connectionsByAddress) {
+				cw = getConnectionFor(tunnelConnector);
+				if(cw==null) {
+					Connection connection = tunnelConnector.connectAndAuthenticate();
+					cw = new ConnectionWrapper(connection, true);
+					registerConnection(cw);					
+				}
+			}
+		}
+		return cw;
 	}
 	
 	
@@ -177,14 +259,14 @@ public class TunnelRepository {
 		}		
 	}
 	
-	public boolean hasTunnelFor(SSHTunnelConnector tunnelConnector) {
-		if(tunnelConnector.getLocalPort()==0) {
-			
-		} else {
-			return hasTunnelFor(tunnelConnector.getSSHHost(), tunnelConnector.getSSHPort(), tunnelConnector.getLocalPort()); 
-		}
-		
-	}
+//	public boolean hasTunnelFor(SSHTunnelConnector tunnelConnector) {
+//		if(tunnelConnector.getLocalPort()==0) {
+//			
+//		} else {
+//			return hasTunnelFor(tunnelConnector.getSSHHost(), tunnelConnector.getSSHPort(), tunnelConnector.getLocalPort()); 
+//		}
+//		
+//	}
 	
 	
 	

@@ -25,10 +25,13 @@
 package org.helios.jmx.remote.tunnel;
 
 import java.io.Closeable;
+import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.security.SecureRandom;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
@@ -38,8 +41,16 @@ import org.helios.jmx.remote.CloseListener;
 import org.jboss.netty.util.internal.ConcurrentHashMap;
 
 import ch.ethz.ssh2.Connection;
+import ch.ethz.ssh2.ConnectionInfo;
 import ch.ethz.ssh2.ConnectionMonitor;
+import ch.ethz.ssh2.DHGexParameters;
+import ch.ethz.ssh2.InteractiveCallback;
 import ch.ethz.ssh2.LocalPortForwarder;
+import ch.ethz.ssh2.LocalStreamForwarder;
+import ch.ethz.ssh2.SCPClient;
+import ch.ethz.ssh2.ServerHostKeyVerifier;
+import ch.ethz.ssh2.Session;
+import ch.ethz.ssh2.auth.AgentProxy;
 import ch.ethz.ssh2.transport.ClientTransportManager;
 
 /**
@@ -304,11 +315,170 @@ public class ConnectionWrapper implements Closeable, ConnectionMonitor, CloseLis
 		return connection.getHostname();
 	}
 
-	/**
-	 * @return
-	 */
-	public Object getPort() {
+
+
+	public boolean authenticateWithDSA(String user, String pem, String password)
+			throws IOException {
+		return connection.authenticateWithDSA(user, pem, password);
+	}
+
+	public boolean authenticateWithKeyboardInteractive(String user,
+			InteractiveCallback cb) throws IOException {
+		return connection.authenticateWithKeyboardInteractive(user, cb);
+	}
+
+	public boolean authenticateWithKeyboardInteractive(String user,
+			String[] submethods, InteractiveCallback cb) throws IOException {
+		return connection.authenticateWithKeyboardInteractive(user, submethods,
+				cb);
+	}
+
+	public boolean authenticateWithAgent(String user, AgentProxy proxy)
+			throws IOException {
+		return connection.authenticateWithAgent(user, proxy);
+	}
+
+	public boolean authenticateWithPassword(String user, String password)
+			throws IOException {
+		return connection.authenticateWithPassword(user, password);
+	}
+
+	public boolean authenticateWithNone(String user) throws IOException {
+		return connection.authenticateWithNone(user);
+	}
+
+	public boolean authenticateWithPublicKey(String user, char[] pemPrivateKey,
+			String password) throws IOException {
+		return connection.authenticateWithPublicKey(user, pemPrivateKey,
+				password);
+	}
+
+	public boolean authenticateWithPublicKey(String user, File pemFile,
+			String password) throws IOException {
+		return connection.authenticateWithPublicKey(user, pemFile, password);
+	}
+
+	public void close(Throwable t, boolean hard) {
+		connection.close(t, hard);
+	}
+
+	public ConnectionInfo connect() throws IOException {
+		return connection.connect();
+	}
+
+	public ConnectionInfo connect(ServerHostKeyVerifier verifier)
+			throws IOException {
+		return connection.connect(verifier);
+	}
+
+	public ConnectionInfo connect(ServerHostKeyVerifier verifier,
+			int connectTimeout, int kexTimeout) throws IOException {
+		return connection.connect(verifier, connectTimeout, kexTimeout);
+	}
+
+	public LocalPortForwarder createLocalPortForwarder(int local_port,
+			String host_to_connect, int port_to_connect) throws IOException {
+		return connection.createLocalPortForwarder(local_port, host_to_connect,
+				port_to_connect);
+	}
+
+	public LocalPortForwarder createLocalPortForwarder(InetSocketAddress addr,
+			String host_to_connect, int port_to_connect) throws IOException {
+		return connection.createLocalPortForwarder(addr, host_to_connect,
+				port_to_connect);
+	}
+
+	public LocalStreamForwarder createLocalStreamForwarder(
+			String host_to_connect, int port_to_connect) throws IOException {
+		return connection.createLocalStreamForwarder(host_to_connect,
+				port_to_connect);
+	}
+
+	public SCPClient createSCPClient() throws IOException {
+		return connection.createSCPClient();
+	}
+
+	public void forceKeyExchange() throws IOException {
+		connection.forceKeyExchange();
+	}
+
+	public int getPort() {
 		return connection.getPort();
+	}
+
+	public ConnectionInfo getConnectionInfo() throws IOException {
+		return connection.getConnectionInfo();
+	}
+
+	public String[] getRemainingAuthMethods(String user) throws IOException {
+		return connection.getRemainingAuthMethods(user);
+	}
+
+	public boolean isAuthenticationComplete() {
+		return connection.isAuthenticationComplete();
+	}
+
+	public boolean isAuthenticationPartialSuccess() {
+		return connection.isAuthenticationPartialSuccess();
+	}
+
+	public boolean isAuthMethodAvailable(String user, String method)
+			throws IOException {
+		return connection.isAuthMethodAvailable(user, method);
+	}
+
+	public Session openSession() throws IOException {
+		return connection.openSession();
+	}
+
+	public void sendIgnorePacket() throws IOException {
+		connection.sendIgnorePacket();
+	}
+
+	public void sendIgnorePacket(byte[] data) throws IOException {
+		connection.sendIgnorePacket(data);
+	}
+
+	public void setClient2ServerCiphers(String[] ciphers) {
+		connection.setClient2ServerCiphers(ciphers);
+	}
+
+	public void setClient2ServerMACs(String[] macs) {
+		connection.setClient2ServerMACs(macs);
+	}
+
+	public void setDHGexParameters(DHGexParameters dgp) {
+		connection.setDHGexParameters(dgp);
+	}
+
+	public void setServer2ClientCiphers(String[] ciphers) {
+		connection.setServer2ClientCiphers(ciphers);
+	}
+
+	public void setServer2ClientMACs(String[] macs) {
+		connection.setServer2ClientMACs(macs);
+	}
+
+	public void setServerHostKeyAlgorithms(String[] algos) {
+		connection.setServerHostKeyAlgorithms(algos);
+	}
+
+	public void setTCPNoDelay(boolean enable) throws IOException {
+		connection.setTCPNoDelay(enable);
+	}
+
+	public void requestRemotePortForwarding(String bindAddress, int bindPort,
+			String targetAddress, int targetPort) throws IOException {
+		connection.requestRemotePortForwarding(bindAddress, bindPort,
+				targetAddress, targetPort);
+	}
+
+	public void cancelRemotePortForwarding(int bindPort) throws IOException {
+		connection.cancelRemotePortForwarding(bindPort);
+	}
+
+	public void setSecureRandom(SecureRandom rnd) {
+		connection.setSecureRandom(rnd);
 	}
 	
 	

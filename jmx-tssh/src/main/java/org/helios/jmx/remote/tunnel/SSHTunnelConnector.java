@@ -44,6 +44,7 @@ import javax.management.remote.JMXServiceURL;
 
 import org.helios.jmx.remote.InetAddressCache;
 import org.helios.jmx.util.helpers.ConfigurationHelper;
+import org.helios.jmx.util.helpers.JMXHelper;
 
 import ch.ethz.ssh2.Connection;
 import ch.ethz.ssh2.ConnectionMonitor;
@@ -144,9 +145,9 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 			case DELPROTO:
 				delegateProtocol = optionValue.toString();
 				break;
-//			case HOST:
-//				sshHost = optionValue.toString();
-//				break;
+			case HOST:
+				sshHost = optionValue.toString();
+				break;
 			case HOSTFILE:
 				if(OptionReaders.isFile(optionValue.toString())) {
 					knownHostsFile = optionValue.toString();
@@ -208,7 +209,10 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 		} catch (Exception ex) {/* No Op */}
 		try {
 			jmxConnectorHost = jmxServiceURL.getHost();
-		} catch (Exception ex) {/* No Op */}		
+		} catch (Exception ex) {/* No Op */}
+		if(sshHost==null) {
+			sshHost = jmxConnectorHost;
+		}
 	}
 	
 	/*
@@ -216,17 +220,25 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 	 * jmxConnectorHost/jmxConnectorPort:  option [jmxh] specified, the SSH bridge sshHost. If not specified, is the same as the sshHost 
 	 */
 	
+	public static Map tunnel(JMXServiceURL jmxServiceURL) {
+		return tunnel(jmxServiceURL, null);
+	}
+	
 	public static Map tunnel(JMXServiceURL jmxServiceURL, Map env) {
-		SSHTunnelConnector tunnelConnector = new SSHTunnelConnector(jmxServiceURL, env);
-		if(!TunnelRepository.getInstance().hasConnectionFor(tunnelConnector.getSSHHost(), tunnelConnector.getSSHPort())) {
-			ConnectionWrapper conn = new ConnectionWrapper(tunnelConnector.connectAndAuthenticate(), true);
-			TunnelRepository.getInstance().registerConnection(conn);
-		}
+		SSHTunnelConnector tc = new SSHTunnelConnector(jmxServiceURL, env);
+		TunnelRepository.getInstance().connect(tc);
+		TunnelHandle tunnelHandle = TunnelRepository.getInstance().tunnel(tc);
 		//TunnelRepository.getInstance().tunnel(bridgeHost, bridgePort, targetHost, targetPort, localPort)
 		// TODO: 
 		// add jmxopts to map
 		// add connector to map
-		return null;
+		if(env==null) {
+			env = new HashMap();
+		}
+		JMXServiceURL serviceURL = JMXHelper.serviceUrl("service:jmx:%s://%s:%s", tc.getDelegateProtocol(), tc.getJmxConnectorHost(), tc.getJmxConnectorPort());
+		env.put("JMXServiceURL", serviceURL);
+		env.put("TunnelHandle", tunnelHandle);
+		return env;
 	}
 	
 	/**

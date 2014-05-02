@@ -44,7 +44,7 @@ import ch.ethz.ssh2.LocalPortForwarder;
  * <p><code>org.helios.jmx.remote.tunnel.LocalPortForwarderWrapper</code></p>
  */
 
-public class LocalPortForwarderWrapper implements Closeable {
+public class LocalPortForwarderWrapper implements TunnelHandle {
 	/** The wrapped sshPort forwarder */
 	protected final LocalPortForwarder localPortForwarder;
 	

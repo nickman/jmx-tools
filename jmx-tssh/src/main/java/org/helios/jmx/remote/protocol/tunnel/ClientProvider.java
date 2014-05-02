@@ -29,9 +29,12 @@ import java.net.MalformedURLException;
 import java.util.Map;
 
 import javax.management.remote.JMXConnector;
+import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXConnectorProvider;
 import javax.management.remote.JMXServiceURL;
-import javax.management.remote.jmxmp.JMXMPConnector;
+
+import org.helios.jmx.remote.tunnel.SSHTunnelConnector;
+import org.helios.jmx.remote.tunnel.TunnelHandle;
 
 /**
  * <p>Title: ClientProvider</p>
@@ -46,11 +49,19 @@ public class ClientProvider implements JMXConnectorProvider {
 	/** The protocol name */
 	public static final String PROTOCOL_NAME = "tunnel";
 
+    /**
+     * {@inheritDoc}
+     * @see javax.management.remote.JMXConnectorProvider#newJMXConnector(javax.management.remote.JMXServiceURL, java.util.Map)
+     */
     public JMXConnector newJMXConnector(JMXServiceURL serviceURL, Map environment) throws IOException {
-	if (!serviceURL.getProtocol().equals(PROTOCOL_NAME)) {
-	    throw new MalformedURLException("Protocol not [tunnel]: " +
-					    serviceURL.getProtocol());
-	}
-        return new JMXMPConnector(serviceURL, environment);
+		if (!serviceURL.getProtocol().equals(PROTOCOL_NAME)) {
+		    throw new MalformedURLException("Protocol not [tunnel]: " +
+						    serviceURL.getProtocol());
+		}
+		Map newenv = SSHTunnelConnector.tunnel(serviceURL, environment);
+		final TunnelHandle th = (TunnelHandle)newenv.remove("TunnelHandle");
+        JMXConnector connector = JMXConnectorFactory.newJMXConnector((JMXServiceURL)newenv.remove("JMXServiceURL"), newenv);
+        
+        return connector;
     }
 }

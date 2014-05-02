@@ -80,6 +80,33 @@ public class JMXHelper {
 	/** A no arg op arg array */
 	public static final Object[] NO_ARG_ARR = {}; 
 
+	/**
+	 * Creates a new JMXServiceURL
+	 * @param url the JMXServiceURL stringy
+	 * @return a new JMXServiceURL
+	 */
+	public static JMXServiceURL serviceUrl(CharSequence url) {
+		try {
+			return new JMXServiceURL(url.toString());
+		} catch (Exception ex) {
+			throw new RuntimeException("Failed to create JMXServiceURL for [" + url + "]", ex);
+		}
+	}
+	
+	/**
+	 * Creates a new JMXServiceURL
+	 * @param format The JMXServiceURL template
+	 * @param args  the template fill-ins
+	 * @return a new JMXServiceURL
+	 */
+	public static JMXServiceURL serviceUrl(String format, Object...args) {		
+		try {
+			
+			return new JMXServiceURL(String.format(format, args));
+		} catch (Exception ex) {
+			throw new RuntimeException("Failed to create JMXServiceURL for [" + format +  "]", ex);
+		}
+	}
 	
 	/**
 	 * Acquires the configured or default Helios target MBeanServer.
