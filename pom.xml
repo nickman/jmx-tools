@@ -14,6 +14,11 @@
 		<module>jmx-tssh</module>
 	</modules>
 	<properties>
+  	<!-- Misc -->
+ 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+ 		<compiler-source.version>1.7</compiler-source.version>
+ 		<compiler-target.version>1.7</compiler-target.version>
+ 		<!-- Dependencies -->
 		<chronicle.version>1.2-SNAPSHOT</chronicle.version>
 		<json.version>20090211</json.version>
 		<junit.version>4.8.2</junit.version>
@@ -33,6 +38,18 @@
 		<log4j.version>1.2.16</log4j.version>
 		<javassist.version>3.18.0-GA</javassist.version>
 		<ganymed.version>262</ganymed.version>
+		<slf4j.version>1.7.2</slf4j.version>
+		<logback.version>1.1.2</logback.version>
+
+		<!-- Plugin Versions -->
+		<jar-plugin.version>2.3</jar-plugin.version>
+		<source-plugin.version>2.2</source-plugin.version>
+		<javadoc-plugin.version>2.9</javadoc-plugin.version>
+		<jar-plugin.version>2.4</jar-plugin.version>
+		<eclipse-plugin.version>2.9</eclipse-plugin.version>
+		<surefire.version>2.16</surefire.version>
+		<cobertura.version>2.5.1</cobertura.version>
+		<shade.version>2.1</shade.version>
 
 
 		
@@ -106,49 +123,32 @@
 			  <version>${snmp4j.version}</version>
 			</dependency>	
 
-			<!-- Spring -->
-			<dependency>
-			  <groupId>org.springframework</groupId>
-			  <artifactId>spring-core</artifactId>  
-			  <version>${spring.version}</version>
-			</dependency>
+      <!--
+	========================================
+	Logging Artifacts
+	========================================
+	-->
 
-			<dependency>
-			  <groupId>org.springframework</groupId>
-			  <artifactId>spring-context-support</artifactId>  
-			  <version>${spring.version}</version>
-			</dependency>
 
-			<dependency>
-			  <groupId>org.springframework</groupId>
-			  <artifactId>spring-aop</artifactId>  
-			  <version>${spring.version}</version>
-			</dependency>
+		<dependency>
+		  <groupId>org.slf4j</groupId>
+		  <artifactId>slf4j-api</artifactId>
+		  <version>${slf4j.version}</version>
+		</dependency>
+		
+		<dependency>
+		  <groupId>ch.qos.logback</groupId>
+		  <artifactId>logback-core</artifactId>
+		  <version>${logback.version}</version>
+		</dependency>
 
-			<dependency>
-			  <groupId>org.springframework</groupId>
-			  <artifactId>spring-context</artifactId>  
-			  <version>${spring.version}</version>
-			</dependency>
+		<dependency>
+		  <groupId>ch.qos.logback</groupId>
+		  <artifactId>logback-classic</artifactId>
+		  <version>${logback.version}</version>
+		</dependency>
 
-			<dependency>
-			  <groupId>org.springframework</groupId>
-			  <artifactId>spring-beans</artifactId>  
-			  <version>${spring.version}</version>
-			</dependency>
 
-			<dependency>
-			  <groupId>org.springframework</groupId>
-			  <artifactId>spring-aspects</artifactId>  
-			  <version>${spring.version}</version>
-			</dependency>
-
-			<dependency>
-			  <groupId>org.springframework</groupId>
-			  <artifactId>spring-agent</artifactId>  
-			  <version>${spring.version}</version>
-			</dependency>
-			
 			<!-- Nash Command Line Server -->
 			
 			<dependency>
@@ -196,4 +196,91 @@
 			
 		</dependencies>
 	</dependencyManagement>
+	
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>${jar-plugin.version}</version>
+                <configuration>
+                    <source>${compiler-source.version}</source>
+                    <target>${compiler-target.version}</target>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <version>${javadoc-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>attach-javadocs</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <show>public</show>
+                    <nohelp>true</nohelp>
+                    <quiet>true</quiet>
+                </configuration>
+            </plugin>
+	    <plugin>
+		    <groupId>org.apache.maven.plugins</groupId>
+		    <artifactId>maven-source-plugin</artifactId>
+		    <version>${source-plugin.version}</version>
+		    <executions>
+			    <execution>
+				    <id>attach-sources</id>
+				    <phase>verify</phase>
+				    <goals>
+					    <goal>jar</goal>
+				    </goals>
+			    </execution>
+		    </executions>
+	    </plugin>
+	    <plugin>
+		<groupId>org.apache.maven.plugins</groupId>
+		<artifactId>maven-jar-plugin</artifactId>
+		<version>${jar-plugin.version}</version>
+		<configuration>
+		  <forceCreation>true</forceCreation>
+		</configuration>
+	    </plugin>
+	    <plugin>
+		<groupId>org.codehaus.mojo</groupId>
+		<artifactId>cobertura-maven-plugin</artifactId>
+		<version>${cobertura.version}</version>
+		<configuration>
+		  <formats>
+		    <format>html</format>
+		    <format>xml</format>
+		  </formats>
+		</configuration>
+	      </plugin>	    
+	    <plugin>
+		<groupId>org.apache.maven.plugins</groupId>
+		<artifactId>maven-eclipse-plugin</artifactId>
+		<version>${eclipse-plugin.version}</version>
+		<configuration>
+		    <downloadJavadocs>true</downloadJavadocs>
+		    <downloadSources>true</downloadSources>
+		    <classpathContainers>
+			<classpathContainer>
+		org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.7
+			</classpathContainer>
+		    </classpathContainers>
+		</configuration>
+	    </plugin>
+        <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+	     <artifactId>maven-surefire-plugin</artifactId>
+	     <version>${surefire.version}</version>
+	</plugin>
+	    
+        </plugins>
+    </build>
+	
 </project>

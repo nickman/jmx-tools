@@ -25,7 +25,6 @@
 package org.helios.jmx.concurrency;
 
 import java.lang.Thread.UncaughtExceptionHandler;
-import java.lang.reflect.Field;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -40,14 +39,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.logging.Level;
-import java.util.logging.LogManager;
-import java.util.logging.Logger;
 
 import javax.management.ObjectName;
 
 import org.helios.jmx.util.helpers.ConfigurationHelper;
 import org.helios.jmx.util.helpers.JMXHelper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * <p>Title: JMXManagedThreadPool</p>
@@ -108,20 +106,6 @@ public class JMXManagedThreadPool extends ThreadPoolExecutor implements ThreadFa
 		}
 	}
 	
-	public static void main(String[] args) {
-		for(Field f: JMXManagedThreadPoolMBean.class.getDeclaredFields()) {
-			try {
-				if(f.getName().startsWith("CONFIG_")) {
-					String key = "crystal-scheduling" + f.get(null);
-					Field v = JMXManagedThreadPoolMBean.class.getDeclaredField(f.getName().replace("CONFIG", "DEFAULT"));
-					System.out.println("[,*].onexconfig." + key + "=" + v.get(null));
-				}
-			} catch (Exception ex) {
-				ex.printStackTrace(System.err);
-			}
-		}
-		//System.out.println("[,*].onexconfig." + )
-	}
 
 	/**
 	 * Creates a new JMXManagedThreadPool
@@ -139,14 +123,14 @@ public class JMXManagedThreadPool extends ThreadPoolExecutor implements ThreadFa
 		this.threadGroup = new ThreadGroup(poolName + "ThreadGroup");
 		setThreadFactory(this);
 		setRejectedExecutionHandler(this);
-		log = LogManager.getLogManager().getLogger(getClass().getName() + "." + poolName);
+		log = LoggerFactory.getLogger(getClass().getName() + "." + poolName);
 		this.objectName = objectName;
 		this.poolName = poolName;
 		workQueue = (ArrayBlockingQueue<Runnable>)getQueue();
 		try {			
 			JMXHelper.getHeliosMBeanServer().registerMBean(this, objectName);
 		} catch (Exception ex) {
-			log.log(Level.WARNING, "Failed to register JMX management interface. Will continue without.", ex);
+			log.warn("Failed to register JMX management interface. Will continue without.", ex);
 		}
 		log.info("Created JMX Managed Thread Pool [" + poolName + "]");
 	}
@@ -180,7 +164,7 @@ public class JMXManagedThreadPool extends ThreadPoolExecutor implements ThreadFa
 	@Override
 	public void uncaughtException(Thread t, Throwable e) {
 		uncaughtExceptionCount.incrementAndGet();
-		log.log(Level.WARNING, "Thread pool handled uncaught exception on thread [" + t + "]", e);
+		log.warn("Thread pool handled uncaught exception on thread [" + t + "]", e);
 		
 	}
 
@@ -192,7 +176,7 @@ public class JMXManagedThreadPool extends ThreadPoolExecutor implements ThreadFa
 	@Override
 	public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
 		rejectedExecutionCount.incrementAndGet();
-		log.log(Level.SEVERE, "Submitted execution task [" + r + "] was rejected due to a full task queue", new Throwable());		
+		log.error("Submitted execution task [" + r + "] was rejected due to a full task queue", new Throwable());		
 	}
 
 
@@ -209,7 +193,7 @@ public class JMXManagedThreadPool extends ThreadPoolExecutor implements ThreadFa
 
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.rindle.util.jmx.concurrency.JMXManagedThreadPoolMBean#getObjectName()
+	 * @see org.helios.jmx.concurrency.JMXManagedThreadPoolMBean#getObjectName()
 	 */
 	@Override
 	public ObjectName getObjectName() {
@@ -218,7 +202,7 @@ public class JMXManagedThreadPool extends ThreadPoolExecutor implements ThreadFa
 
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.rindle.util.jmx.concurrency.JMXManagedThreadPoolMBean#getPoolName()
+	 * @see org.helios.jmx.concurrency.JMXManagedThreadPoolMBean#getPoolName()
 	 */
 	@Override
 	public String getPoolName() {
@@ -227,7 +211,7 @@ public class JMXManagedThreadPool extends ThreadPoolExecutor implements ThreadFa
 
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.rindle.util.jmx.concurrency.JMXManagedThreadPoolMBean#getQueueDepth()
+	 * @see org.helios.jmx.concurrency.JMXManagedThreadPoolMBean#getQueueDepth()
 	 */
 	@Override
 	public int getQueueDepth() {
@@ -236,7 +220,7 @@ public class JMXManagedThreadPool extends ThreadPoolExecutor implements ThreadFa
 	
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.rindle.util.jmx.concurrency.JMXManagedThreadPoolMBean#getQueueCapacity()
+	 * @see org.helios.jmx.concurrency.JMXManagedThreadPoolMBean#getQueueCapacity()
 	 */
 	@Override
 	public int getQueueCapacity() {
@@ -246,7 +230,7 @@ public class JMXManagedThreadPool extends ThreadPoolExecutor implements ThreadFa
 
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.rindle.util.jmx.concurrency.JMXManagedThreadPoolMBean#getUncaughtExceptionCount()
+	 * @see org.helios.jmx.concurrency.JMXManagedThreadPoolMBean#getUncaughtExceptionCount()
 	 */
 	@Override
 	public long getUncaughtExceptionCount() {
@@ -255,7 +239,7 @@ public class JMXManagedThreadPool extends ThreadPoolExecutor implements ThreadFa
 
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.rindle.util.jmx.concurrency.JMXManagedThreadPoolMBean#getRejectedExecutionCount()
+	 * @see org.helios.jmx.concurrency.JMXManagedThreadPoolMBean#getRejectedExecutionCount()
 	 */
 	@Override
 	public long getRejectedExecutionCount() {
@@ -264,7 +248,7 @@ public class JMXManagedThreadPool extends ThreadPoolExecutor implements ThreadFa
 
 //	/**
 //	 * {@inheritDoc}
-//	 * @see org.helios.rindle.util.jmx.concurrency.JMXManagedThreadPoolMBean#getMetrics()
+//	 * @see org.helios.jmx.concurrency.JMXManagedThreadPoolMBean#getMetrics()
 //	 */
 //	@Override
 //	public Map<String, Long> getMetrics() {
@@ -277,7 +261,7 @@ public class JMXManagedThreadPool extends ThreadPoolExecutor implements ThreadFa
 	
 //	/**
 //	 * {@inheritDoc}
-//	 * @see org.helios.rindle.util.jmx.concurrency.JMXManagedThreadPoolMBean#getMetricsTable()
+//	 * @see org.helios.jmx.concurrency.JMXManagedThreadPoolMBean#getMetricsTable()
 //	 */
 //	@Override
 //	public String getMetricsTable() {
@@ -293,7 +277,7 @@ public class JMXManagedThreadPool extends ThreadPoolExecutor implements ThreadFa
 
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.rindle.util.jmx.concurrency.JMXManagedThreadPoolMBean#getExecutingTaskCount()
+	 * @see org.helios.jmx.concurrency.JMXManagedThreadPoolMBean#getExecutingTaskCount()
 	 */
 	@Override
 	public long getExecutingTaskCount() {
@@ -333,7 +317,7 @@ public class JMXManagedThreadPool extends ThreadPoolExecutor implements ThreadFa
 
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.rindle.util.jmx.concurrency.JMXManagedThreadPoolMBean#getKeepAliveTime()
+	 * @see org.helios.jmx.concurrency.JMXManagedThreadPoolMBean#getKeepAliveTime()
 	 */
 	@Override
 	public long getKeepAliveTime() {
@@ -342,7 +326,7 @@ public class JMXManagedThreadPool extends ThreadPoolExecutor implements ThreadFa
 
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.rindle.util.jmx.concurrency.JMXManagedThreadPoolMBean#setKeepAliveTime(long)
+	 * @see org.helios.jmx.concurrency.JMXManagedThreadPoolMBean#setKeepAliveTime(long)
 	 */
 	@Override
 	public void setKeepAliveTime(long keepAliveTimeMs) {
@@ -351,7 +335,7 @@ public class JMXManagedThreadPool extends ThreadPoolExecutor implements ThreadFa
 	
 //	/**
 //	 * {@inheritDoc}
-//	 * @see org.helios.rindle.util.jmx.concurrency.JMXManagedThreadPoolMBean#reset()
+//	 * @see org.helios.jmx.concurrency.JMXManagedThreadPoolMBean#reset()
 //	 */
 //	@Override
 //	public void reset() {
@@ -361,7 +345,7 @@ public class JMXManagedThreadPool extends ThreadPoolExecutor implements ThreadFa
 	
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.rindle.util.jmx.concurrency.JMXManagedThreadPoolMBean#waitForCompletion(java.util.Collection, long)
+	 * @see org.helios.jmx.concurrency.JMXManagedThreadPoolMBean#waitForCompletion(java.util.Collection, long)
 	 */
 	@Override
 	public boolean waitForCompletion(Collection<Future<?>> futures, long timeout) {
@@ -379,18 +363,18 @@ public class JMXManagedThreadPool extends ThreadPoolExecutor implements ThreadFa
 						f.get(200, TimeUnit.MILLISECONDS);
 						fiter.remove();
 					} catch (CancellationException e) {
-						log.log(Level.WARNING, "Task Was Cancelled", e);
+						log.warn("Task Was Cancelled", e);
 						fiter.remove();						
 					} catch (InterruptedException e) {
-						log.log(Level.WARNING, "Thread interrupted while waiting for task check to complete", e);
+						log.warn("Thread interrupted while waiting for task check to complete", e);
 						bust[0] = true;
 					} catch (ExecutionException e) {
-						log.log(Level.WARNING, "Task Failed", e);
+						log.warn("Task Failed", e);
 						fiter.remove();
 					} catch (TimeoutException e) {
 						/* No Op */
 					} catch (Exception e) {
-						log.log(Level.WARNING, "Task Failure. Cancelling check.", e);
+						log.warn("Task Failure. Cancelling check.", e);
 						fiter.remove();
 					}
 				}
@@ -398,7 +382,7 @@ public class JMXManagedThreadPool extends ThreadPoolExecutor implements ThreadFa
 			if(futures.isEmpty()) return true;
 		}
 		for(Future<?> f: futures) { f.cancel(true); }
-		log.log(Level.WARNING, "Task completion timed out with [" + futures.size() + "] tasks incomplete");
+		log.warn("Task completion timed out with [" + futures.size() + "] tasks incomplete");
 		futures.clear();
 		return false;
 	}

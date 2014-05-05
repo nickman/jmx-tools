@@ -32,7 +32,7 @@ import javax.management.ObjectName;
 
 /**
  * <p>Title: JMXManagedThreadPoolMBean</p>
- * <p>Description: </p> 
+ * <p>Description: JMX MBean interface for {@link JMXManagedThreadPool}</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
  * <p><code>org.helios.jmx.concurrency.JMXManagedThreadPoolMBean</code></p>
@@ -46,19 +46,19 @@ public interface JMXManagedThreadPoolMBean {
 	/** The number of processors available to this JVM */
 	public static final int CORES = ManagementFactory.getOperatingSystemMXBean().getAvailableProcessors();
 	
-	/** The ECS Config property name suffix to specify the pool's core pool size */
+	/** The  Config property name suffix to specify the pool's core pool size */
 	public static final String CONFIG_CORE_POOL_SIZE = "-corepoolsize";
-	/** The ECS Config property name suffix to specify the pool's maximum pool size */
+	/** The  Config property name suffix to specify the pool's maximum pool size */
 	public static final String CONFIG_MAX_POOL_SIZE = "-maxpoolsize";
-	/** The ECS Config property name suffix to specify the pool's maximum work queue size */
+	/** The  Config property name suffix to specify the pool's maximum work queue size */
 	public static final String CONFIG_MAX_QUEUE_SIZE = "-queuesize";
-	/** The ECS Config property name suffix to specify the pool's idle thread keep alive time in ms. */
+	/** The  Config property name suffix to specify the pool's idle thread keep alive time in ms. */
 	public static final String CONFIG_KEEP_ALIVE = "-keepalive";
-	/** The ECS Config property name suffix to specify the pool's metric sliding window size */
+	/** The  Config property name suffix to specify the pool's metric sliding window size */
 	public static final String CONFIG_WINDOW_SIZE = "-windowsize";
-	/** The ECS Config property name suffix to specify the pool's metric default percentile */
+	/** The  Config property name suffix to specify the pool's metric default percentile */
 	public static final String CONFIG_WINDOW_PERCENTILE = "-windowsize";
-	/** The ECS Config property name suffix to specify the number of core threads to prestart */
+	/** The  Config property name suffix to specify the number of core threads to prestart */
 	public static final String CONFIG_CORE_PRESTART = "-coreprestart";
 	
 	

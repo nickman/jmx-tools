@@ -25,7 +25,6 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
 
-import org.apache.log4j.Logger;
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
 import org.helios.jmx.util.helpers.JMXHelper;
 import org.helios.jmx.util.helpers.StringHelper;
@@ -34,6 +33,8 @@ import org.helios.jmx.util.unsafe.Callbacks.ByteCallable;
 import org.helios.jmx.util.unsafe.Callbacks.DoubleCallable;
 import org.helios.jmx.util.unsafe.Callbacks.IntCallable;
 import org.helios.jmx.util.unsafe.Callbacks.LongCallable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import sun.misc.Unsafe;
 
@@ -472,7 +473,7 @@ public class UnsafeAdapter {
     }
     
     /** Static class logger */
-    private static final Logger LOG = Logger.getLogger(UnsafeAdapter.class);
+    private static final Logger LOG = LoggerFactory.getLogger(UnsafeAdapter.class);
 
     
     private static final Runnable deallocator = new Runnable() {
