@@ -8,7 +8,9 @@
 	<name>Helios JMXTools</name>
 	<modules>
 		<module>jmx-core</module>		
+		<!--
 		<module>jmx-remoting</module>
+		-->
 		<module>jmx-tssh</module>
 	</modules>
 	<properties>

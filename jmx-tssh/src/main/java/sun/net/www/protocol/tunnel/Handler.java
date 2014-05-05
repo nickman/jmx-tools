@@ -2,7 +2,7 @@
  * Helios, OpenSource Monitoring
  * Brought to you by the Helios Development Group
  *
- * Copyright 2014, Helios Development Group and individual contributors
+ * Copyright 2007, Helios Development Group and individual contributors
  * as indicated by the @author tags. See the copyright.txt file in the
  * distribution for a full listing of individual contributors.
  *
@@ -22,38 +22,37 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package org.helios.jmx.metrics.test;
+package sun.net.www.protocol.tunnel;
 
-import java.util.Random;
+import java.io.IOException;
+import java.net.URL;
+import java.net.URLConnection;
+import java.net.URLStreamHandler;
 
 /**
- * <p>Title: InstrumentMe</p>
- * <p>Description: </p> 
+ * <p>Title: Handler</p>
+ * <p>Description: A {@link URLStreamHandler} supporting the tunnel encoding URL protocol</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.jmx.metrics.test.InstrumentMe</code></p>
+ * <p><code>sun.net.www.protocol.tunnel.Handler</code></p>
  */
 
-public class InstrumentMe implements Instrumentable {
-	protected final Random r = new Random(System.currentTimeMillis());
+public class Handler extends URLStreamHandler {
+
 	/**
-	 * Creates a new InstrumentMe
+	 * Creates a new Handler
 	 */
-	public InstrumentMe() {
-		
-	}
-	
-	public int getNthRandom(int n) {
-		int i = -1;
-		for(int x = 0; x < n; x++) { i = r.nextInt(); }
-		return i;
+	public Handler() {
+
 	}
 
-	public void sleep() {
-		try {
-			Thread.currentThread().join(Math.abs(r.nextInt(1000)));
-		} catch (Exception ex) {
-			throw new RuntimeException(ex);
-		}
+	/**
+	 * {@inheritDoc}
+	 * @see java.net.URLStreamHandler#openConnection(java.net.URL)
+	 */
+	@Override
+	protected URLConnection openConnection(URL u) throws IOException {
+		return new TunnelURLConnection(u);
 	}
+
 }

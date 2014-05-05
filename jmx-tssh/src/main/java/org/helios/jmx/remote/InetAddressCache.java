@@ -89,7 +89,7 @@ public class InetAddressCache {
 		return instance;
 	}
 	
-	
+
 	/**
 	 * Returns the address and sshHost name for the passed string
 	 * @param hostName The sshHost string or address to resolve

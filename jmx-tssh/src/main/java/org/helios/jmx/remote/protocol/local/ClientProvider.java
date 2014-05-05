@@ -2,7 +2,7 @@
  * Helios, OpenSource Monitoring
  * Brought to you by the Helios Development Group
  *
- * Copyright 2014, Helios Development Group and individual contributors
+ * Copyright 2007, Helios Development Group and individual contributors
  * as indicated by the @author tags. See the copyright.txt file in the
  * distribution for a full listing of individual contributors.
  *
@@ -22,7 +22,7 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package org.helios.jmx.remote.protocol.tunnel;
+package org.helios.jmx.remote.protocol.local;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
@@ -38,16 +38,15 @@ import org.helios.jmx.remote.tunnel.TunnelHandle;
 
 /**
  * <p>Title: ClientProvider</p>
- * <p>Description: </p> 
+ * <p>Description: JMX client provider for connecting to the local MBeanServer using a JMXServiceURL</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.jmx.remote.protocol.tunnel.ClientProvider</code></p>
+ * <p><code>org.helios.jmx.remote.protocol.local.ClientProvider</code></p>
  */
 
 public class ClientProvider implements JMXConnectorProvider {
-	
 	/** The protocol name */
-	public static final String PROTOCOL_NAME = "tunnel";
+	public static final String PROTOCOL_NAME = "local";
 
     /**
      * {@inheritDoc}
@@ -55,13 +54,12 @@ public class ClientProvider implements JMXConnectorProvider {
      */
     public JMXConnector newJMXConnector(JMXServiceURL serviceURL, Map environment) throws IOException {
 		if (!serviceURL.getProtocol().equals(PROTOCOL_NAME)) {
-		    throw new MalformedURLException("Protocol not [" + PROTOCOL_NAME + "]: " +
+			throw new MalformedURLException("Protocol not [" + PROTOCOL_NAME + "]: " +
 						    serviceURL.getProtocol());
 		}
-		Map newenv = SSHTunnelConnector.tunnel(serviceURL, environment);
-		final TunnelHandle th = (TunnelHandle)newenv.remove("TunnelHandle");
-        JMXConnector connector = JMXConnectorFactory.newJMXConnector((JMXServiceURL)newenv.remove("JMXServiceURL"), newenv);
-        
-        return connector;
+		LocalJMXConnector connector = new LocalJMXConnector();
+		connector.localURL = serviceURL;
+		return connector;
     }
+
 }

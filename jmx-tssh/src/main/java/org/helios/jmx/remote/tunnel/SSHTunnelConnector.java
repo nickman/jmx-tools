@@ -29,6 +29,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.net.URL;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -124,6 +125,9 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 	
 	/** Splitter for the SSH args */
 	public static final Pattern SPLIT_TRIM_SSH = Pattern.compile("\\s*,\\s*");
+	/** Splitter for the SSH args */
+	public static final Pattern SPLIT_TRIM_URL_SSH = Pattern.compile("\\s*&\\s*");
+	
 	/** Splitter for the SSH key-val pairs */
 	public static final Pattern SPLIT_SSH_ARG = Pattern.compile("\\s*=\\s*");
 	/** The pattern of the TSSH URL Path */
@@ -136,8 +140,52 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 	 */
 	public SSHTunnelConnector(JMXServiceURL jmxServiceURL, Map env) {
 		if(jmxServiceURL==null) throw new IllegalArgumentException("The passed JMXServiceURL was null");
-
 		Map<SSHOption, Object> options = gather(jmxServiceURL, env);
+		initialize(options);
+		try {
+			jmxConnectorPort = jmxServiceURL.getPort();
+		} catch (Exception ex) {/* No Op */}
+		try {
+			jmxConnectorHost = InetAddressCache.getInstance().getAliases(jmxServiceURL.getHost())[0];
+		} catch (Exception ex) {/* No Op */}		
+	}
+	
+	/**
+	 * Creates a new SSHTunnelConnector
+	 * @param url A tunnel URL with the SSH options encoded 
+	 */
+	public SSHTunnelConnector(URL url) {
+		Map<SSHOption, Object> options = gather(null, null);
+		options.putAll(parseOptions(url));
+		initialize(options);
+		try {
+			jmxConnectorPort = url.getPort();
+		} catch (Exception ex) {/* No Op */}
+		try {
+			jmxConnectorHost = InetAddressCache.getInstance().getAliases(url.getHost())[0];
+		} catch (Exception ex) {/* No Op */}	
+		if(sshHost==null & jmxConnectorHost != null) {
+			sshHost = jmxConnectorHost;
+		}		
+		log(this.toString());
+	}
+	
+	
+	/**
+	 * Creates a new SSHTunnelConnector from the passed options stringy
+	 * @param sshOptions and SSHOption stringy
+	 */
+	public SSHTunnelConnector(CharSequence sshOptions) {
+		Map<SSHOption, Object> map = extractTunnelOpts(sshOptions);
+		Map<SSHOption, Object> options = gather(null, map);
+		initialize(options);
+	}
+	
+	/**
+	 * Initializes this SSHTunnelConnector with the passed map of options
+	 * @param options The SSHOptions specifying how a tunnel should be created
+	 */
+	protected void initialize(Map<SSHOption, Object> options) {		
 		for(Map.Entry<SSHOption, Object> entry: options.entrySet()) {
 			SSHOption option = entry.getKey();
 			Object optionValue = entry.getValue();
@@ -146,7 +194,7 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 				delegateProtocol = optionValue.toString();
 				break;
 			case HOST:
-				sshHost = optionValue.toString();
+				sshHost = InetAddressCache.getInstance().getAliases(optionValue.toString())[0];
 				break;
 			case HOSTFILE:
 				if(OptionReaders.isFile(optionValue.toString())) {
@@ -204,15 +252,9 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 			}			
 			setKeyType();
 		}		
-		try {
-			jmxConnectorPort = jmxServiceURL.getPort();
-		} catch (Exception ex) {/* No Op */}
-		try {
-			jmxConnectorHost = jmxServiceURL.getHost();
-		} catch (Exception ex) {/* No Op */}
-		if(sshHost==null) {
+		if(sshHost==null & jmxConnectorHost != null) {
 			sshHost = jmxConnectorHost;
-		}
+		}		
 	}
 	
 	/*
@@ -224,14 +266,18 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 		return tunnel(jmxServiceURL, null);
 	}
 	
+	
+	
+	/**
+	 * Creates a tunnel to enable a JMX connection specified by the passed JMXServiceURL and env map
+	 * @param jmxServiceURL The JMXServiceURL describing the JMX connection and SSH tunneling options
+	 * @param env The JMX environment map
+	 * @return the modified environment map
+	 */
 	public static Map tunnel(JMXServiceURL jmxServiceURL, Map env) {
 		SSHTunnelConnector tc = new SSHTunnelConnector(jmxServiceURL, env);
 		TunnelRepository.getInstance().connect(tc);
 		TunnelHandle tunnelHandle = TunnelRepository.getInstance().tunnel(tc);
-		//TunnelRepository.getInstance().tunnel(bridgeHost, bridgePort, targetHost, targetPort, localPort)
-		// TODO: 
-		// add jmxopts to map
-		// add connector to map
 		if(env==null) {
 			env = new HashMap();
 		}
@@ -240,6 +286,30 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 		env.put("TunnelHandle", tunnelHandle);
 		return env;
 	}
+	
+	/**
+	 * Creates a tunnel in accordance with the options extracted from the passed stringy
+	 * @param sshOptions A stringy of comma separated name value pairs of SSHOptions.
+	 * @return the tunnel handle
+	 */
+	public static TunnelHandle tunnel(CharSequence sshOptions) {
+		SSHTunnelConnector tc = new SSHTunnelConnector(sshOptions);		
+		return TunnelRepository.getInstance().tunnel(tc);
+	}
+	
+	/**
+	 * Creates an un-executed SSHTunnelConnector for the passed tunnel URL
+	 * @param url a tunnel protocol URL
+	 * @return the un-executed SSHTunnelConnector that can establish an SSH connection and tunnel as encoded in the URL
+	 */
+	public static SSHTunnelConnector connector(URL url) {
+		if(url==null) throw new IllegalArgumentException("The passed URL was null");
+		String protocol = url.getProtocol();
+		if(protocol==null || protocol.trim().isEmpty()) throw new IllegalArgumentException("The passed URL [" + url + "] had a null or empty protocol");
+		if(!"tunnel".equals(url.getProtocol().trim().toLowerCase()))  throw new IllegalArgumentException("Unrecognized tunnel protocol [" + protocol + "]");		
+		return new SSHTunnelConnector(url);
+	}
+
 	
 	/**
 	 * Validates the most basic requirements to establish a connection 
@@ -386,9 +456,9 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 	 * @param jmxServiceURL The JMXServiceURL to extract from
 	 * @return the map of extracted options
 	 */
-	public static Map extractJMXServiceURLOpts(JMXServiceURL jmxServiceURL) {
+	public static Map<SSHOption, Object> extractJMXServiceURLOpts(JMXServiceURL jmxServiceURL) {
 		if(jmxServiceURL==null) return Collections.EMPTY_MAP;
-		Map map = new HashMap();
+		Map<SSHOption, Object> map = new EnumMap<SSHOption, Object>(SSHOption.class);
 		String urlArgs = jmxServiceURL.getURLPath();		
 		
 		Matcher m = TSSH_URL_PATH_PATTERN.matcher(urlArgs);
@@ -400,14 +470,55 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 		String delegateProtocol = m.group(2);
 		map.put(SSHOption.DELPROTO, delegateProtocol);
 		urlArgs = m.group(3);
-//		log("Extracted: protocolPrefix:[%s], delegateProtocol:[%s], Args:[%s]", subProtocol, delegateProtocol, urlArgs);
 		if(urlArgs==null || urlArgs.trim().isEmpty()) return Collections.EMPTY_MAP;
+		map.putAll(parseOptions(urlArgs));
+		return map;
+	}
+	
+	/**
+	 * Parses a stringy to extract a map of SSHOptions specifying a tunnel specification
+	 * @param sshOptions A stringy of comma separated key value pairs
+	 * @return a map of SSHOptions
+	 */
+	public static Map<SSHOption, Object> extractTunnelOpts(CharSequence sshOptions) {
+		if(sshOptions==null) return Collections.EMPTY_MAP;
+		return parseOptions(sshOptions.toString().trim());
+	}
+	
+	/**
+	 * Parses a string to extract a map of SSHOptions specifying a tunnel specification
+	 * @param urlArgs A string of comma separated key value pairs
+	 * @return a map of SSHOptions
+	 */
+	protected static Map<SSHOption, Object> parseOptions(String urlArgs) {
+		if(urlArgs==null || urlArgs.trim().isEmpty()) return Collections.EMPTY_MAP;
+		Map<SSHOption, Object> map = new EnumMap<SSHOption, Object>(SSHOption.class);
 		for(String pair: SPLIT_TRIM_SSH.split(urlArgs.trim())) {
-//			log("\tPair:[%s]", pair);
 			String[] kv = SPLIT_SSH_ARG.split(pair);
-			
 			if(kv!=null && kv.length==2) {
-//				log("\tSplit Pair:[%s:%s]", kv[0], kv[1]);
+				SSHOption option = SSHOption.decode(kv[0]);
+				if(option==null) continue;
+				Object optionValue = option.optionReader.convert(kv[1], null);
+				if(option!=null && optionValue != null) {
+					map.put(option, optionValue);
+				}
+			}
+		}
+		return map;
+	}
+	
+	/**
+	 * Parses a tunnel URL and returns a map of the SSHOptions
+	 * @param tunnelURL A tunnel URL
+	 * @return the map of options
+	 */
+	protected static Map<SSHOption, Object> parseOptions(URL tunnelURL) {
+		String query = tunnelURL.getQuery();
+		if(query==null || query.trim().isEmpty()) return Collections.EMPTY_MAP;
+		Map<SSHOption, Object> map = new EnumMap<SSHOption, Object>(SSHOption.class);
+		for(String pair: SPLIT_TRIM_URL_SSH.split(query.trim())) {
+			String[] kv = SPLIT_SSH_ARG.split(pair);
+			if(kv!=null && kv.length==2) {
 				SSHOption option = SSHOption.decode(kv[0]);
 				if(option==null) continue;
 				Object optionValue = option.optionReader.convert(kv[1], null);
@@ -729,6 +840,8 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 					return false;
 				case KnownHosts.HOSTKEY_IS_OK:
 					return true;
+				default:
+					return false;
 			}
 		}
 		return false;
@@ -792,12 +905,40 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 		return validateServer;
 	}
 
+	/**
+	 * Returns the tunnel endpoint host
+	 * @return the tunnel endpoint host
+	 */
 	public String getJmxConnectorHost() {
 		return jmxConnectorHost;
 	}
 
+	/**
+	 * Returns the tunnel endpoint port
+	 * @return the tunnel endpoint port
+	 */
 	public int getJmxConnectorPort() {
 		return jmxConnectorPort;
+	}
+
+	/**
+	 * Returns the SSH connect timeout in ms.
+	 * @return the SSH connect timeout in ms.
+	 */
+	public int getSshConnectTimeout() {
+		return sshConnectTimeout;
+	}
+
+	public int getSshKeyExchangeTimeout() {
+		return sshKeyExchangeTimeout;
+	} 
+
+	/**
+	 * Sets the SSH connect timeout in ms.
+	 * @param sshConnectTimeout the SSH connect timeout in ms.
+	 */
+	public void setSshConnectTimeout(int sshConnectTimeout) {
+		this.sshConnectTimeout = sshConnectTimeout;
 	}
 
 	

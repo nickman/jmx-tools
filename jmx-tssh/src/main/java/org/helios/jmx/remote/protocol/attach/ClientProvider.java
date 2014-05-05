@@ -2,7 +2,7 @@
  * Helios, OpenSource Monitoring
  * Brought to you by the Helios Development Group
  *
- * Copyright 2014, Helios Development Group and individual contributors
+ * Copyright 2007, Helios Development Group and individual contributors
  * as indicated by the @author tags. See the copyright.txt file in the
  * distribution for a full listing of individual contributors.
  *
@@ -22,46 +22,52 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package org.helios.jmx.remote.protocol.tunnel;
+package org.helios.jmx.remote.protocol.attach;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.util.Map;
 
 import javax.management.remote.JMXConnector;
-import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXConnectorProvider;
 import javax.management.remote.JMXServiceURL;
 
-import org.helios.jmx.remote.tunnel.SSHTunnelConnector;
-import org.helios.jmx.remote.tunnel.TunnelHandle;
+import org.helios.jmx.remote.protocol.local.LocalJMXConnector;
 
 /**
  * <p>Title: ClientProvider</p>
- * <p>Description: </p> 
+ * <p>Description: JMXConnector provider for acquiring an MBeanServer connection 
+ * through the <a href="http://docs.oracle.com/javase/7/docs/technotes/guides/attach/index.html">Java Attach API</a>.</p>
+ * <p>The {@link JMXServiceURL} syntax is one of the following:<ul>
+ * 	<li><b><code>service:jmx:attach://&lt;PID&gt;</code></b> where the PID is the Java virtual machine ID or usually, the OS process ID.</li>
+ *  <li><b><code>service:jmx:attach://&lt;DISPLAY NAME&gt;</code></b> where the DISPLAY NAME is an expression matching the Java virtual machine's display name. or a single display name matching regex.</li>
+ *  <li><b><code>service:jmx:attach://&lt;[REGEX]&gt;</code></b> where the REGEX is a regular expression that will match one and only one JVM's display name</li>
+ * </ul></p>
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.jmx.remote.protocol.tunnel.ClientProvider</code></p>
+ * <p><code>org.helios.jmx.remote.protocol.attach.ClientProvider</code></p>
  */
 
 public class ClientProvider implements JMXConnectorProvider {
-	
 	/** The protocol name */
-	public static final String PROTOCOL_NAME = "tunnel";
+	public static final String PROTOCOL_NAME = "attach";
 
+	/** The URL prefix */
+	public static final String URL_PREFIX = "://";
+	
     /**
      * {@inheritDoc}
      * @see javax.management.remote.JMXConnectorProvider#newJMXConnector(javax.management.remote.JMXServiceURL, java.util.Map)
      */
     public JMXConnector newJMXConnector(JMXServiceURL serviceURL, Map environment) throws IOException {
 		if (!serviceURL.getProtocol().equals(PROTOCOL_NAME)) {
-		    throw new MalformedURLException("Protocol not [" + PROTOCOL_NAME + "]: " +
+			throw new MalformedURLException("Protocol not [" + PROTOCOL_NAME + "]: " +
 						    serviceURL.getProtocol());
 		}
-		Map newenv = SSHTunnelConnector.tunnel(serviceURL, environment);
-		final TunnelHandle th = (TunnelHandle)newenv.remove("TunnelHandle");
-        JMXConnector connector = JMXConnectorFactory.newJMXConnector((JMXServiceURL)newenv.remove("JMXServiceURL"), newenv);
-        
-        return connector;
+		String s = serviceURL.toString();
+		int index = s.indexOf(URL_PREFIX);
+		return new AttachJMXConnector(s.substring(index + URL_PREFIX.length()));
     }
+
+
 }

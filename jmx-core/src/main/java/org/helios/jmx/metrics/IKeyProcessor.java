@@ -24,7 +24,7 @@
  */
 package org.helios.jmx.metrics;
 
-import org.aopalliance.intercept.MethodInvocation;
+
 
 /**
  * <p>Title: IKeyProcessor</p>
@@ -44,7 +44,7 @@ public interface IKeyProcessor {
 	 * @param invocation The method invocation
 	 * @return the accumulator key
 	 */
-	public String getKey(MethodInvocation invocation);
+	public String getKey(Object invocation);
 	
 	/**
 	 * Returns the key specificaction this processor is processing

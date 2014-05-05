@@ -24,6 +24,8 @@
  */
 package test.org.helios.jmx.tunnel;
 
+import java.net.URL;
+
 import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXConnectorServer;
@@ -66,18 +68,25 @@ public class TunnelTest extends BaseTest {
 		}
 	}
 	
+	/**
+	 * Tests establishing a connection to the test JMXMP server by manually creating a tunnel and then connecting directly
+	 * @throws Exception thrown on any error
+	 */
 	@Test
 	public void testBasicTunnel() throws Exception {
 		JMXConnector connector = null;
 		try {
-			JMXServiceURL serviceURL = jmxUrl("service:jmx:tunnel://localhost:%s/ssh/jmxmp:u=nwhitehead,kp=helios,h=tpmint,lp=%s", JMXMP_PORT, JMXMP_PORT+1);
-			SSHTunnelConnector.tunnel(serviceURL, null);
+			URL url = new URL(String.format("tunnel://%s:%s?u=nwhitehead&kp=helios&h=tpmint&lp=%s", "tpmint", JMXMP_PORT, JMXMP_PORT+1));
+			log("Tunnel URL: [%s]", url);
+			//SSHTunnelConnector.tunnel(String.format("u=nwhitehead,kp=helios,h=tpmint,lp=%s", JMXMP_PORT, JMXMP_PORT+1));
+			url.openConnection().connect();
 			connector = JMXConnectorFactory.connect(jmxUrl("service:jmx:jmxmp://%s:%s", "tpmint", JMXMP_PORT+1));
 			log("Connected [%s]", connector.getConnectionId());			
 		} finally {
 			if(connector!=null) try { connector.close(); } catch (Exception x) { /* No Op */ }
 		}
 	}
+	
 	
 	@Test
 	public void testJMXConnect() throws Exception {
@@ -90,6 +99,9 @@ public class TunnelTest extends BaseTest {
 			if(connector!=null) try { connector.close(); } catch (Exception x) { /* No Op */ }
 		}
 	}
+	
+	
+	
 	
 
 }
