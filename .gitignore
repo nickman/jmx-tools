@@ -5,5 +5,5 @@ log.*
 snapshot.*
 bin/
 target/
-/.project
-/.classpath
+*/.project
+*/.classpath
