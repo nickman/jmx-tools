@@ -81,29 +81,52 @@ public class JMXManagedThreadPool extends ThreadPoolExecutor implements ThreadFa
 	};
 
 	
-
-
 	/**
-	 * Creates a new JMXManagedThreadPool, reading all the configuration values from ECS Config
+	 * Creates a new JMXManagedThreadPool, reading all the configuration values from Config and publishes the JMX interface
 	 * @param objectName The JMX ObjectName for this pool's MBean 
 	 * @param poolName The pool name
 	 */
 	public JMXManagedThreadPool(ObjectName objectName, String poolName) {
+		this(objectName, poolName, true);
+	}
+
+
+	/**
+	 * Creates a new JMXManagedThreadPool, reading all the configuration values from Config
+	 * @param objectName The JMX ObjectName for this pool's MBean 
+	 * @param poolName The pool name
+	 * @param publishJMX If true, publishes the JMX interface
+	 */
+	public JMXManagedThreadPool(ObjectName objectName, String poolName, boolean publishJMX) {
 		this(
 			objectName, 
-			poolName,
-			
+			poolName,			
 			ConfigurationHelper.getIntSystemThenEnvProperty(poolName.toLowerCase() + CONFIG_CORE_POOL_SIZE, DEFAULT_CORE_POOL_SIZE), 
 			ConfigurationHelper.getIntSystemThenEnvProperty(poolName.toLowerCase() + CONFIG_MAX_POOL_SIZE, DEFAULT_MAX_POOL_SIZE), 
 			ConfigurationHelper.getIntSystemThenEnvProperty(poolName.toLowerCase() + CONFIG_MAX_QUEUE_SIZE, DEFAULT_MAX_QUEUE_SIZE), 
 			ConfigurationHelper.getLongSystemThenEnvProperty(poolName.toLowerCase() + CONFIG_KEEP_ALIVE, DEFAULT_KEEP_ALIVE), 
 			ConfigurationHelper.getIntSystemThenEnvProperty(poolName.toLowerCase() + CONFIG_WINDOW_SIZE, DEFAULT_WINDOW_SIZE),
-			ConfigurationHelper.getIntSystemThenEnvProperty(poolName.toLowerCase() + CONFIG_WINDOW_PERCENTILE, DEFAULT_WINDOW_PERCENTILE)
+			ConfigurationHelper.getIntSystemThenEnvProperty(poolName.toLowerCase() + CONFIG_WINDOW_PERCENTILE, DEFAULT_WINDOW_PERCENTILE),
+			publishJMX
 		);
 		int prestart = ConfigurationHelper.getIntSystemThenEnvProperty(CONFIG_CORE_PRESTART, DEFAULT_CORE_PRESTART);
 		for(int i = 0; i < prestart; i++) {
 			prestartCoreThread();
 		}
+	}
+	/**
+	 * Creates a new JMXManagedThreadPool and publishes the JMX MBean management interface
+	 * @param objectName The JMX ObjectName for this pool's MBean 
+	 * @param poolName The pool name
+	 * @param corePoolSize  the number of threads to keep in the pool, even if they are idle.
+	 * @param maximumPoolSize the maximum number of threads to allow in the pool.
+	 * @param queueSize The maximum number of pending tasks to queue
+	 * @param keepAliveTimeMs when the number of threads is greater than the core, this is the maximum time in ms. that excess idle threads will wait for new tasks before terminating.
+	 * @param metricWindowSize The maximum size of the metrics sliding window
+	 * @param metricDefaultPercentile The default percentile reported in the metrics management  
+	 */
+	public JMXManagedThreadPool(ObjectName objectName, String poolName, int corePoolSize, int maximumPoolSize, int queueSize, long keepAliveTimeMs, int metricWindowSize, int metricDefaultPercentile) {
+		this(objectName, poolName, corePoolSize, maximumPoolSize, queueSize, keepAliveTimeMs, metricWindowSize, metricDefaultPercentile, true);
 	}
 	
 
@@ -117,8 +140,9 @@ public class JMXManagedThreadPool extends ThreadPoolExecutor implements ThreadFa
 	 * @param keepAliveTimeMs when the number of threads is greater than the core, this is the maximum time in ms. that excess idle threads will wait for new tasks before terminating.
 	 * @param metricWindowSize The maximum size of the metrics sliding window
 	 * @param metricDefaultPercentile The default percentile reported in the metrics management  
+	 * @param publishJMX If true, publishes the management interface
 	 */
-	public JMXManagedThreadPool(ObjectName objectName, String poolName, int corePoolSize, int maximumPoolSize, int queueSize, long keepAliveTimeMs, int metricWindowSize, int metricDefaultPercentile) {
+	public JMXManagedThreadPool(ObjectName objectName, String poolName, int corePoolSize, int maximumPoolSize, int queueSize, long keepAliveTimeMs, int metricWindowSize, int metricDefaultPercentile, boolean publishJMX) {
 		super(corePoolSize, maximumPoolSize, keepAliveTimeMs, TimeUnit.MILLISECONDS, new ArrayBlockingQueue<Runnable>(queueSize, false));
 		this.threadGroup = new ThreadGroup(poolName + "ThreadGroup");
 		setThreadFactory(this);
@@ -127,12 +151,14 @@ public class JMXManagedThreadPool extends ThreadPoolExecutor implements ThreadFa
 		this.objectName = objectName;
 		this.poolName = poolName;
 		workQueue = (ArrayBlockingQueue<Runnable>)getQueue();
-		try {			
-			JMXHelper.getHeliosMBeanServer().registerMBean(this, objectName);
-		} catch (Exception ex) {
-			log.warn("Failed to register JMX management interface. Will continue without.", ex);
+		if(publishJMX) {
+			try {			
+				JMXHelper.getHeliosMBeanServer().registerMBean(this, objectName);
+			} catch (Exception ex) {
+				log.warn("Failed to register JMX management interface. Will continue without.", ex);
+			}		
+			log.info("Created JMX Managed Thread Pool [" + poolName + "]");
 		}
-		log.info("Created JMX Managed Thread Pool [" + poolName + "]");
 	}
 
 	/**

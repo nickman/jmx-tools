@@ -75,39 +75,64 @@ public class JMXManagedScheduler extends ScheduledThreadPoolExecutor implements 
 			return new long[1];
 		}
 	};
+	
+	/**
+	 * Creates a new JMXManagedScheduler and publishes the JMX interface
+	 * @param objectName THe ObjectName of this scheduler's MBean
+	 * @param poolName The pool name
+	 * @param corePoolSize The core pool size
+	 */
+	public JMXManagedScheduler(ObjectName objectName, String poolName, int corePoolSize) {
+		this(objectName, poolName, corePoolSize, true);
+	}
+
 
 	/**
 	 * Creates a new JMXManagedScheduler
 	 * @param objectName THe ObjectName of this scheduler's MBean
 	 * @param poolName The pool name
 	 * @param corePoolSize The core pool size
+	 * @param publishJMX If true, publishes the JMX interface
 	 */
-	public JMXManagedScheduler(ObjectName objectName, String poolName, int corePoolSize) {
+	public JMXManagedScheduler(ObjectName objectName, String poolName, int corePoolSize, boolean publishJMX) {
 		super(corePoolSize);
 		this.objectName = objectName;
 		this.poolName = poolName;
 		this.threadGroup = new ThreadGroup(poolName + "ThreadGroup");
 		setThreadFactory(this);
 		setRejectedExecutionHandler(this);
-		try {			
-			JMXHelper.getHeliosMBeanServer().registerMBean(this, objectName);
-		} catch (Exception ex) {
-			
+		if(publishJMX) {
+			try {			
+				JMXHelper.getHeliosMBeanServer().registerMBean(this, objectName);
+			} catch (Exception ex) {
+				
+			}
 		}
 		
-		
 	}
+
+	/**
+	 * Creates a new JMXManagedScheduler and publishes the JMX interface
+	 * @param objectName THe ObjectName of this scheduler's MBean
+	 * @param poolName The pool name
+	 */
+	public JMXManagedScheduler(ObjectName objectName, String poolName) {
+		this(objectName, poolName, true);
+	}
+	
 	
 	/**
 	 * Creates a new JMXManagedScheduler
 	 * @param objectName THe ObjectName of this scheduler's MBean
 	 * @param poolName The pool name
+	 * @param publishJMX If true, publishes the JMX interface
 	 */
-	public JMXManagedScheduler(ObjectName objectName, String poolName) {
+	public JMXManagedScheduler(ObjectName objectName, String poolName, boolean publishJMX) {
 		this(
 			objectName, 
 			poolName,				
-			ConfigurationHelper.getIntSystemThenEnvProperty(poolName.toLowerCase() + CONFIG_CORE_SCHEDULER_POOL_SIZE, DEFAULT_CORE_SCHEDULER_POOL_SIZE)
+			ConfigurationHelper.getIntSystemThenEnvProperty(poolName.toLowerCase() + CONFIG_CORE_SCHEDULER_POOL_SIZE, DEFAULT_CORE_SCHEDULER_POOL_SIZE),
+			publishJMX
 		);
 	}
 	
