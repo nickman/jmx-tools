@@ -26,13 +26,20 @@ package org.helios.jmx.annotation;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 import javax.management.Descriptor;
 import javax.management.ImmutableDescriptor;
 import javax.management.MBeanAttributeInfo;
+import javax.management.MBeanInfo;
+import javax.management.MBeanNotificationInfo;
+import javax.management.MBeanOperationInfo;
+import javax.management.modelmbean.DescriptorSupport;
 
 import org.helios.jmx.util.helpers.StringHelper;
 
@@ -54,6 +61,124 @@ public class Reflector {
 	public static final MBeanAttributeInfo[] EMPTY_MAI_ARR = {};
 	/** Replacement pattern for the get/set leading a method name */
 	public static final Pattern GETSET_PATTERN = Pattern.compile("get|set|is|has", Pattern.CASE_INSENSITIVE);
+	
+	/** An array of the method annotations we'll search for */
+	@SuppressWarnings("unchecked")
+	private static final Class<? extends Annotation>[] SEARCH_ANNOTATIONS = new Class[]{
+		ManagedAttribute.class, ManagedMetric.class, ManagedOperation.class
+	};
+
+	
+	public static MBeanInfo from(Class<?> clazz) {
+		final Map<Class<? extends Annotation>, Set<Method>> methodMap = getAnnotatedMethods(clazz, SEARCH_ANNOTATIONS);
+		final Set<MBeanNotificationInfo> notificationInfo = new HashSet<MBeanNotificationInfo>();
+		final Set<MBeanAttributeInfo> attrInfos = new HashSet<MBeanAttributeInfo>();
+		Collections.addAll(attrInfos, getManagedAttributeInfos(notificationInfo, methodMap.get(ManagedAttribute.class)));
+		Collections.addAll(attrInfos, getManagedAttributeInfos(notificationInfo, methodMap.get(ManagedMetric.class)));		
+	}
+	
+	/**
+	 * Reflects out the MBeanOperationInfos for @ManagedOperation annotations the passed methods
+	 * @param notificationInfo Any notification infos we find along the way get dropped in here
+	 * @param methods The annotated methods in the class
+	 * @return a [possibly zero length] MBeanOperationInfo array
+	 */
+	public static MBeanOperationInfo[] getManagedOperationInfos(final Set<MBeanNotificationInfo> notificationInfo, final Set<Method> methods) {
+		Set<MBeanOperationInfo> infos = new HashSet<MBeanOperationInfo>(methods.size());
+		for(Method m: methods) {
+			ManagedOperation mo = m.getAnnotation(ManagedOperation.class);
+			ManagedMetricImpl mmi = new ManagedMetricImpl(mm);
+			Collections.addAll(notificationInfo, ManagedNotificationImpl.from(mmi.getNotifications()));
+			infos.add(mmi.toMBeanInfo(m.getReturnType()));
+		}
+		return infos.toArray(new MBeanOperationInfo[infos.size()]);
+	}
+	
+
+	/**
+	 * Reflects out the ManagedAttributeInfos for @ManagedMetric annotations the passed methods
+	 * @param notificationInfo Any notification infos we find along the way get dropped in here
+	 * @param methods The annotated methods in the class
+	 * @return a [possibly zero length] MBeanAttributeInfo array
+	 */
+	public static MBeanAttributeInfo[] getManagedMetricInfos(final Set<MBeanNotificationInfo> notificationInfo, final Set<Method> methods) {
+		Set<MBeanAttributeInfo> infos = new HashSet<MBeanAttributeInfo>(methods.size());
+		for(Method m: methods) {
+			ManagedMetric mm = m.getAnnotation(ManagedMetric.class);
+			ManagedMetricImpl mmi = new ManagedMetricImpl(mm);
+			Collections.addAll(notificationInfo, ManagedNotificationImpl.from(mmi.getNotifications()));
+			infos.add(mmi.toMBeanInfo(m.getReturnType()));
+		}
+		return infos.toArray(new MBeanAttributeInfo[infos.size()]);
+	}
+
+	/**
+	 * Reflects out the ManagedAttributeInfos for @ManagedAttribute annotations the passed methods
+	 * @param notificationInfo Any notification infos we find along the way get dropped in here
+	 * @param attrs The annotated methods in the class
+	 * @return a [possibly zero length] MBeanAttributeInfo array
+	 */
+	public static MBeanAttributeInfo[] getManagedAttributeInfos(final Set<MBeanNotificationInfo> notificationInfo, final Set<Method> attrs) {
+		Set<MBeanAttributeInfo> infos = new HashSet<MBeanAttributeInfo>(attrs.size());
+		Map<String, MBeanAttributeInfo[]> attributes = new HashMap<String, MBeanAttributeInfo[]>(attrs.size());
+		for(Method m: attrs) { 
+			final int index = m.getParameterTypes().length;
+			if(index>1) throw new RuntimeException(String.format("The method [%s.%s] (%s)] is neither a getter or a setter but was annotated @ManagedAttribute", m.getDeclaringClass().getName(), m.getName(), StringHelper.getMethodDescriptor(m)));
+			ManagedAttribute ma = m.getAnnotation(ManagedAttribute.class);
+			ManagedAttributeImpl maImpl = new ManagedAttributeImpl(attr(m), ma);
+			Collections.addAll(notificationInfo, ManagedNotificationImpl.from(maImpl.getNotifications()));
+			Class<?> type = index==0 ?  m.getReturnType() : m.getParameterTypes()[0];
+			MBeanAttributeInfo minfo = maImpl.toMBeanInfo(type);
+			minfo.getDescriptor().setField(index==0 ? "getMethod" : "setMethod", m.getName());
+			String attributeName = minfo.getName();
+			MBeanAttributeInfo[] pair = attributes.get(attributeName); if(pair==null) { pair = new MBeanAttributeInfo[2];  attributes.put(attributeName, pair); }
+						
+			if(pair[index]!=null) System.err.println("Duplicate attribute names on [" + m.getDeclaringClass().getName() + "] : [" + attributeName + "]");
+			pair[index] = minfo;
+		}			
+		for(Map.Entry<String, MBeanAttributeInfo[]> entry: attributes.entrySet()) {
+			String name = entry.getKey();
+			MBeanAttributeInfo[] pair = entry.getValue();
+			if(pair[0]!=null && pair[1]!=null) {
+				infos.add(new MBeanAttributeInfo(name, pair[0].getType(), pair[0].getDescription(), true, true, isIs(pair[0]), merge(pair[0].getDescriptor(), pair[1].getDescriptor())));
+			} else {
+				if(pair[0]!=null) {
+					infos.add(new MBeanAttributeInfo(name, pair[0].getType(), pair[0].getDescription(), true, false, isIs(pair[0]), pair[0].getDescriptor()));
+				} else {
+					infos.add(new MBeanAttributeInfo(name, pair[1].getType(), pair[1].getDescription(), false, true, false, pair[1].getDescriptor()));
+				}
+			}
+		}
+		return infos.toArray(new MBeanAttributeInfo[infos.size()]);
+	}
+	
+	/**
+	 * Does a bill clinton on the passed info to determine the meaning of "is"
+	 * @param info The info to inspect
+	 * @return true if "is" means "is" (or "has"), false otherwise
+	 */
+	public static boolean isIs(MBeanAttributeInfo info) {
+		Descriptor d = info.getDescriptor();
+		if(d==null) return false;
+		String getMeth = (String)d.getFieldValue("getMethod");
+		if(getMeth==null) return false;
+		return (getMeth.startsWith("is") || getMeth.startsWith("has"));
+	}
+	
+	/**
+	 * Merges two descriptors with dups in d2 overwritten by d1
+	 * @param d1 The overriding descriptor
+	 * @param d2 The other descriptor
+	 * @return The merged descriptor
+	 */
+	public static Descriptor merge(Descriptor d1, Descriptor d2) {
+		Descriptor merged = new DescriptorSupport();
+		merged.setFields(d2.getFieldNames(), d2.getFieldValues(d2.getFieldNames()));
+		merged.setFields(d1.getFieldNames(), d1.getFieldValues(d1.getFieldNames()));
+		return merged;
+	}
+	
+	
 	
 	/**
 	 * Returns an array of ManagedMetricImpls extracted from the passed class
@@ -199,26 +324,33 @@ public class Reflector {
 	
 	
 	/**
-	 * Returns an array of methods in the passed class that are annotated with the passed annotation type
+	 * Returns a map of sets of methods in the passed class that are annotated with the passed annotation types, keyed by the annotation type
 	 * @param clazz The class to inspect
-	 * @param annotationType The annotation to inspect for
-	 * @return a [possibly empty] array of annotated methods
+	 * @param annotationTypes The annotations to inspect for
+	 * @return a [possibly empty] map of [possibly empty] sets of annotated methods
 	 */
-	public static Method[] getAnnotatedMethods(Class<?> clazz, Class<? extends Annotation> annotationType) {
-		
-		Map<String, Method> methods = new HashMap<String, Method>();		
+	@SafeVarargs
+	public static Map<Class<? extends Annotation>, Set<Method>> getAnnotatedMethods(Class<?> clazz, Class<? extends Annotation>...annotationTypes) {
+		Map<Class<? extends Annotation>, Set<Method>> methodMap = new HashMap<Class<? extends Annotation>, Set<Method>>();
+		for(Class<? extends Annotation> annType: annotationTypes) {
+			methodMap.put(annType, new HashSet<Method>());
+		}
+				
 		for(Method m: clazz.getMethods()) {
-			if(m.getAnnotation(annotationType)!=null) {
-				methods.put(StringHelper.getMethodDescriptor(m), m);
+			for(Class<? extends Annotation> annType: annotationTypes) {
+				if(m.getAnnotation(annType)!=null) {
+					methodMap.get(annType).add(m);
+				}
 			}
 		}
 		for(Method m: clazz.getDeclaredMethods()) {
-			if(m.getAnnotation(annotationType)!=null) {
-				methods.put(StringHelper.getMethodDescriptor(m), m);
+			for(Class<? extends Annotation> annType: annotationTypes) {
+				if(m.getAnnotation(annType)!=null) {
+					methodMap.get(annType).add(m);
+				}
 			}
 		}
-		if(methods.isEmpty()) return EMPTY_M_ARR;
-		return methods.values().toArray(new Method[methods.size()]);
+		return methodMap;
 	}	
 	
 	
@@ -227,7 +359,7 @@ public class Reflector {
 	 * @param m The method to get an attribute name for
 	 * @return the attribute name
 	 */
-	private static String attr(Method m) {
+	public static String attr(Method m) {
 		String name = m.getName();
 		name = GETSET_PATTERN.matcher(name).replaceFirst("");
 		return String.format("%s%s", name.substring(0,1).toUpperCase(), name.substring(1));

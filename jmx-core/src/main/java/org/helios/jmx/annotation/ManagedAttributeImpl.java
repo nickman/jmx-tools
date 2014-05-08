@@ -27,6 +27,7 @@ package org.helios.jmx.annotation;
 import static org.helios.jmx.annotation.Reflector.nvl;
 import static org.helios.jmx.annotation.Reflector.nws;
 
+import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -100,6 +101,18 @@ public class ManagedAttributeImpl {
 		description = nws(ma.description());
 		this.notifications = ManagedNotificationImpl.from(ma.notifications());
 	}
+	
+	/**
+	 * Creates a new ManagedAttributeImpl
+	 * @param methodAttrName The attribute name to use if the annotation does not supply one
+	 * @param ma The managed attribute to extract from
+	 */
+	public ManagedAttributeImpl(String methodAttrName, ManagedAttribute ma) {
+		name = nws(nvl(ma, "Managed Attribute").name())==null ? nvl(methodAttrName, "methodAttrName") : ma.name().trim();
+		description = nws(ma.description());
+		this.notifications = ManagedNotificationImpl.from(ma.notifications());
+	}
+	
 	
 	/**
 	 * Creates a new ManagedAttributeImpl
