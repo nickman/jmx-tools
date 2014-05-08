@@ -40,7 +40,7 @@ import org.helios.jmx.util.unsafe.UnsafeAdapter;
  * <p><code>org.helios.rindle.period.impl.DirectEWMA</code></p>
  */
 
-public class DirectEWMA implements DeAllocateMe, DirectEWMAMBean, EWMAAppender {
+public class DirectEWMA implements DeAllocateMe, DirectEWMAMBean, EWMAAppender, IMetricSetter {
 	/** The address of the memory allocation */
 	protected final long[] address = new long[1];
 	
@@ -254,6 +254,7 @@ public class DirectEWMA implements DeAllocateMe, DirectEWMAMBean, EWMAAppender {
 	public long increment() {
 		return increment(1L);
 	}
+	
 
 
 	/**
@@ -302,6 +303,7 @@ public class DirectEWMA implements DeAllocateMe, DirectEWMAMBean, EWMAAppender {
 		UnsafeAdapter.putLong(address[0] + ERRORS, newval);
 		return newval;	
 	}
+	
 
 	/**
 	 * {@inheritDoc}
@@ -312,5 +314,41 @@ public class DirectEWMA implements DeAllocateMe, DirectEWMAMBean, EWMAAppender {
 		return UnsafeAdapter.getLong(address[0] + ERRORS);
 	}
 
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.metrics.ewma.IMetricSetter#append(long)
+	 */
+	@Override
+	public void append(long value) {
+		append((double)value);
+		
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.metrics.ewma.IMetricSetter#append(int)
+	 */
+	@Override
+	public void append(int value) {
+		append((double)value);
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.metrics.ewma.IMetricSetter#err()
+	 */
+	@Override
+	public void err() {
+		error();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.metrics.ewma.IMetricSetter#incr()
+	 */
+	@Override
+	public void incr() {
+		increment(1L);
+	}
 
 }

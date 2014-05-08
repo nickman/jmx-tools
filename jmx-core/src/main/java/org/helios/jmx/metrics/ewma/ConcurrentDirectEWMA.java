@@ -224,5 +224,61 @@ public class ConcurrentDirectEWMA extends DirectEWMA implements ConcurrentDirect
 		return b.append("]").toString();
 	}
 	
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.metrics.ewma.IMetricSetter#append(long)
+	 */
+	@Override
+	public void append(long value) {
+		lock.xlock();
+		try {
+			super.append((double)value);
+		} finally {
+			lock.xunlock();
+		}		
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.metrics.ewma.IMetricSetter#append(int)
+	 */
+	@Override
+	public void append(int value) {
+		lock.xlock();
+		try {
+			super.append((double)value);
+		} finally {
+			lock.xunlock();
+		}		
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.metrics.ewma.IMetricSetter#err()
+	 */
+	@Override
+	public void err() {
+		lock.xlock();
+		try {
+			error();
+		} finally {
+			lock.xunlock();
+		}					
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.metrics.ewma.IMetricSetter#incr()
+	 */
+	@Override
+	public void incr() {
+		lock.xlock();
+		try {
+			super.incr();
+		} finally {
+			lock.xunlock();
+		}					
+	}
+	
 	
 }
