@@ -29,7 +29,7 @@ import static org.helios.jmx.annotation.Reflector.nws;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
-import java.lang.invoke.MethodType;
+import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Map;
@@ -39,6 +39,7 @@ import javax.management.ImmutableDescriptor;
 import javax.management.MBeanAttributeInfo;
 import javax.management.modelmbean.DescriptorSupport;
 
+import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
 import org.helios.jmx.util.helpers.StringHelper;
 
 /**
@@ -62,6 +63,9 @@ public class ManagedAttributeImpl {
 	/** empty const array */
 	public static final MBeanAttributeInfo[] EMPTY_INFO_ARR = {};
 	
+	/** A method handle lookup */
+	public static final Lookup lookup = MethodHandles.lookup();
+	
 
 	
 	/**
@@ -80,18 +84,19 @@ public class ManagedAttributeImpl {
 	
 	/**
 	 * Generates an array of MBeanAttributeInfos for the passed array of ManagedAttributeImpls
+	 * @param attrInvokers A map of attribute accessor invokers to populate
 	 * @param methods An array of the methods being reflected, one for each managed ManagedAttributeImpls
 	 * @param attributes The ManagedAttributeImpls to convert
 	 * @return a [possibly zero length] array of MBeanAttributeInfos
 	 */
-	public static MBeanAttributeInfo[] from(Method[] methods, ManagedAttributeImpl...attributes) {
+	public static MBeanAttributeInfo[] from(final NonBlockingHashMapLong<MethodHandle[]> attrInvokers, Method[] methods, ManagedAttributeImpl...attributes) {
 		if(attributes==null || attributes.length==0 || methods==null || methods.length==0) return EMPTY_INFO_ARR;
 		if(methods.length != attributes.length) {
 			throw new IllegalArgumentException("Type/Attribute Array Size Mismatch. Types:" + methods.length + ", Metrics:" + attributes.length);
 		}		
 		MBeanAttributeInfo[] infos = new MBeanAttributeInfo[attributes.length];
 		for(int i = 0; i < infos.length; i++) {
-			infos[i] = attributes[i].toMBeanInfo(methods[i]);
+			infos[i] = attributes[i].toMBeanInfo(methods[i], attrInvokers);
 		}		
 		return infos;		
 	}
@@ -172,11 +177,30 @@ public class ManagedAttributeImpl {
 	/**
 	 * Returns an MBeanAttributeInfo rendered form this ManagedAttributeImpl.
 	 * @param method The method we're generating an info for
+	 * @param attrInvokers A map of invoker pairs to populate with this attribute's invoker pair
 	 * @return MBeanAttributeInfo rendered form this ManagedAttributeImpl
 	 */
-	public MBeanAttributeInfo toMBeanInfo(Method method) {
+	public MBeanAttributeInfo toMBeanInfo(Method method, final NonBlockingHashMapLong<MethodHandle[]> attrInvokers) {
 		boolean getter =  method.getParameterTypes().length==0;
+		final long attrCode = StringHelper.longHashCode(name);
+		final long methodCode = StringHelper.longHashCode(method.getName());
+		MethodHandle[] mhPair = attrInvokers.get(attrCode);
+		MethodHandle[] methodPair = attrInvokers.get(methodCode);
+		if(mhPair==null) {
+			mhPair = new MethodHandle[2];
+			attrInvokers.put(attrCode, mhPair);
+		}
+		if(methodPair==null) {
+			methodPair = new MethodHandle[2];
+			attrInvokers.put(methodCode, methodPair);
+		}
 		
+		try {
+			mhPair[getter ? 0 : 1] = lookup.unreflect(method);
+			methodPair[getter ? 0 : 1] = lookup.unreflect(method);
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		}
 		return new MBeanAttributeInfo(
 				name, 
 				getter ? method.getReturnType().getName() : method.getParameterTypes()[0].getName(),  
@@ -202,10 +226,7 @@ public class ManagedAttributeImpl {
 	public Descriptor toDescriptor(Method method, boolean immutable) {
 		Map<String, Object> map = new HashMap<String, Object>();
 		map.put("signature", StringHelper.getMethodDescriptor(method));
-		MethodType methodType = MethodType.methodType(method.getReturnType(), method.getParameterTypes());
-		map.put("methodDescriptor", methodType.toMethodDescriptorString());
-		MethodHandle mh = MethodHandles.exactInvoker(methodType);		
-		map.put("*methodHandle", mh);		
+		map.put(method.getParameterTypes().length==0 ? "getMethod" : "setMethod", method.getName());
 
 		return immutable ?  new ImmutableDescriptor(map) : new DescriptorSupport(map.keySet().toArray(new String[map.size()]), map.values().toArray(new Object[map.size()]));
 	}

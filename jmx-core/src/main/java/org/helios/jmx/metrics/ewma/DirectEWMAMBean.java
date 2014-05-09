@@ -24,6 +24,9 @@
  */
 package org.helios.jmx.metrics.ewma;
 
+import org.helios.jmx.annotation.ManagedAttribute;
+import org.helios.jmx.annotation.ManagedResource;
+
 /**
  * <p>Title: DirectEWMAMBean</p>
  * <p>Description: MBean interface for {@link DirectEWMA}</p> 
@@ -31,8 +34,8 @@ package org.helios.jmx.metrics.ewma;
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
  * <p><code>org.helios.jmx.metrics.DirectEWMAMBean</code></p>
  */
-
-public interface DirectEWMAMBean extends EWMAAppender{
+@ManagedResource(description="An exponentially weighted moving average metric tracker")
+public interface DirectEWMAMBean extends EWMAAppenderMBean{
 	/**
 	 * Resets the EWMA
 	 */
@@ -42,42 +45,49 @@ public interface DirectEWMAMBean extends EWMAAppender{
 	 * Returns the timestamp of the last sample as a long UTC.
 	 * @return the timestamp of the last sample 
 	 */
+	@ManagedAttribute(description="Returns the timestamp of the last sample as a long UTC")
 	public long getLastSample();
 
 	/**
 	 * Returns the last computed average.
 	 * @return the last computed average 
 	 */
+	@ManagedAttribute(description="The last computed weighted average")
 	public double getAverage();
 
 	/**
 	 * Returns the minimum recorded value since the last reset
 	 * @return the minimum recorded value 
 	 */
+	@ManagedAttribute(description="The minimum recorded value since the last reset")
 	public double getMinimum();
 
 	/**
 	 * Returns the maximum recorded value since the last reset
 	 * @return the maximum recorded value 
 	 */
+	@ManagedAttribute(description="The maximum recorded value since the last reset")
 	public double getMaximum();
 
 	/**
 	 * Returns the mean recorded value since the last reset
 	 * @return the mean recorded value 
 	 */
+	@ManagedAttribute(description="The mean recorded value since the last reset")
 	public double getMean();
 
 	/**
 	 * Returns the count of recorded values since the last reset
 	 * @return the count of recorded values 
 	 */
+	@ManagedAttribute(description="The count of recorded values since the last reset")
 	public long getCount();
 	
 	/**
 	 * Returns the count of errors since the last reset
 	 * @return the count of errors 
 	 */
+	@ManagedAttribute(description="The count of recorded errors since the last reset")
 	public long getErrors();
 	
 
@@ -112,10 +122,10 @@ public interface DirectEWMAMBean extends EWMAAppender{
 	 */
 	public long error();
 	
-	/**
-	 * Returns an appender to this EWMA
-	 * @return an appender to this EWMA
-	 */
-	public EWMAAppender getAppender();	
+//	/**
+//	 * Returns an appender to this EWMA
+//	 * @return an appender to this EWMA
+//	 */
+//	public EWMAAppenderMBean getAppender();	
 
 }

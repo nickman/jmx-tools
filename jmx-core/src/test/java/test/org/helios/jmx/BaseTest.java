@@ -152,7 +152,9 @@ public class BaseTest {
 	 */
 	protected static JMXConnector getConnector() {
 		try {
-			return JMX_CONNECTOR_SERVER.toJMXConnector(null);
+			JMXConnector conn = JMX_CONNECTOR_SERVER.toJMXConnector(null);
+			conn.connect();
+			return conn;
 		} catch (Exception ex) {
 			throw new RuntimeException(ex);
 		}

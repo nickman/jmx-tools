@@ -107,7 +107,7 @@ public class StringHelper {
      */
     public static String getMethodDescriptor(final Method m) {
         Class<?>[] parameters = m.getParameterTypes();
-        StringBuffer buf = new StringBuffer();
+        StringBuilder buf = new StringBuilder();
         buf.append('(');
         for (int i = 0; i < parameters.length; ++i) {
             getDescriptor(buf, parameters[i]);
@@ -127,7 +127,7 @@ public class StringHelper {
      */
     public static String getConstructorDescriptor(final Constructor<?> c) {
         Class<?>[] parameters = c.getParameterTypes();
-        StringBuffer buf = new StringBuffer();
+        StringBuilder buf = new StringBuilder();
         buf.append('(');
         for (int i = 0; i < parameters.length; ++i) {
             getDescriptor(buf, parameters[i]);
@@ -135,6 +135,32 @@ public class StringHelper {
         return buf.append(")V").toString();
     }
     
+    /**
+     * Builds a descriptor from an array of args
+     * @param args The arguments
+     * @return the descriptor
+     */
+    public static String getDescriptor(Object...args) {
+    	final StringBuilder buf = new StringBuilder("(");
+    	for(Object o: args) {
+    		if(o==null) throw new RuntimeException("Array of args had a null");
+    		getDescriptor(buf, o.getClass());
+    	}
+    	return buf.append(")").toString();
+    }
+    
+    /**
+     * Returns a deep toStringed string array built from the names of the passed classes
+     * @param signature A class array
+     * @return the concat value
+     */
+    public static String concat(Class<?>...signature) {
+    	String[] strs = new String[signature.length];
+    	for(int i = 0; i < signature.length; i++) {
+    		strs[i] = signature[i].getName();
+    	}
+    	return Arrays.toString(strs);
+    }
 
     /**
      * Appends the descriptor of the given class to the given string buffer.
@@ -144,7 +170,7 @@ public class StringHelper {
      * @author Eric Bruneton  
      * @author Chris Nokleberg
      */
-    private static void getDescriptor(final StringBuffer buf, final Class<?> c) {
+    public static void getDescriptor(final StringBuilder buf, final Class<?> c) {
         Class<?> d = c;
         while (true) {
             if (d.isPrimitive()) {

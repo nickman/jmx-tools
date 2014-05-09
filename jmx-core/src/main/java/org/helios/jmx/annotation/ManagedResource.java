@@ -57,6 +57,7 @@ public @interface ManagedResource {
 	 * The MBean description
 	 */
 	String description() default "";
+		
 	
 	/**
 	 * An array of managed notifications emitted from the annotated type 

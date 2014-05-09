@@ -25,14 +25,14 @@
 package org.helios.jmx.metrics.ewma;
 
 /**
- * <p>Title: EWMAAppender</p>
+ * <p>Title: EWMAAppenderMBean</p>
  * <p>Description: </p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
  * <p><code>org.helios.jmx.metrics.EWMAAppender</code></p>
  */
 
-public interface EWMAAppender {
+public interface EWMAAppenderMBean {
 	/**
 	 * Appends a new double sample
 	 * @param sample a new double sample

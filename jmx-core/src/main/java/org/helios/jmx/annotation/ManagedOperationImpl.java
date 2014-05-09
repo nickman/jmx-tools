@@ -29,7 +29,7 @@ import static org.helios.jmx.annotation.Reflector.nws;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
-import java.lang.invoke.MethodType;
+import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Map;
@@ -39,6 +39,7 @@ import javax.management.ImmutableDescriptor;
 import javax.management.MBeanOperationInfo;
 import javax.management.modelmbean.DescriptorSupport;
 
+import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
 import org.helios.jmx.util.helpers.StringHelper;
 
 /**
@@ -67,6 +68,9 @@ public class ManagedOperationImpl {
 	/** empty const array */
 	public static final MBeanOperationInfo[] EMPTY_INFO_ARR = {};
 	
+	/** A method handle lookup */
+	public static final Lookup lookup = MethodHandles.lookup();
+	
 	
 	/**
 	 * Converts an array of ManagedOperations to an array of ManagedOperationImpls
@@ -89,18 +93,19 @@ public class ManagedOperationImpl {
 	
 	/**
 	 * Generates an array of MBeanOperationInfos for the passed array of ManagedOperationImpls
+	 * @param opInvokers A map of invokers to place this method's invoker into
 	 * @param methods An array of methods, one for each ManagedOperationImpls
 	 * @param ops The ManagedOperationImpls to convert
 	 * @return a [possibly zero length] array of MBeanOperationInfos
 	 */
-	public static MBeanOperationInfo[] from(Method[] methods, ManagedOperationImpl...ops) {
+	public static MBeanOperationInfo[] from(final NonBlockingHashMapLong<MethodHandle> opInvokers, Method[] methods, ManagedOperationImpl...ops) {
 		if(ops==null || ops.length==0) return EMPTY_INFO_ARR;
 		if(methods.length != ops.length) {
 			throw new IllegalArgumentException("Method/Ops Array Size Mismatch. Methods:" + methods.length + ", ManagedOps:" + ops.length);
 		}
 		MBeanOperationInfo[] infos = new MBeanOperationInfo[ops.length];
 		for(int i = 0; i < infos.length; i++) {
-			infos[i] = ops[i].toMBeanInfo(methods[i]);
+			infos[i] = ops[i].toMBeanInfo(methods[i], opInvokers);
 		}		
 		return infos;		
 	}
@@ -196,12 +201,24 @@ public class ManagedOperationImpl {
 	/**
 	 * Returns an MBeanOperationInfo rendered form this ManagedOperationImpl.
 	 * @param method The method that this ManagedOperationImpl represents
+	 * @param opInvokers A map of invokers to place this method's invoker into
 	 * @return a MBeanOperationInfo rendered form this ManagedOperationImpl
 	 */
-	public MBeanOperationInfo toMBeanInfo(Method method) {		
+	public MBeanOperationInfo toMBeanInfo(Method method, final NonBlockingHashMapLong<MethodHandle> opInvokers) {		
 		Class<?>[] sig = method.getParameterTypes();
 		if(sig.length != parameters.length) {
 			throw new IllegalArgumentException("Parameter Mismatch. Method:" + sig.length + ", ManagedParams:" + parameters.length);
+		}
+		if(opInvokers!=null) {
+			long hash = StringHelper.longHashCode(name + StringHelper.concat(method.getParameterTypes()));		
+			long mhash = StringHelper.longHashCode(method.getName() + StringHelper.concat(method.getParameterTypes()));
+			try {
+				MethodHandle mh = lookup.unreflect(method);
+				opInvokers.put(hash, mh);
+				opInvokers.put(mhash, mh);
+			} catch (Exception e) {
+				throw new RuntimeException(e);
+			}						
 		}
 		return new MBeanOperationInfo(
 				name,
@@ -232,8 +249,9 @@ public class ManagedOperationImpl {
 	public Descriptor toDescriptor(Method method, boolean immutable) {
 		Map<String, Object> map = new HashMap<String, Object>();
 		map.put("signature", StringHelper.getMethodDescriptor(method));
-		MethodType methodType = MethodType.methodType(method.getReturnType(), method.getParameterTypes());
-		map.put("methodDescriptor", methodType.toMethodDescriptorString());
+		map.put("methodName", method.getName());
+//		MethodType methodType = MethodType.methodType(method.getReturnType(), method.getParameterTypes());
+//		map.put("methodDescriptor", methodType.toMethodDescriptorString());
 //		MethodHandle mh = MethodHandles.exactInvoker(methodType);		
 //		map.put("*methodHandle", mh);		
 		return !immutable ?  new ImmutableDescriptor(map) : new DescriptorSupport(map.keySet().toArray(new String[map.size()]), map.values().toArray(new Object[map.size()]));	

@@ -26,25 +26,31 @@ package org.helios.jmx.annotation;
 
 import java.io.Serializable;
 import java.lang.annotation.Annotation;
+import java.lang.invoke.MethodHandle;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.regex.Pattern;
 
 import javax.management.Descriptor;
 import javax.management.ImmutableDescriptor;
 import javax.management.MBeanAttributeInfo;
 import javax.management.MBeanConstructorInfo;
+import javax.management.MBeanFeatureInfo;
 import javax.management.MBeanInfo;
 import javax.management.MBeanNotificationInfo;
 import javax.management.MBeanOperationInfo;
 import javax.management.ObjectName;
 import javax.management.modelmbean.DescriptorSupport;
 
+import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
 import org.helios.jmx.util.helpers.JMXHelper;
 import org.helios.jmx.util.helpers.StringHelper;
 
@@ -74,14 +80,14 @@ public class Reflector {
 	};
 
 	
-	public static MBeanInfo from(Class<?> clazz) {
+	public static MBeanInfo from(Class<?> clazz, final NonBlockingHashMapLong<MethodHandle[]> attrInvokers, final NonBlockingHashMapLong<MethodHandle> opInvokers, final NonBlockingHashMapLong<MethodHandle[]> metricInvokers) {
 		final Map<Class<? extends Annotation>, Set<Method>> methodMap = getAnnotatedMethods(clazz, SEARCH_ANNOTATIONS);
 		final Set<MBeanNotificationInfo> notificationInfo = new HashSet<MBeanNotificationInfo>();
 		final Set<MBeanAttributeInfo> attrInfos = new HashSet<MBeanAttributeInfo>();
-		Collections.addAll(attrInfos, getManagedAttributeInfos(notificationInfo, methodMap.get(ManagedAttribute.class)));
-		Collections.addAll(attrInfos, getManagedAttributeInfos(notificationInfo, methodMap.get(ManagedMetric.class)));
+		Collections.addAll(attrInfos, getManagedAttributeInfos(notificationInfo, methodMap.get(ManagedAttribute.class), attrInvokers));
+		Collections.addAll(attrInfos, getManagedMetricInfos(notificationInfo, methodMap.get(ManagedMetric.class), metricInvokers));
 		final Set<MBeanOperationInfo> opInfos = new HashSet<MBeanOperationInfo>(Arrays.asList(
-				getManagedOperationInfos(notificationInfo, methodMap.get(ManagedOperation.class))
+				getManagedOperationInfos(notificationInfo, methodMap.get(ManagedOperation.class), opInvokers)
 		));
 		ManagedResource mr = clazz.getAnnotation(ManagedResource.class);
 		ObjectName on = null; 
@@ -100,9 +106,16 @@ public class Reflector {
 				attrInfos.toArray(new MBeanAttributeInfo[attrInfos.size()]),
 				new MBeanConstructorInfo[0],
 				opInfos.toArray(new MBeanOperationInfo[opInfos.size()]),
-				notificationInfo.toArray(new MBeanNotificationInfo[notificationInfo.size()]),
+				unify(notificationInfo),
 				descriptor
 		);
+	}
+	
+	public static void addAttributeInvokers(final Set<Method> methods, final Map<String, MethodHandle> attrInvokers) {
+		if(attrInvokers==null) return;
+		for(Method method: methods) {
+			
+		}
 	}
 	
 	/**
@@ -113,7 +126,8 @@ public class Reflector {
 	public static MBeanNotificationInfo[] unify(Set<MBeanNotificationInfo> infos) {
 		if(infos.isEmpty()) return new MBeanNotificationInfo[0]; 
 		Set<MBeanNotificationInfo> uniqueInfos = new HashSet<MBeanNotificationInfo>();
-		
+		uniqueInfos.addAll(infos);
+		// FIXME
 		return uniqueInfos.toArray(new MBeanNotificationInfo[uniqueInfos.size()]);
 	}
 	
@@ -121,15 +135,16 @@ public class Reflector {
 	 * Reflects out the MBeanOperationInfos for @ManagedOperation annotations the passed methods
 	 * @param notificationInfo Any notification infos we find along the way get dropped in here
 	 * @param methods The annotated methods in the class
+	 * @param opInvokers The map of op invokers to populate
 	 * @return a [possibly zero length] MBeanOperationInfo array
 	 */
-	public static MBeanOperationInfo[] getManagedOperationInfos(final Set<MBeanNotificationInfo> notificationInfo, final Set<Method> methods) {
+	public static MBeanOperationInfo[] getManagedOperationInfos(final Set<MBeanNotificationInfo> notificationInfo, final Set<Method> methods, final NonBlockingHashMapLong<MethodHandle> opInvokers) {
 		Set<MBeanOperationInfo> infos = new HashSet<MBeanOperationInfo>(methods.size());
 		for(Method m: methods) {
 			ManagedOperation mo = m.getAnnotation(ManagedOperation.class);
 			ManagedOperationImpl moi = new ManagedOperationImpl(m.getName(), mo);
 			Collections.addAll(notificationInfo, ManagedNotificationImpl.from(moi.getNotifications()));
-			infos.add(moi.toMBeanInfo(m));
+			infos.add(moi.toMBeanInfo(m, opInvokers));
 		}
 		return infos.toArray(new MBeanOperationInfo[infos.size()]);
 	}
@@ -139,15 +154,16 @@ public class Reflector {
 	 * Reflects out the ManagedAttributeInfos for @ManagedMetric annotations the passed methods
 	 * @param notificationInfo Any notification infos we find along the way get dropped in here
 	 * @param methods The annotated methods in the class
+	 * @param metricInvokers A map of metric invokers to populate
 	 * @return a [possibly zero length] MBeanAttributeInfo array
 	 */
-	public static MBeanAttributeInfo[] getManagedMetricInfos(final Set<MBeanNotificationInfo> notificationInfo, final Set<Method> methods) {
+	public static MBeanAttributeInfo[] getManagedMetricInfos(final Set<MBeanNotificationInfo> notificationInfo, final Set<Method> methods, final NonBlockingHashMapLong<MethodHandle[]> metricInvokers) {
 		Set<MBeanAttributeInfo> infos = new HashSet<MBeanAttributeInfo>(methods.size());
 		for(Method m: methods) {
 			ManagedMetric mm = m.getAnnotation(ManagedMetric.class);
 			ManagedMetricImpl mmi = new ManagedMetricImpl(mm);
 			Collections.addAll(notificationInfo, ManagedNotificationImpl.from(mmi.getNotifications()));
-			infos.add(mmi.toMBeanInfo(m.getReturnType()));
+			infos.add(mmi.toMBeanInfo(m, metricInvokers));
 		}
 		return infos.toArray(new MBeanAttributeInfo[infos.size()]);
 	}
@@ -156,9 +172,10 @@ public class Reflector {
 	 * Reflects out the ManagedAttributeInfos for @ManagedAttribute annotations the passed methods
 	 * @param notificationInfo Any notification infos we find along the way get dropped in here
 	 * @param attrs The annotated methods in the class
+	 * @param attrInvokers A map of attribute invoker pairs to populate
 	 * @return a [possibly zero length] MBeanAttributeInfo array
 	 */
-	public static MBeanAttributeInfo[] getManagedAttributeInfos(final Set<MBeanNotificationInfo> notificationInfo, final Set<Method> attrs) {
+	public static MBeanAttributeInfo[] getManagedAttributeInfos(final Set<MBeanNotificationInfo> notificationInfo, final Set<Method> attrs, final NonBlockingHashMapLong<MethodHandle[]> attrInvokers) {
 		Set<MBeanAttributeInfo> infos = new HashSet<MBeanAttributeInfo>(attrs.size());
 		Map<String, MBeanAttributeInfo[]> attributes = new HashMap<String, MBeanAttributeInfo[]>(attrs.size());
 		for(Method m: attrs) { 
@@ -168,7 +185,7 @@ public class Reflector {
 			ManagedAttributeImpl maImpl = new ManagedAttributeImpl(attr(m), ma);
 			Collections.addAll(notificationInfo, ManagedNotificationImpl.from(maImpl.getNotifications()));
 			Class<?> type = index==0 ?  m.getReturnType() : m.getParameterTypes()[0];
-			MBeanAttributeInfo minfo = maImpl.toMBeanInfo(m);
+			MBeanAttributeInfo minfo = maImpl.toMBeanInfo(m, attrInvokers);
 			minfo.getDescriptor().setField(index==0 ? "getMethod" : "setMethod", m.getName());
 			String attributeName = minfo.getName();
 			MBeanAttributeInfo[] pair = attributes.get(attributeName); if(pair==null) { pair = new MBeanAttributeInfo[2];  attributes.put(attributeName, pair); }
@@ -472,6 +489,171 @@ public class Reflector {
 			}
 		}
 		return t;		
+	}
+	
+	public static class MBeanAttributeInfoComp implements Comparator<MBeanAttributeInfo> {
+		@Override
+		public int compare(MBeanAttributeInfo o1, MBeanAttributeInfo o2) {
+			return o1.getName().equals(o2.getName()) ? 0 : 1;			
+		}
+	}
+	
+	
+	public static class MBeanOperationInfoComp implements Comparator<MBeanOperationInfo> {
+		@Override
+		public int compare(MBeanOperationInfo o1, MBeanOperationInfo o2) {
+			return (o1.getName().equals(o2.getName()) && Arrays.equals(o1.getSignature(), o2.getSignature())) ? 0 : 1;			
+		}
+	}
+	
+	public static class MBeanConstructorInfoComp implements Comparator<MBeanConstructorInfo> {
+		@Override
+		public int compare(MBeanConstructorInfo o1, MBeanConstructorInfo o2) {
+			return (o1.getName().equals(o2.getName()) && Arrays.equals(o1.getSignature(), o2.getSignature())) ? 0 : 1;			
+		}
+	}
+	
+	public static class MBeanNotificationInfoComp implements Comparator<MBeanNotificationInfo> {
+		@Override
+		public int compare(MBeanNotificationInfo o1, MBeanNotificationInfo o2) {
+			return (o1.getName().equals(o2.getName()) && Arrays.equals(o1.getNotifTypes(), o2.getNotifTypes())) ? 0 : 1;			
+		}
+	}
+	
+	public static class DescriptorComp implements Comparator<Descriptor> {
+		@Override
+		public int compare(Descriptor o1, Descriptor o2) {
+			return (o1.getFieldNames().equals(o2.getFieldNames()) && Arrays.equals(o1.getFieldValues(o1.getFieldNames()), o2.getFieldValues(o2.getFieldNames()) )) ? 0 : 1;			
+		}
+	}
+	
+	
+	/** Static shareable MBeanAttributeInfo filter */
+	public static final MBeanAttributeInfoComp ATTR_COMP = new MBeanAttributeInfoComp();
+	/** Static shareable MBeanOperationInfo filter */
+	public static final MBeanOperationInfoComp OPS_COMP = new MBeanOperationInfoComp();
+	/** Static shareable MBeanConstructorInfo filter */
+	public static final MBeanConstructorInfoComp CTOR_COMP = new MBeanConstructorInfoComp();
+	/** Static shareable MBeanNotificationInfo filter */
+	public static final MBeanNotificationInfoComp NOTIF_COMP = new MBeanNotificationInfoComp();
+	/** Static shareable MBeanNotificationInfo filter */
+	public static final DescriptorComp DESCRIPTOR_COMP = new DescriptorComp();
+	
+	
+	
+	/** Empty MBeanAttributeInfo array const */
+	public static final MBeanAttributeInfo[] EMPTY_ATTRS_INFO = {};
+	/** Empty MBeanConstructorInfo array const */
+	public static final MBeanConstructorInfo[] EMPTY_CTORS_INFO = {};
+	/** Empty MBeanOperationInfo array const */
+	public static final MBeanOperationInfo[] EMPTY_OPS_INFO = {};
+	/** Empty MBeanNotificationInfo array const */
+	public static final MBeanNotificationInfo[] EMPTY_NOTIF_INFO = {};
+	/** Empty MBeanInfo const */
+	public static final MBeanInfo EMPTY_MBEAN_INFO = new MBeanInfo("", "" , EMPTY_ATTRS_INFO, EMPTY_CTORS_INFO, EMPTY_OPS_INFO, EMPTY_NOTIF_INFO); 
+	
+	public static MBeanInfoMerger newMerger(MBeanInfo baseInfo) {
+		return new MBeanInfoMerger(baseInfo);
+	}
+	
+	public static class MBeanInfoMerger {
+		private String className = null;
+		private String description = null;
+		private Descriptor rootDescriptor = null;
+		private final TreeSet<MBeanAttributeInfo> attributeInfos = new TreeSet<MBeanAttributeInfo>(ATTR_COMP);
+		private final TreeSet<MBeanConstructorInfo> ctorInfos = new TreeSet<MBeanConstructorInfo>(CTOR_COMP);
+		private final TreeSet<MBeanOperationInfo> opInfos = new TreeSet<MBeanOperationInfo>(OPS_COMP);
+		private final TreeSet<MBeanNotificationInfo> notifInfos = new TreeSet<MBeanNotificationInfo>(NOTIF_COMP);
+		private final TreeSet<Descriptor> descriptors = new TreeSet<Descriptor>(DESCRIPTOR_COMP);
+		
+		private Set decode(MBeanFeatureInfo info) {
+			if(info instanceof MBeanAttributeInfo) return attributeInfos;
+			else if(info instanceof MBeanConstructorInfo) return ctorInfos;
+			else if(info instanceof MBeanOperationInfo) return opInfos;
+			else if(info instanceof MBeanNotificationInfo) return notifInfos;
+			else throw new RuntimeException("MBeanInfoMerger does not support [" + info.getClass().getName() + "]");
+		}
+		
+		public MBeanInfoMerger() {
+			
+		}
+		
+		public MBeanInfoMerger(MBeanInfo baseInfo) {
+			append(baseInfo);
+		}
+		
+		/**
+		 * Appends an array of MBeanFeatureInfos to the builder
+		 * @param infos the MBeanFeatureInfos to append
+		 * @return this builder
+		 */
+		public MBeanInfoMerger append(MBeanFeatureInfo...infos) {
+			for(MBeanFeatureInfo info: infos) {
+				if(info==null) continue;
+				decode(info).add(info);				
+			}
+			return this;
+		}
+
+		/**
+		 * Appends an array of MBeanInfos to the builder
+		 * @param infos an array of MBeanInfos
+		 * @return this builder
+		 */
+		public MBeanInfoMerger append(MBeanInfo...infos) {
+			for(MBeanInfo info: infos) {
+				if(infos==null) continue;
+				if(className==null) className = info.getClassName();
+				if(description==null) description = info.getDescription();
+				append(info.getDescriptor());
+				append(info.getAttributes());
+				append(info.getConstructors());
+				append(info.getOperations());
+				append(info.getNotifications());
+			}
+			return this;
+		}
+		
+		/**
+		 * Appens descriptors to the builder
+		 * @param descriptors the descriptors to append
+		 * @return this builder
+		 */
+		public MBeanInfoMerger append(Descriptor...descriptors) {
+			for(Descriptor descriptor : descriptors) {
+				if(descriptor==null) continue;
+				if(rootDescriptor==null) rootDescriptor = descriptor;
+				else this.descriptors.add(descriptor);
+			}
+			return this;
+		}		
+		
+		private Descriptor mergeDescriptors() {
+			if(rootDescriptor==null) return new DescriptorSupport();			
+			Descriptor base = rootDescriptor;
+			for(Descriptor d: descriptors) {
+				for(String fieldName: d.getFieldNames()) {
+					if(Arrays.binarySearch(base.getFieldNames(), fieldName) >= 0) continue;
+					base.setField(fieldName, d.getFieldValue(fieldName));
+				}
+			}
+			return base;
+		}
+		
+		
+		/**
+		 * Creates the final merged MBeanInfo
+		 * @return the final merged MBeanInfo
+		 */
+		public MBeanInfo merge() {
+			return new MBeanInfo(className, description, 
+					attributeInfos.toArray(new MBeanAttributeInfo[0]),
+					ctorInfos.toArray(new MBeanConstructorInfo[0]),
+					opInfos.toArray(new MBeanOperationInfo[0]),
+					notifInfos.toArray(new MBeanNotificationInfo[0]),
+					mergeDescriptors()
+			);
+		}
 	}
 	
 	

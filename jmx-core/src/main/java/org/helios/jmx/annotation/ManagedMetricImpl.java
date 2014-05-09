@@ -24,10 +24,12 @@
  */
 package org.helios.jmx.annotation;
 
-import static org.helios.jmx.annotation.Reflector.descriptor;
-import static org.helios.jmx.annotation.Reflector.managedMetricImplFrom;
+import static org.helios.jmx.annotation.Reflector.attr;
 import static org.helios.jmx.annotation.Reflector.nvl;
 
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Map;
@@ -35,8 +37,10 @@ import java.util.Map;
 import javax.management.Descriptor;
 import javax.management.ImmutableDescriptor;
 import javax.management.MBeanAttributeInfo;
-import javax.management.MBeanNotificationInfo;
 import javax.management.modelmbean.DescriptorSupport;
+
+import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
+import org.helios.jmx.util.helpers.StringHelper;
 /**
  * <p>Title: ManagedMetricImpl</p>
  * <p>Description: A concrete bean representing an extracted {@link ManagedMetric}.</p> 
@@ -72,6 +76,10 @@ public class ManagedMetricImpl {
 	public static final ManagedMetricImpl[] EMPTY_ARR = {};
 	/** empty const array */
 	public static final MBeanAttributeInfo[] EMPTY_INFO_ARR = {};
+	
+	/** A method handle lookup */
+	public static final Lookup lookup = MethodHandles.lookup();
+	
 
 	
 	/**
@@ -90,19 +98,20 @@ public class ManagedMetricImpl {
 	
 	/**
 	 * Generates an array of MBeanAttributeInfos for the passed array of ManagedMetricImpls
-	 * @param attrTypes An array of metric types, one for each managed ManagedMetricImpl
+	 * @param methods An array of metric accessor methods, one for each managed ManagedMetricImpl
+	 * @param metricInvokers A map of invokers to populate
 	 * @param metrics The ManagedMetricImpls to convert
 	 * @return a [possibly zero length] array of MBeanAttributeInfos
 	 */
-	public static MBeanAttributeInfo[] from(Class<?>[] attrTypes, ManagedMetricImpl...metrics) {
-		if(metrics==null || metrics.length==0 || attrTypes==null || attrTypes.length==0) return EMPTY_INFO_ARR;
-		if(attrTypes.length != metrics.length) {
-			throw new IllegalArgumentException("Type/Metric Array Size Mismatch. Types:" + attrTypes.length + ", Metrics:" + metrics.length);
+	public static MBeanAttributeInfo[] from(Method[] methods, final NonBlockingHashMapLong<MethodHandle[]> metricInvokers, ManagedMetricImpl...metrics) {
+		if(metrics==null || metrics.length==0 || methods==null || methods.length==0) return EMPTY_INFO_ARR;
+		if(methods.length != metrics.length) {
+			throw new IllegalArgumentException("Method/Metric Array Size Mismatch. Methods:" + methods.length + ", Metrics:" + metrics.length);
 		}
 		
 		MBeanAttributeInfo[] infos = new MBeanAttributeInfo[metrics.length];
 		for(int i = 0; i < infos.length; i++) {
-			infos[i] = metrics[i].toMBeanInfo(attrTypes[i]);
+			infos[i] = metrics[i].toMBeanInfo(methods[i], metricInvokers);
 		}		
 		return infos;		
 	}
@@ -231,43 +240,88 @@ public class ManagedMetricImpl {
 	/**
 	 * Returns an MBeanAttributeInfo rendered form this ManagedMetricImpl.
 	 * The readable flag is set to true, and the isIs and writable flag are set to false.
-	 * @param attrType The type of the attribute
+	 * @param method The method accessing the metric implementation
+	 * @param metricInvokers  A map to add the invoker for this metric to
 	 * @return MBeanAttributeInfo rendered form this ManagedMetricImpl
 	 */
-	public MBeanAttributeInfo toMBeanInfo(Class<?> attrType) {		
+	public MBeanAttributeInfo toMBeanInfo(Method method, final NonBlockingHashMapLong<MethodHandle[]> metricInvokers) {		
+		if(metricInvokers!=null) {
+			long hash = StringHelper.longHashCode(getDisplayName());
+			long mhash = StringHelper.longHashCode(method.getName());		
+			try {
+				MethodHandle[] methodHandles = new MethodHandle[]{lookup.unreflect(method)};
+				metricInvokers.put(hash, methodHandles);
+				metricInvokers.put(mhash, methodHandles);
+			} catch (Exception e) {
+				throw new RuntimeException(e);
+			}						
+		}
+		
 		return new MBeanAttributeInfo(
 				getDisplayName(),
-				attrType.getName(),
+				method.getReturnType().getName(),
 				getDescription(),
 				true,
 				false, 
 				false,
-				toDescriptor()
+				toDescriptor(method)
 		);		
 	}
 	
 	
 	/**
 	 * Generates a mutable MBean descriptor for this ManagedMeticImpl
+	 * @param method The method we're creating a descriptor for
 	 * @return a MBean descriptor
 	 */
-	public Descriptor toDescriptor() {
-		return toDescriptor(false);
+	public Descriptor toDescriptor(Method method) {
+		return toDescriptor(method, false);
 	}
 	
 	/**
 	 * Generates a MBean descriptor for this ManagedMeticImpl
+	 * @param method The method we're creating a descriptor for
 	 * @param immutable true for an immutable descriptor, false otherwise
 	 * @return a MBean descriptor
 	 */
-	public Descriptor toDescriptor(boolean immutable) {
+	public Descriptor toDescriptor(Method method, boolean immutable) {
 		Map<String, Object> map = new HashMap<String, Object>();
-		map.put("category", getCategory());
+		map.put("signature", StringHelper.getMethodDescriptor(method));
+		map.put("getMethod", method.getName());
+		if(getCategory()!=null) {
+			map.put("category", getCategory());
+		} else {
+			map.put("category", category(method));
+		}
 		if(getDescriptor()!=null) map.put("descriptor", getDescriptor());
 		map.put("metricType", getMetricType().name());		
 		map.put("subkeys", getSubkeys());
 		map.put("unit", getUnit());
 		return !immutable ?  new ImmutableDescriptor(map) : new DescriptorSupport(map.keySet().toArray(new String[map.size()]), map.values().toArray(new Object[map.size()]));	
+	}
+	
+	/**
+	 * Checks the class and package of the annotated method for a backup category
+	 * @param method the annotated method
+	 * @return the category
+	 */
+	public static String category(Method method) {
+		String cat = null;
+		Class<?> clazz = method.getDeclaringClass();
+		MetricGroup mg = clazz.getAnnotation(MetricGroup.class);
+		if(mg!=null) {
+			cat = mg.category();
+		}
+		if(cat==null || cat.isEmpty()) {
+			mg = clazz.getPackage().getAnnotation(MetricGroup.class);
+			if(mg!=null) {
+				cat = mg.category();
+			}			
+		}		
+		if(cat==null || cat.isEmpty()) {
+			cat = clazz.getSimpleName() + "-" + attr(method);
+		}
+		return cat;
 	}
 	
 	

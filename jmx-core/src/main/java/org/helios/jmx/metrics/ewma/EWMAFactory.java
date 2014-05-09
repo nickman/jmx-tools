@@ -51,7 +51,7 @@ public class EWMAFactory {
 	 * @param methodName The method name being tracked
 	 * @return the appender for the created ewma
 	 */
-	public static EWMAAppender ewma(boolean concurrent, Class<?> clazz, String methodName) {
+	public static EWMAAppenderMBean ewma(boolean concurrent, Class<?> clazz, String methodName) {
 		if(batchRegistered.compareAndSet(false, true)) {
 			BatchAttributeService.getInstance();
 		}

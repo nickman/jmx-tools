@@ -24,6 +24,8 @@
  */
 package org.helios.jmx.metrics.ewma;
 
+import java.io.ObjectStreamException;
+import java.io.Serializable;
 import java.util.Date;
 
 import javax.management.ObjectName;
@@ -40,7 +42,10 @@ import org.helios.jmx.util.unsafe.UnsafeAdapter;
  * <p><code>org.helios.rindle.period.impl.DirectEWMA</code></p>
  */
 
-public class DirectEWMA implements DeAllocateMe, DirectEWMAMBean, EWMAAppender, IMetricSetter {
+public class DirectEWMA implements DeAllocateMe, DirectEWMAMBean, IMetricSetter, Serializable {
+	/**  */
+	private static final long serialVersionUID = 4057837003464578145L;
+
 	/** The address of the memory allocation */
 	protected final long[] address = new long[1];
 	
@@ -83,6 +88,9 @@ public class DirectEWMA implements DeAllocateMe, DirectEWMAMBean, EWMAAppender, 
 		this(windowSize, TOTAL);
 	}
 	
+	Object writeReplace() throws ObjectStreamException {
+		return new ReadOnlyEWMA(this);
+	}	
 	
 	/**
 	 * Creates a new DirectEWMA to represent the stats for an instrumented method
@@ -111,7 +119,7 @@ public class DirectEWMA implements DeAllocateMe, DirectEWMAMBean, EWMAAppender, 
 	 * Returns an appender to this EWMA
 	 * @return an appender to this EWMA
 	 */
-	public EWMAAppender getAppender() {
+	public EWMAAppenderMBean getAppender() {
 		return this;
 	}
 
@@ -122,7 +130,7 @@ public class DirectEWMA implements DeAllocateMe, DirectEWMAMBean, EWMAAppender, 
 	 */
 	@Override
 	public void reset() {
-		UnsafeAdapter.putLong(address[0] + LAST_SAMPLE, 0L);
+//		UnsafeAdapter.putLong(address[0] + LAST_SAMPLE, 0L);
 		UnsafeAdapter.putDouble(address[0] + AVERAGE, 0D);
 		UnsafeAdapter.putDouble(address[0] + MINIMUM, 0D);
 		UnsafeAdapter.putDouble(address[0] + MAXIMUM, 0D);
