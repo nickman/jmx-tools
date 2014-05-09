@@ -62,6 +62,8 @@ public class ManagedResourceImpl {
 		}
 		return mopis;		
 	}
+	
+	
 	/**
 	 * Creates a new ManagedResourceImpl
 	 * @param mr The ManagedResource annotation instance to extract from

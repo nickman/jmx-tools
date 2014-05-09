@@ -24,8 +24,10 @@
  */
 package org.helios.jmx.annotation;
 
+import java.io.Serializable;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -36,11 +38,14 @@ import java.util.regex.Pattern;
 import javax.management.Descriptor;
 import javax.management.ImmutableDescriptor;
 import javax.management.MBeanAttributeInfo;
+import javax.management.MBeanConstructorInfo;
 import javax.management.MBeanInfo;
 import javax.management.MBeanNotificationInfo;
 import javax.management.MBeanOperationInfo;
+import javax.management.ObjectName;
 import javax.management.modelmbean.DescriptorSupport;
 
+import org.helios.jmx.util.helpers.JMXHelper;
 import org.helios.jmx.util.helpers.StringHelper;
 
 
@@ -74,7 +79,42 @@ public class Reflector {
 		final Set<MBeanNotificationInfo> notificationInfo = new HashSet<MBeanNotificationInfo>();
 		final Set<MBeanAttributeInfo> attrInfos = new HashSet<MBeanAttributeInfo>();
 		Collections.addAll(attrInfos, getManagedAttributeInfos(notificationInfo, methodMap.get(ManagedAttribute.class)));
-		Collections.addAll(attrInfos, getManagedAttributeInfos(notificationInfo, methodMap.get(ManagedMetric.class)));		
+		Collections.addAll(attrInfos, getManagedAttributeInfos(notificationInfo, methodMap.get(ManagedMetric.class)));
+		final Set<MBeanOperationInfo> opInfos = new HashSet<MBeanOperationInfo>(Arrays.asList(
+				getManagedOperationInfos(notificationInfo, methodMap.get(ManagedOperation.class))
+		));
+		ManagedResource mr = clazz.getAnnotation(ManagedResource.class);
+		ObjectName on = null; 
+		String description = null;
+		if(mr!=null) {
+			ManagedResourceImpl mri  = new ManagedResourceImpl(mr);
+			description = mri.getDescription();
+			on = mri.getObjectName();
+			Collections.addAll(notificationInfo, ManagedNotificationImpl.from(mri.getNotifications()));
+		}
+		if(description==null) description = clazz.getName() + " Management Interface";
+		if(on == null)  on = JMXHelper.objectName(clazz);
+		Descriptor descriptor = new DescriptorSupport(new String[] {"objectName"}, new Object[]{on}); 
+		return new MBeanInfo(
+				clazz.getName(), description, 
+				attrInfos.toArray(new MBeanAttributeInfo[attrInfos.size()]),
+				new MBeanConstructorInfo[0],
+				opInfos.toArray(new MBeanOperationInfo[opInfos.size()]),
+				notificationInfo.toArray(new MBeanNotificationInfo[notificationInfo.size()]),
+				descriptor
+		);
+	}
+	
+	/**
+	 * Filters out the unique MBeanNotificationInfos from the passed set of infos
+	 * @param infos The set to filter
+	 * @return the unique infos
+	 */
+	public static MBeanNotificationInfo[] unify(Set<MBeanNotificationInfo> infos) {
+		if(infos.isEmpty()) return new MBeanNotificationInfo[0]; 
+		Set<MBeanNotificationInfo> uniqueInfos = new HashSet<MBeanNotificationInfo>();
+		
+		return uniqueInfos.toArray(new MBeanNotificationInfo[uniqueInfos.size()]);
 	}
 	
 	/**
@@ -87,9 +127,9 @@ public class Reflector {
 		Set<MBeanOperationInfo> infos = new HashSet<MBeanOperationInfo>(methods.size());
 		for(Method m: methods) {
 			ManagedOperation mo = m.getAnnotation(ManagedOperation.class);
-			ManagedMetricImpl mmi = new ManagedMetricImpl(mm);
-			Collections.addAll(notificationInfo, ManagedNotificationImpl.from(mmi.getNotifications()));
-			infos.add(mmi.toMBeanInfo(m.getReturnType()));
+			ManagedOperationImpl moi = new ManagedOperationImpl(m.getName(), mo);
+			Collections.addAll(notificationInfo, ManagedNotificationImpl.from(moi.getNotifications()));
+			infos.add(moi.toMBeanInfo(m));
 		}
 		return infos.toArray(new MBeanOperationInfo[infos.size()]);
 	}
@@ -128,7 +168,7 @@ public class Reflector {
 			ManagedAttributeImpl maImpl = new ManagedAttributeImpl(attr(m), ma);
 			Collections.addAll(notificationInfo, ManagedNotificationImpl.from(maImpl.getNotifications()));
 			Class<?> type = index==0 ?  m.getReturnType() : m.getParameterTypes()[0];
-			MBeanAttributeInfo minfo = maImpl.toMBeanInfo(type);
+			MBeanAttributeInfo minfo = maImpl.toMBeanInfo(m);
 			minfo.getDescriptor().setField(index==0 ? "getMethod" : "setMethod", m.getName());
 			String attributeName = minfo.getName();
 			MBeanAttributeInfo[] pair = attributes.get(attributeName); if(pair==null) { pair = new MBeanAttributeInfo[2];  attributes.put(attributeName, pair); }
@@ -180,20 +220,20 @@ public class Reflector {
 	
 	
 	
-	/**
-	 * Returns an array of ManagedMetricImpls extracted from the passed class
-	 * @param clazz The class to extract from
-	 * @return a [possibly zero length] array of ManagedMetricImpls 
-	 */
-	public static ManagedMetricImpl[] from(Class<?> clazz) {
-		Method[] methods = getAnnotatedMethods(clazz, ManagedMetric.class);
-		if(methods.length==0) return EMPTY_ARR;
-		ManagedMetricImpl[] impls = new ManagedMetricImpl[methods.length];
-		for(int i = 0; i < methods.length; i++) {
-			impls[i] = managedMetricImplFrom(methods[i]);
-		}
-		return impls;
-	}
+//	/**
+//	 * Returns an array of ManagedMetricImpls extracted from the passed class
+//	 * @param clazz The class to extract from
+//	 * @return a [possibly zero length] array of ManagedMetricImpls 
+//	 */
+//	public static ManagedMetricImpl[] from(Class<?> clazz) {
+//		Method[] methods = getAnnotatedMethods(clazz, ManagedMetric.class);
+//		if(methods.length==0) return EMPTY_ARR;
+//		ManagedMetricImpl[] impls = new ManagedMetricImpl[methods.length];
+//		for(int i = 0; i < methods.length; i++) {
+//			impls[i] = managedMetricImplFrom(methods[i]);
+//		}
+//		return impls;
+//	}
 	
 	/**
 	 * Creates a new ManagedMetricImpl from the passed method if it is annotated with {@link ManagedMetric}.
@@ -242,20 +282,20 @@ public class Reflector {
 	
 	
 	
-	/**
-	 * Returns an array of MBeanAttributeInfos extracted from the passed class
-	 * @param clazz The class to extract from
-	 * @return a [possibly zero length] array of MBeanAttributeInfos 
-	 */
-	public static MBeanAttributeInfo[] mbeanMetrics(Class<?> clazz) {
-		Method[] methods = getAnnotatedMethods(clazz, ManagedMetric.class);
-		if(methods.length==0) return EMPTY_MAI_ARR;
-		MBeanAttributeInfo[] impls = new MBeanAttributeInfo[methods.length];
-		for(int i = 0; i < methods.length; i++) {
-			impls[i] = mbeanMetric(methods[i]);
-		}
-		return impls;
-	}
+//	/**
+//	 * Returns an array of MBeanAttributeInfos extracted from the passed class
+//	 * @param clazz The class to extract from
+//	 * @return a [possibly zero length] array of MBeanAttributeInfos 
+//	 */
+//	public static MBeanAttributeInfo[] mbeanMetrics(Class<?> clazz) {
+//		Method[] methods = getAnnotatedMethods(clazz, ManagedMetric.class);
+//		if(methods.length==0) return EMPTY_MAI_ARR;
+//		MBeanAttributeInfo[] impls = new MBeanAttributeInfo[methods.length];
+//		for(int i = 0; i < methods.length; i++) {
+//			impls[i] = mbeanMetric(methods[i]);
+//		}
+//		return impls;
+//	}
 	
 	/**
 	 * Creates and returns a new {@link MBeanAttributeInfo} for the ManagedMetric annotation data on the passed method.
@@ -273,8 +313,48 @@ public class Reflector {
 				false, 
 				false,
 				descriptor(mmi)
-		);
+		);		
+	}
+	
+	/**
+	 * Inspects each descriptor and removes any non-serializable values
+	 * @param info the MBeanInfo to clean
+	 * @return The cleaned MBeanInfo
+	 */
+	public static MBeanInfo clean(MBeanInfo info) {
+		Descriptor d = info.getDescriptor();
+		if(d!=null) {
+			for(String s: d.getFieldNames()) {
+				if(!(d.getFieldValue(s) instanceof Serializable)) {
+					d.removeField(s);
+				}
+			}
+		}
+		System.out.println("MBeanInfo Descriptor:" + Arrays.toString(d.getFieldNames()));
+		for(MBeanAttributeInfo mi: info.getAttributes()) {
+			d = mi.getDescriptor();
+			if(d!=null) {
+				for(String s: d.getFieldNames()) {
+					if(!(d.getFieldValue(s) instanceof Serializable)) {
+						d.setField(s, null);
+					}
+				}
+			}
+			
+			System.out.println("MBeanAttributeInfo Descriptor:" + Arrays.toString(d.getFieldNames()));
+		}
+		for(MBeanOperationInfo mi: info.getOperations()) {
+			d = mi.getDescriptor();
+			if(d!=null) {
+				for(String s: d.getFieldNames()) {
+					if(!(d.getFieldValue(s) instanceof Serializable)) {
+						d.removeField(s);
+					}
+				}
+			}
+		}
 		
+		return info;
 	}
 	
 //	/**

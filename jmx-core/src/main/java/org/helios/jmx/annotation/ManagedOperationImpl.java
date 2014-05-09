@@ -27,6 +27,9 @@ package org.helios.jmx.annotation;
 import static org.helios.jmx.annotation.Reflector.nvl;
 import static org.helios.jmx.annotation.Reflector.nws;
 
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Map;
@@ -34,8 +37,9 @@ import java.util.Map;
 import javax.management.Descriptor;
 import javax.management.ImmutableDescriptor;
 import javax.management.MBeanOperationInfo;
-import javax.management.MBeanParameterInfo;
 import javax.management.modelmbean.DescriptorSupport;
+
+import org.helios.jmx.util.helpers.StringHelper;
 
 /**
  * <p>Title: ManagedOperationImpl</p>
@@ -66,14 +70,19 @@ public class ManagedOperationImpl {
 	
 	/**
 	 * Converts an array of ManagedOperations to an array of ManagedOperationImpls
+	 * @param methods An array of methods, one for each ManagedOperationImpls
 	 * @param ops the array of ManagedOperations to convert
 	 * @return a [possibly zero length] array of ManagedOperationImpls
 	 */
-	public static ManagedOperationImpl[] from(ManagedOperation...ops) {
-		if(ops==null || ops.length==0) return EMPTY_ARR;
+	public static ManagedOperationImpl[] from(Method[] methods, ManagedOperation...ops) {
+		if(ops==null || ops.length==0 || methods==null || methods.length==0) return EMPTY_ARR;
+		if(methods.length != ops.length) {
+			throw new IllegalArgumentException("Method/Ops Array Size Mismatch. Methods:" + methods.length + ", ManagedOps:" + ops.length);
+		}
+		
 		ManagedOperationImpl[] mopis = new ManagedOperationImpl[ops.length];
 		for(int i = 0; i < ops.length; i++) {
-			mopis[i] = new ManagedOperationImpl(ops[i]);
+			mopis[i] = new ManagedOperationImpl(methods[i].getName(), ops[i]);
 		}
 		return mopis;		
 	}
@@ -100,10 +109,11 @@ public class ManagedOperationImpl {
 
 	/**
 	 * Creates a new ManagedOperationImpl
+	 * @param methodName The method name if the annotation did not provide a name
 	 * @param mo The managed operation to extract from
 	 */
-	public ManagedOperationImpl(ManagedOperation mo) {
-		name = nws(nvl(mo, "Managed Operation").name());
+	public ManagedOperationImpl(String methodName, ManagedOperation mo) {
+		name = nws(nvl(mo, "Managed Operation").name())==null ? methodName : mo.name().trim();
 		description = nws(mo.description());
 		impact = mo.impact();
 		parameters = ManagedOperationParameterImpl.from(mo);
@@ -199,27 +209,33 @@ public class ManagedOperationImpl {
 				ManagedOperationParameterImpl.from(method.getParameterTypes(), parameters),
 				method.getReturnType().getName(),
 				impact,
-				toDescriptor()
+				toDescriptor(method)
 		);		
 	}
 	
 	
 	/**
 	 * Generates a mutable MBean descriptor for this ManagedOperationImpl
+	 * @param method The method we're generating a descriptor for
 	 * @return a MBean descriptor
 	 */
-	public Descriptor toDescriptor() {
-		return toDescriptor(false);
+	public Descriptor toDescriptor(Method method) {
+		return toDescriptor(method, false);
 	}
 	
 	/**
 	 * Generates a MBean descriptor for this ManagedOperationImpl
+	 * @param method The method we're generating a descriptor for
 	 * @param immutable true for an immutable descriptor, false otherwise
 	 * @return a MBean descriptor
 	 */
-	public Descriptor toDescriptor(boolean immutable) {
+	public Descriptor toDescriptor(Method method, boolean immutable) {
 		Map<String, Object> map = new HashMap<String, Object>();
-		// FIXME:
+		map.put("signature", StringHelper.getMethodDescriptor(method));
+		MethodType methodType = MethodType.methodType(method.getReturnType(), method.getParameterTypes());
+		map.put("methodDescriptor", methodType.toMethodDescriptorString());
+//		MethodHandle mh = MethodHandles.exactInvoker(methodType);		
+//		map.put("*methodHandle", mh);		
 		return !immutable ?  new ImmutableDescriptor(map) : new DescriptorSupport(map.keySet().toArray(new String[map.size()]), map.values().toArray(new Object[map.size()]));	
 	}
 	

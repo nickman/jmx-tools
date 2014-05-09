@@ -149,7 +149,7 @@ public class ManagedMetricImpl {
 	 * Creates a new ManagedMetricImpl
 	 * @param managedMetric The managed metric instance to ingest
 	 */
-	public ManagedMetricImpl(String methodName, ManagedMetric managedMetric) {
+	public ManagedMetricImpl(ManagedMetric managedMetric) {
 		if(managedMetric==null) throw new IllegalArgumentException("The passed managed metric was null");
 		description = managedMetric.description();
 		displayName = managedMetric.displayName();
