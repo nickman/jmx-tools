@@ -26,21 +26,25 @@ package org.helios.jmx.annotation;
 
 import static org.helios.jmx.annotation.Reflector.attr;
 import static org.helios.jmx.annotation.Reflector.nvl;
-import static org.helios.jmx.annotation.Reflector.nws;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.reflect.Method;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import javax.management.Descriptor;
 import javax.management.ImmutableDescriptor;
 import javax.management.MBeanAttributeInfo;
+import javax.management.MBeanInfo;
 import javax.management.modelmbean.DescriptorSupport;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
+import org.helios.jmx.managed.MutableMBeanAttributeInfo;
+import org.helios.jmx.managed.MutableMBeanOperationInfo;
 import org.helios.jmx.util.helpers.StringHelper;
 /**
  * <p>Title: ManagedMetricImpl</p>
@@ -78,6 +82,10 @@ public class ManagedMetricImpl {
 	protected final String descriptor;
 	/** The metric subkeys */
 	protected final String[] subkeys;
+	/** The metric submetrics */
+	protected final String[] subMetricKeys;
+	/** MBean attribute info descriptor content */
+	protected final Map<String, Object> descriptorMap = new HashMap<String, Object>();
 	
 	/** empty const array */
 	public static final ManagedMetricImpl[] EMPTY_ARR = {};
@@ -148,6 +156,7 @@ public class ManagedMetricImpl {
 		this.unit = unit;		
 		this.descriptor = descriptor;
 		this.subkeys = subkeys;
+		subMetricKeys = new String[0];
 		this.notifications = notifications==null ? ManagedNotificationImpl.EMPTY_ARR : notifications; 	
 		this.popable = popable;
 	}
@@ -195,7 +204,32 @@ public class ManagedMetricImpl {
 			subkeys = new String[_subKeys1.length + _subKeys2.length];
 			System.arraycopy(_subKeys1, 0, subkeys, 0, _subKeys1.length);
 			System.arraycopy(_subKeys2, 0, subkeys, _subKeys1.length+1, _subKeys2.length);			
-		}		
+		}
+		MBeanInfo subMBeanInfo = subObject(method, displayName);
+		Set<String> attrNames = new HashSet<String>(); 
+		if(subMBeanInfo!=null) {
+			for(MBeanAttributeInfo i: subMBeanInfo.getAttributes()) {
+				attrNames.add(i.getName());
+			}
+		}
+		
+		subMetricKeys = attrNames.toArray(new String[attrNames.size()]);
+		descriptorMap.put("subMetricKeys", subMetricKeys);
+		descriptorMap.put("subMetricInfo", subMBeanInfo);
+	}
+	
+	/**
+	 * Attempts to gather an MBeanInfo for the type returned by the passed method
+	 * @param method The method to inspect
+	 * @param prefix The prefix to prepend to the attribute and op names
+	 * @return a sub MBeanInfo or null if the method had no sub meta-data
+	 */
+	protected MBeanInfo subObject(Method method, String prefix) {
+		Class<?> clazz = method.getReturnType();
+		MBeanInfo info = Reflector.from(clazz, null, null, null);
+		MutableMBeanAttributeInfo[] prefixedAttrs = MutableMBeanAttributeInfo.from(prefix, info.getAttributes());		
+		MutableMBeanOperationInfo[] prefixedOps = MutableMBeanOperationInfo.from(prefix, info.getOperations());
+		return new MBeanInfo(info.getClassName(), info.getDescription(), MutableMBeanAttributeInfo.toImmutable(prefixedAttrs), info.getConstructors(), MutableMBeanOperationInfo.toImmutable(prefixedOps), info.getNotifications(), info.getDescriptor());
 	}
 	
 	/**
@@ -311,19 +345,19 @@ public class ManagedMetricImpl {
 	 * @return a MBean descriptor
 	 */
 	public Descriptor toDescriptor(Method method, boolean immutable) {
-		Map<String, Object> map = new HashMap<String, Object>();
-		map.put("signature", StringHelper.getMethodDescriptor(method));
-		map.put("getMethod", method.getName());
+		
+		descriptorMap.put("signature", StringHelper.getMethodDescriptor(method));
+		descriptorMap.put("getMethod", method.getName());
 		if(getCategory()!=null) {
-			map.put("category", getCategory());
+			descriptorMap.put("category", getCategory());
 		} else {
-			map.put("category", category(method));
+			descriptorMap.put("category", category(method));
 		}
-		if(getDescriptor()!=null) map.put("descriptor", getDescriptor());
-		map.put("metricType", getMetricType().name());		
-		map.put("subkeys", getSubkeys());
-		map.put("unit", getUnit());
-		return !immutable ?  new ImmutableDescriptor(map) : new DescriptorSupport(map.keySet().toArray(new String[map.size()]), map.values().toArray(new Object[map.size()]));	
+		if(getDescriptor()!=null) descriptorMap.put("descriptor", getDescriptor());
+		descriptorMap.put("metricType", getMetricType().name());		
+		descriptorMap.put("subkeys", getSubkeys());
+		descriptorMap.put("unit", getUnit());
+		return !immutable ?  new ImmutableDescriptor(descriptorMap) : new DescriptorSupport(descriptorMap.keySet().toArray(new String[descriptorMap.size()]), descriptorMap.values().toArray(new Object[descriptorMap.size()]));	
 	}
 	
 	/**

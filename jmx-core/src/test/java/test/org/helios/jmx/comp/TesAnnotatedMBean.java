@@ -65,6 +65,7 @@ import org.helios.jmx.annotation.ManagedOperation;
 import org.helios.jmx.annotation.ManagedOperationParameter;
 import org.helios.jmx.annotation.ManagedResource;
 import org.helios.jmx.annotation.Reflector;
+import org.helios.jmx.managed.ManagedObjectRepo;
 import org.helios.jmx.metrics.ewma.DirectEWMA;
 import org.helios.jmx.metrics.ewma.DirectEWMAMBean;
 import org.helios.jmx.util.helpers.JMXHelper;
@@ -201,6 +202,10 @@ public class TesAnnotatedMBean extends BaseTest {
 				@ManagedNotification(notificationTypes={"jmx.mbean.info.changed"}, name="MBeanInfoChanged", description="Notification emitted when the MBeanInfo is updated")
 		})
 		public void popEWMAs();
+		@ManagedOperation(name="unpopEWMAs", description="Removes the EWMA fields from first class MBean status", notifications={
+				@ManagedNotification(notificationTypes={"jmx.mbean.info.changed"}, name="MBeanInfoChanged", description="Notification emitted when the MBeanInfo is updated")
+		})		
+		public void unpopEWMAs();
 		
 	}
 	
@@ -222,50 +227,46 @@ public class TesAnnotatedMBean extends BaseTest {
 	public class TestBean extends StandardMBean implements TestBeanMBean, NotificationEmitter, Serializable {
 		/**  */
 		private static final long serialVersionUID = -67640604151534755L;
-		final NonBlockingHashMapLong<MethodHandle[]> attrInvokers = new NonBlockingHashMapLong<MethodHandle[]>();
-		final NonBlockingHashMapLong<MethodHandle> opInvokers = new NonBlockingHashMapLong<MethodHandle>();
-		final NonBlockingHashMapLong<Object> targetObjects = new NonBlockingHashMapLong<Object>(); 
+//		final NonBlockingHashMapLong<MethodHandle[]> attrInvokers = new NonBlockingHashMapLong<MethodHandle[]>();
+//		final NonBlockingHashMapLong<MethodHandle> opInvokers = new NonBlockingHashMapLong<MethodHandle>();
+//		final NonBlockingHashMapLong<Object> targetObjects = new NonBlockingHashMapLong<Object>(); 
+		final ManagedObjectRepo<Object> managedObjects = new ManagedObjectRepo<Object>(System.identityHashCode(this));
 		final NotificationBroadcasterSupport broadcaster;  
 		public final MBeanNotificationInfo[] EMPTY_N_INFO = {};
 		ObjectName objectName = null;
 		protected TestBean(Class<?> mbeanInterface, boolean isMXBean) {
-			super(mbeanInterface, isMXBean);			
-			cacheMBeanInfo(Reflector.clean(Reflector.from(mbeanInterface, attrInvokers, opInvokers, attrInvokers)));
+			super(mbeanInterface, isMXBean);
+			cacheMBeanInfo(managedObjects.put(this));
+//			cacheMBeanInfo(Reflector.clean(Reflector.from(mbeanInterface, attrInvokers, opInvokers, attrInvokers)));
 			broadcaster = new NotificationBroadcasterSupport(this.getMBeanInfo().getNotifications());
-			targetObjects.putAll(Reflector.invokerTargetMap(this, attrInvokers, opInvokers));
+//			targetObjects.putAll(Reflector.invokerTargetMap(this, attrInvokers, opInvokers));
 //			Reflector.bindInvokers(this, attrInvokers, opInvokers);
 			
 		}		
 		final AtomicLong notifSerial = new AtomicLong(0L);
-		final NonBlockingHashMap<Object, AddedObjectMeta> addedObjectMetas = new NonBlockingHashMap<Object, AddedObjectMeta>(); 
 		
-		private class AddedObjectMeta {
-			public final long[] invokerKeys;
-			public final MBeanInfo info;
-			
-			AddedObjectMeta(NonBlockingHashMapLong<MethodHandle[]> attrs, NonBlockingHashMapLong<MethodHandle> ops, MBeanInfo info) {
-				this.info = info;
-				invokerKeys = new long[attrs.size() + ops.size()];
-				int cnt = 0;
-				IteratorLong iter = (IteratorLong)attrs.keySet().iterator();
-				while(iter.hasMoreElements()) {
-					invokerKeys[cnt] = iter.nextLong();
-					cnt++;
-				}
-				iter = (IteratorLong)ops.keySet().iterator();
-				while(iter.hasMoreElements()) {
-					invokerKeys[cnt] = iter.nextLong();
-					cnt++;
-				}
+		
+		
+		final DirectEWMAMBean uuidElapsed = new DirectEWMA(100);
+		
+		public void popEWMAs() {
+			MBeanInfo info = managedObjects.put(uuidElapsed, "UUIDElapsed");		
+			synchronized(managedObjects) {
+				cacheMBeanInfo(Reflector.newMerger(getCachedMBeanInfo()).append(info).merge());
+				sendNotification(new Notification("jmx.mbean.info.changed", this, notifSerial.incrementAndGet()));
 			}
 		}
 		
-		public void popEWMAs() {
-			addManagedSubObject(uuidElapsed, DirectEWMAMBean.class);
+		public void unpopEWMAs() {
+			managedObjects.remove("UUIDElapsed");
+			synchronized(managedObjects) {
+				cacheMBeanInfo(managedObjects.mergeAllMBeanInfos());
+				sendNotification(new Notification("jmx.mbean.info.changed", this, notifSerial.incrementAndGet()));
+			}
+			
 		}
 		
-		
-		protected void addManagedSubObject(Object obj, Class<?> mbeanInterface) {
+/*		protected void addManagedSubObject(Object obj, Class<?> mbeanInterface) {
 			if(obj==null) return;
 			final NonBlockingHashMapLong<MethodHandle[]> attrs = new NonBlockingHashMapLong<MethodHandle[]>();
 			final NonBlockingHashMapLong<MethodHandle> ops = new NonBlockingHashMapLong<MethodHandle>();
@@ -282,8 +283,7 @@ public class TesAnnotatedMBean extends BaseTest {
 			
 			
 		}
-		
-		final DirectEWMAMBean uuidElapsed = new DirectEWMA(100);
+*/		
 		
 		public void reset() {			
 			sendNotification(new Notification("ewma.reset", this, notifSerial.incrementAndGet(), SystemClock.time(), "EWMA Resets: " + uuidElapsed.toString()));
@@ -358,14 +358,15 @@ public class TesAnnotatedMBean extends BaseTest {
 		 */
 		@Override
 		public Object getAttribute(String attribute) throws AttributeNotFoundException, MBeanException, ReflectionException {
-			final long attrCode = StringHelper.longHashCode(attribute);
-			MethodHandle[] mhPair = attrInvokers.get(attrCode);
-			Object target = targetObjects.get(attrCode);
-			if(mhPair==null) throw new AttributeNotFoundException("No attribute named [" + attribute + "]");
-			if(mhPair[0]==null) throw new AttributeNotFoundException("Attribute named [" + attribute + "] is not readable");
+//			final long attrCode = StringHelper.longHashCode(attribute);
+//			MethodHandle[] mhPair = attrInvokers.get(attrCode);
+//			Object target = targetObjects.get(attrCode);
+//			if(mhPair==null) throw new AttributeNotFoundException("No attribute named [" + attribute + "]");
+//			if(mhPair[0]==null) throw new AttributeNotFoundException("Attribute named [" + attribute + "] is not readable");
 //			log("MethodHandle [%s] : %s", attribute, mhPair[0].getClass().getName());
 			try {				
-				return mhPair[0].bindTo(target).invoke();
+				return managedObjects.getAttributeGetter(attribute).invoke();
+						//mhPair[0].bindTo(target).invoke();
 			} catch (Throwable e) {
 				throw new ReflectionException(new Exception(e), "Failed to dynInvoke for attribute [" + attribute + "]");				
 			}
@@ -377,13 +378,14 @@ public class TesAnnotatedMBean extends BaseTest {
 		 */
 		@Override
 		public void setAttribute(Attribute attribute) throws AttributeNotFoundException, InvalidAttributeValueException, MBeanException, ReflectionException {
-			long attrCode = StringHelper.longHashCode(attribute.getName());
-			MethodHandle[] mhPair = attrInvokers.get(attrCode);
-			Object target = targetObjects.get(attrCode);
-			if(mhPair==null) throw new AttributeNotFoundException("No attribute named [" + attribute.getName() + "]");
-			if(mhPair.length==1 || mhPair[1]==null) throw new AttributeNotFoundException("Attribute named [" + attribute.getName() + "] is not readable");
-			try {				
-				mhPair[1].bindTo(target).invoke(attribute.getValue());
+//			long attrCode = StringHelper.longHashCode(attribute.getName());
+//			MethodHandle[] mhPair = attrInvokers.get(attrCode);
+//			Object target = targetObjects.get(attrCode);
+//			if(mhPair==null) throw new AttributeNotFoundException("No attribute named [" + attribute.getName() + "]");
+//			if(mhPair.length==1 || mhPair[1]==null) throw new AttributeNotFoundException("Attribute named [" + attribute.getName() + "] is not readable");
+			try {			
+				managedObjects.getAttributeSetter(attribute.getName()).invoke(attribute.getValue());
+//				mhPair[1].bindTo(target).invoke(attribute.getValue());
 			} catch (Throwable e) {
 				throw new ReflectionException(new Exception(e), "Failed to dynInvoke for attribute [" + attribute + "]");				
 			}			
@@ -395,16 +397,17 @@ public class TesAnnotatedMBean extends BaseTest {
 		 */
 		@Override
 		public Object invoke(String actionName, Object[] params, String[] signature) throws MBeanException, ReflectionException {
-			long opCode = opCode(actionName, signature);
-			MethodHandle mh = opInvokers.get(opCode);
-			Object target = targetObjects.get(opCode);
-			if(mh==null) throw new MBeanException(new Exception(), "No operation named [" + actionName + "] with parameters " + Arrays.toString(signature));
+//			long opCode = opCode(actionName, signature);
+//			MethodHandle mh = opInvokers.get(opCode);
+//			Object target = targetObjects.get(opCode);
+//			if(mh==null) throw new MBeanException(new Exception(), "No operation named [" + actionName + "] with parameters " + Arrays.toString(signature));
 			try {
-				int plength = (params==null ? 0 : params.length);
-				if(plength>0) {					
-					return mh.bindTo(target).invokeWithArguments(params);
-				} 				 
-				return mh.bindTo(target).invoke();
+//				int plength = (params==null ? 0 : params.length);
+//				if(plength>0) {					
+//					return mh.bindTo(target).invokeWithArguments(params);
+//				} 				 
+//				return mh.bindTo(target).invoke();
+				return managedObjects.getOperationHandle(actionName, signature).invokeWithArguments(params);
 				
 //				return mh.invokeWithArguments(params);
 			} catch (Throwable e) {

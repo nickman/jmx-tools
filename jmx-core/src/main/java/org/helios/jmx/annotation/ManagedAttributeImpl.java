@@ -183,23 +183,25 @@ public class ManagedAttributeImpl {
 	public MBeanAttributeInfo toMBeanInfo(Method method, final NonBlockingHashMapLong<MethodHandle[]> attrInvokers) {
 		boolean getter =  method.getParameterTypes().length==0;
 		final long attrCode = StringHelper.longHashCode(name);
-		final long methodCode = StringHelper.longHashCode(method.getName());
-		MethodHandle[] mhPair = attrInvokers.get(attrCode);
-		MethodHandle[] methodPair = attrInvokers.get(methodCode);
-		if(mhPair==null) {
-			mhPair = new MethodHandle[2];
-			attrInvokers.put(attrCode, mhPair);
-		}
-		if(methodPair==null) {
-			methodPair = new MethodHandle[2];
-			attrInvokers.put(methodCode, methodPair);
-		}
-		
-		try {
-			mhPair[getter ? 0 : 1] = lookup.unreflect(method);
-			methodPair[getter ? 0 : 1] = lookup.unreflect(method);
-		} catch (Exception e) {
-			throw new RuntimeException(e);
+		if(attrInvokers!=null) {
+			final long methodCode = StringHelper.longHashCode(method.getName());
+			MethodHandle[] mhPair = attrInvokers.get(attrCode);
+			MethodHandle[] methodPair = attrInvokers.get(methodCode);
+			if(mhPair==null) {
+				mhPair = new MethodHandle[2];
+				attrInvokers.put(attrCode, mhPair);
+			}
+			if(methodPair==null) {
+				methodPair = new MethodHandle[2];
+				attrInvokers.put(methodCode, methodPair);
+			}
+			
+			try {
+				mhPair[getter ? 0 : 1] = lookup.unreflect(method);
+				methodPair[getter ? 0 : 1] = lookup.unreflect(method);
+			} catch (Exception e) {
+				throw new RuntimeException(e);
+			}
 		}
 		return new MBeanAttributeInfo(
 				name, 

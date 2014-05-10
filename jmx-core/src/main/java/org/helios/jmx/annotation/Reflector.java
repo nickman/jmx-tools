@@ -86,16 +86,33 @@ public class Reflector {
 	};
 
 	
-	public static MBeanInfo from(Class<?> clazz, final NonBlockingHashMapLong<MethodHandle[]> attrInvokers, final NonBlockingHashMapLong<MethodHandle> opInvokers, final NonBlockingHashMapLong<MethodHandle[]> metricInvokers) {
-		final Map<Class<? extends Annotation>, Set<Method>> methodMap = getAnnotatedMethods(clazz, SEARCH_ANNOTATIONS);
+	public static MBeanInfo from(Class<?> targetClass, final NonBlockingHashMapLong<MethodHandle[]> attrInvokers, final NonBlockingHashMapLong<MethodHandle> opInvokers, final NonBlockingHashMapLong<MethodHandle[]> metricInvokers) {
+		Class<?> annotatedClass = null;
+		ManagedResource mr = targetClass.getAnnotation(ManagedResource.class);
+		if(mr!=null) {
+			annotatedClass = targetClass;
+		} else {
+			// FIXME: need to climb the hierarchy
+			for(Class<?> iface: targetClass.getInterfaces()) {
+				mr = iface.getAnnotation(ManagedResource.class);
+				if(mr!=null) {
+					annotatedClass = iface;
+					break;
+				}
+			}
+		}
+		if(annotatedClass == null){
+			throw new RuntimeException("The class [" + targetClass.getName() + "] is not annotated with @ManagedResource and does not implement any interfaces that do");
+		}
+		final Map<Class<? extends Annotation>, Set<Method>> methodMap = getAnnotatedMethods(annotatedClass, SEARCH_ANNOTATIONS);
 		final Set<MBeanNotificationInfo> notificationInfo = new TreeSet<MBeanNotificationInfo>(NOTIF_COMP);
 		final Set<MBeanAttributeInfo> attrInfos = new HashSet<MBeanAttributeInfo>();
-		Collections.addAll(attrInfos, getManagedAttributeInfos(notificationInfo, methodMap.get(ManagedAttribute.class), attrInvokers));
-		Collections.addAll(attrInfos, getManagedMetricInfos(notificationInfo, methodMap.get(ManagedMetric.class), metricInvokers));
+		Collections.addAll(attrInfos, getManagedAttributeInfos(targetClass, notificationInfo, methodMap.get(ManagedAttribute.class), attrInvokers));
+		Collections.addAll(attrInfos, getManagedMetricInfos(targetClass, notificationInfo, methodMap.get(ManagedMetric.class), metricInvokers));
 		final Set<MBeanOperationInfo> opInfos = new HashSet<MBeanOperationInfo>(Arrays.asList(
-				getManagedOperationInfos(notificationInfo, methodMap.get(ManagedOperation.class), opInvokers)
+				getManagedOperationInfos(targetClass, notificationInfo, methodMap.get(ManagedOperation.class), opInvokers)
 		));
-		ManagedResource mr = clazz.getAnnotation(ManagedResource.class);
+		
 		ObjectName on = null; 
 		String description = null;
 		if(mr!=null) {
@@ -104,11 +121,11 @@ public class Reflector {
 			on = mri.getObjectName();
 			Collections.addAll(notificationInfo, ManagedNotificationImpl.from(mri.getNotifications()));
 		}
-		if(description==null) description = clazz.getName() + " Management Interface";
-		if(on == null)  on = JMXHelper.objectName(clazz);
+		if(description==null) description = annotatedClass.getName() + " Management Interface";
+		if(on == null)  on = JMXHelper.objectName(targetClass);
 		Descriptor descriptor = new DescriptorSupport(new String[] {"objectName"}, new Object[]{on}); 
 		return new MBeanInfo(
-				clazz.getName(), description, 
+				annotatedClass.getName(), description, 
 				attrInfos.toArray(new MBeanAttributeInfo[attrInfos.size()]),
 				new MBeanConstructorInfo[0],
 				opInfos.toArray(new MBeanOperationInfo[opInfos.size()]),
@@ -117,34 +134,38 @@ public class Reflector {
 		);
 	}
 	
-	/**
-	 * Generates an array of MBeanOperationInfos for the @ManagedMetric annotated methods in the passed object to represent the pop/unpop operations.
-	 * @param hasManagedMetrics An object assumed to have @ManagedMetric annotated methods
-	 * @param ops Populate this map with the pop/unpop method handles
-	 * @return a [possibly zero length] array of MBeanOperationInfos
-	 */
-	public static MBeanOperationInfo[] popable(Object hasManagedMetrics, NonBlockingHashMapLong<MethodHandle> ops) {
-		if(hasManagedMetrics==null) return EMPTY_OPS_INFO;
-		Set<Method> metricMethods  = getAnnotatedMethods(hasManagedMetrics.getClass(), ManagedMetric.class).get(ManagedMetric.class);
-		if(metricMethods==null || metricMethods.isEmpty()) return EMPTY_OPS_INFO;
-		Set<MBeanOperationInfo> infos = new HashSet<MBeanOperationInfo>();
-		for(Method m: metricMethods) {
-			ManagedMetric mm = m.getAnnotation(ManagedMetric.class);
-			if(mm==null || !mm.popable()) continue;
-			ManagedMetricImpl mmi = new ManagedMetricImpl(m, mm);
-			infos.add(new MBeanOperationInfo(
-				"pop" + mmi.getDisplayName(), "Pop the " + mmi.getDisplayName() + " Metrics",
-				EMPTY_PARAMS_INFO, void.class.getName(), MBeanOperationInfo.ACTION,
-				new DescriptorSupport(new String[] {"popable"}, new Object[] {mmi.toString()})
-			));
-			infos.add(new MBeanOperationInfo(
-				"unpop" + mmi.getDisplayName(), "Unpop the " + mmi.getDisplayName() + " Metrics",
-				EMPTY_PARAMS_INFO, void.class.getName(), MBeanOperationInfo.ACTION,
-				new DescriptorSupport(new String[] {"popable"}, new Object[] {mmi.toString()})
-			));
-		}
-		return infos.toArray(new MBeanOperationInfo[infos.size()]);
-	}
+	
+//	popable:  needs to be arged by Class<?>
+	
+	
+//	/**
+//	 * Generates an array of MBeanOperationInfos for the @ManagedX annotated methods in the passed object to represent the pop/unpop operations.
+//	 * @param hasManaged A class assumed to have @ManagedX annotated methods
+//	 * @param ops Populate this map with the pop/unpop method handles
+//	 * @return a [possibly zero length] array of MBeanOperationInfos
+//	 */
+//	public static MBeanOperationInfo[] popable(Class<?> hasManaged, NonBlockingHashMapLong<MethodHandle> ops) {
+//		if(hasManaged==null) return EMPTY_OPS_INFO;
+//		Set<Method> metricMethods  = getAnnotatedMethods(hasManagedMetrics.getClass(), ManagedMetric.class).get(ManagedMetric.class);
+//		if(metricMethods==null || metricMethods.isEmpty()) return EMPTY_OPS_INFO;
+//		Set<MBeanOperationInfo> infos = new HashSet<MBeanOperationInfo>();
+//		for(Method m: metricMethods) {
+//			ManagedMetric mm = m.getAnnotation(ManagedMetric.class);
+//			if(mm==null || !mm.popable()) continue;
+//			ManagedMetricImpl mmi = new ManagedMetricImpl(m, mm);
+//			infos.add(new MBeanOperationInfo(
+//				"pop" + mmi.getDisplayName(), "Pop the " + mmi.getDisplayName() + " Metrics",
+//				EMPTY_PARAMS_INFO, void.class.getName(), MBeanOperationInfo.ACTION,
+//				new DescriptorSupport(new String[] {"popable"}, new Object[] {mmi.toString()})
+//			));
+//			infos.add(new MBeanOperationInfo(
+//				"unpop" + mmi.getDisplayName(), "Unpop the " + mmi.getDisplayName() + " Metrics",
+//				EMPTY_PARAMS_INFO, void.class.getName(), MBeanOperationInfo.ACTION,
+//				new DescriptorSupport(new String[] {"popable"}, new Object[] {mmi.toString()})
+//			));
+//		}
+//		return infos.toArray(new MBeanOperationInfo[infos.size()]);
+//	}
 	
 //	public static Method[] getPopMethods(Method metricAccessor) {
 //		Method[] popMethods = new Method[2];
@@ -170,18 +191,20 @@ public class Reflector {
 	
 	/**
 	 * Reflects out the MBeanOperationInfos for @ManagedOperation annotations the passed methods
+	 * @param targetClass The target concrete class
 	 * @param notificationInfo Any notification infos we find along the way get dropped in here
 	 * @param methods The annotated methods in the class
 	 * @param opInvokers The map of op invokers to populate
 	 * @return a [possibly zero length] MBeanOperationInfo array
 	 */
-	public static MBeanOperationInfo[] getManagedOperationInfos(final Set<MBeanNotificationInfo> notificationInfo, final Set<Method> methods, final NonBlockingHashMapLong<MethodHandle> opInvokers) {
+	public static MBeanOperationInfo[] getManagedOperationInfos(Class<?> targetClass, final Set<MBeanNotificationInfo> notificationInfo, final Set<Method> methods, final NonBlockingHashMapLong<MethodHandle> opInvokers) {
 		Set<MBeanOperationInfo> infos = new HashSet<MBeanOperationInfo>(methods.size());
-		for(Method m: methods) {
-			ManagedOperation mo = m.getAnnotation(ManagedOperation.class);
-			ManagedOperationImpl moi = new ManagedOperationImpl(m.getName(), mo);
+		for(Method annotatedMethod: methods) {
+			Method concreteMethod = getTargetMethodMatching(targetClass, annotatedMethod);
+			ManagedOperation mo = annotatedMethod.getAnnotation(ManagedOperation.class);
+			ManagedOperationImpl moi = new ManagedOperationImpl(annotatedMethod.getName(), mo);
 			Collections.addAll(notificationInfo, ManagedNotificationImpl.from(moi.getNotifications()));
-			infos.add(moi.toMBeanInfo(m, opInvokers));
+			infos.add(moi.toMBeanInfo(concreteMethod, opInvokers));
 		}
 		return infos.toArray(new MBeanOperationInfo[infos.size()]);
 	}
@@ -189,45 +212,49 @@ public class Reflector {
 
 	/**
 	 * Reflects out the ManagedAttributeInfos for @ManagedMetric annotations the passed methods
+	 * @param targetClass The target concrete class
 	 * @param notificationInfo Any notification infos we find along the way get dropped in here
 	 * @param methods The annotated methods in the class
 	 * @param metricInvokers A map of metric invokers to populate
 	 * @return a [possibly zero length] MBeanAttributeInfo array
 	 */
-	public static MBeanAttributeInfo[] getManagedMetricInfos(final Set<MBeanNotificationInfo> notificationInfo, final Set<Method> methods, final NonBlockingHashMapLong<MethodHandle[]> metricInvokers) {
+	public static MBeanAttributeInfo[] getManagedMetricInfos(Class<?> targetClass, final Set<MBeanNotificationInfo> notificationInfo, final Set<Method> methods, final NonBlockingHashMapLong<MethodHandle[]> metricInvokers) {
 		Set<MBeanAttributeInfo> infos = new HashSet<MBeanAttributeInfo>(methods.size());
-		for(Method m: methods) {
-			ManagedMetric mm = m.getAnnotation(ManagedMetric.class);
-			ManagedMetricImpl mmi = new ManagedMetricImpl(m, mm);
+		for(Method annotatedMethod: methods) {
+			Method concreteMethod = getTargetMethodMatching(targetClass, annotatedMethod);
+			ManagedMetric mm = annotatedMethod.getAnnotation(ManagedMetric.class);
+			ManagedMetricImpl mmi = new ManagedMetricImpl(concreteMethod, mm);
 			Collections.addAll(notificationInfo, ManagedNotificationImpl.from(mmi.getNotifications()));
-			infos.add(mmi.toMBeanInfo(m, metricInvokers));
+			infos.add(mmi.toMBeanInfo(concreteMethod, metricInvokers));
 		}
 		return infos.toArray(new MBeanAttributeInfo[infos.size()]);
 	}
 
 	/**
 	 * Reflects out the ManagedAttributeInfos for @ManagedAttribute annotations the passed methods
+	 * @param targetClass The target concrete class
 	 * @param notificationInfo Any notification infos we find along the way get dropped in here
 	 * @param attrs The annotated methods in the class
 	 * @param attrInvokers A map of attribute invoker pairs to populate
 	 * @return a [possibly zero length] MBeanAttributeInfo array
 	 */
-	public static MBeanAttributeInfo[] getManagedAttributeInfos(final Set<MBeanNotificationInfo> notificationInfo, final Set<Method> attrs, final NonBlockingHashMapLong<MethodHandle[]> attrInvokers) {
+	public static MBeanAttributeInfo[] getManagedAttributeInfos(Class<?> targetClass, final Set<MBeanNotificationInfo> notificationInfo, final Set<Method> attrs, final NonBlockingHashMapLong<MethodHandle[]> attrInvokers) {
 		Set<MBeanAttributeInfo> infos = new HashSet<MBeanAttributeInfo>(attrs.size());
 		Map<String, MBeanAttributeInfo[]> attributes = new HashMap<String, MBeanAttributeInfo[]>(attrs.size());
-		for(Method m: attrs) { 
-			final int index = m.getParameterTypes().length;
-			if(index>1) throw new RuntimeException(String.format("The method [%s.%s] (%s)] is neither a getter or a setter but was annotated @ManagedAttribute", m.getDeclaringClass().getName(), m.getName(), StringHelper.getMethodDescriptor(m)));
-			ManagedAttribute ma = m.getAnnotation(ManagedAttribute.class);
-			ManagedAttributeImpl maImpl = new ManagedAttributeImpl(m, ma);
+		for(Method annotatedMethod: attrs) {
+			Method concreteMethod = getTargetMethodMatching(targetClass, annotatedMethod);
+			final int index = concreteMethod.getParameterTypes().length;
+			if(index>1) throw new RuntimeException(String.format("The method [%s.%s] (%s)] is neither a getter or a setter but was annotated @ManagedAttribute", annotatedMethod.getDeclaringClass().getName(), annotatedMethod.getName(), StringHelper.getMethodDescriptor(concreteMethod)));
+			ManagedAttribute ma = annotatedMethod.getAnnotation(ManagedAttribute.class);
+			ManagedAttributeImpl maImpl = new ManagedAttributeImpl(concreteMethod, ma);
 			Collections.addAll(notificationInfo, ManagedNotificationImpl.from(maImpl.getNotifications()));
-			Class<?> type = index==0 ?  m.getReturnType() : m.getParameterTypes()[0];
-			MBeanAttributeInfo minfo = maImpl.toMBeanInfo(m, attrInvokers);
-			minfo.getDescriptor().setField(index==0 ? "getMethod" : "setMethod", m.getName());
+			Class<?> type = index==0 ?  concreteMethod.getReturnType() : concreteMethod.getParameterTypes()[0];
+			MBeanAttributeInfo minfo = maImpl.toMBeanInfo(concreteMethod, attrInvokers);
+			minfo.getDescriptor().setField(index==0 ? "getMethod" : "setMethod", concreteMethod.getName());
 			String attributeName = minfo.getName();
 			MBeanAttributeInfo[] pair = attributes.get(attributeName); if(pair==null) { pair = new MBeanAttributeInfo[2];  attributes.put(attributeName, pair); }
 						
-			if(pair[index]!=null) System.err.println("Duplicate attribute names on [" + m.getDeclaringClass().getName() + "] : [" + attributeName + "]");
+			if(pair[index]!=null) System.err.println("Duplicate attribute names on [" + annotatedMethod.getDeclaringClass().getName() + "] : [" + attributeName + "]");
 			pair[index] = minfo;
 		}			
 		for(Map.Entry<String, MBeanAttributeInfo[]> entry: attributes.entrySet()) {
@@ -244,6 +271,26 @@ public class Reflector {
 			}
 		}
 		return infos.toArray(new MBeanAttributeInfo[infos.size()]);
+	}
+	
+	/**
+	 * Finds the method on the target class matching the passed pattern method
+	 * @param targetClass The target class to get the method from
+	 * @param pattern The method to match in the passed class
+	 * @return the matched method 
+	 */
+	public static Method getTargetMethodMatching(Class<?> targetClass, Method pattern) {
+		Method m = null;
+		try {
+			m = targetClass.getDeclaredMethod(pattern.getName(), pattern.getParameterTypes());
+		} catch (Exception e) {
+			try {
+				m = targetClass.getDeclaredMethod(pattern.getName(), pattern.getParameterTypes());
+			} catch (Exception ex) {
+				throw new RuntimeException("Failed to find method [" + pattern.toGenericString() + "] in class [" + targetClass + "]", ex);
+			}
+		}
+		return m;
 	}
 	
 	/**
