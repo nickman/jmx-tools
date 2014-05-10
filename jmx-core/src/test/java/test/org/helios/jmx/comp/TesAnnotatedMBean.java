@@ -45,6 +45,7 @@ import javax.management.MBeanNotificationInfo;
 import javax.management.MBeanOperationInfo;
 import javax.management.MBeanServer;
 import javax.management.MBeanServerConnection;
+import javax.management.MBeanServerDelegate;
 import javax.management.Notification;
 import javax.management.NotificationBroadcasterSupport;
 import javax.management.NotificationEmitter;
@@ -112,7 +113,11 @@ public class TesAnnotatedMBean extends BaseTest {
 			throw new RuntimeException(x);
 		}
 	}
-
+	
+	/** The delegate MBeanServer's ObjectName */
+	protected static final ObjectName DELEGATE = JMXHelper.objectName(MBeanServerDelegate.DELEGATE_NAME);
+	public static final MBeanNotificationInfo[] EMPTY_N_INFO = {};
+	
 	@Test
 	public void testAnnotatedMBean() throws Exception {
 		try {
@@ -227,21 +232,14 @@ public class TesAnnotatedMBean extends BaseTest {
 	public class TestBean extends StandardMBean implements TestBeanMBean, NotificationEmitter, Serializable {
 		/**  */
 		private static final long serialVersionUID = -67640604151534755L;
-//		final NonBlockingHashMapLong<MethodHandle[]> attrInvokers = new NonBlockingHashMapLong<MethodHandle[]>();
-//		final NonBlockingHashMapLong<MethodHandle> opInvokers = new NonBlockingHashMapLong<MethodHandle>();
-//		final NonBlockingHashMapLong<Object> targetObjects = new NonBlockingHashMapLong<Object>(); 
 		final ManagedObjectRepo<Object> managedObjects = new ManagedObjectRepo<Object>(System.identityHashCode(this));
 		final NotificationBroadcasterSupport broadcaster;  
-		public final MBeanNotificationInfo[] EMPTY_N_INFO = {};
+		
 		ObjectName objectName = null;
 		protected TestBean(Class<?> mbeanInterface, boolean isMXBean) {
 			super(mbeanInterface, isMXBean);
 			cacheMBeanInfo(managedObjects.put(this));
-//			cacheMBeanInfo(Reflector.clean(Reflector.from(mbeanInterface, attrInvokers, opInvokers, attrInvokers)));
 			broadcaster = new NotificationBroadcasterSupport(this.getMBeanInfo().getNotifications());
-//			targetObjects.putAll(Reflector.invokerTargetMap(this, attrInvokers, opInvokers));
-//			Reflector.bindInvokers(this, attrInvokers, opInvokers);
-			
 		}		
 		final AtomicLong notifSerial = new AtomicLong(0L);
 		
@@ -250,20 +248,28 @@ public class TesAnnotatedMBean extends BaseTest {
 		final DirectEWMAMBean uuidElapsed = new DirectEWMA(100);
 		
 		public void popEWMAs() {
-			MBeanInfo info = managedObjects.put(uuidElapsed, "UUIDElapsed");		
-			synchronized(managedObjects) {
-				cacheMBeanInfo(Reflector.newMerger(getCachedMBeanInfo()).append(info).merge());
-				sendNotification(new Notification("jmx.mbean.info.changed", this, notifSerial.incrementAndGet()));
+			MBeanInfo info = managedObjects.put(uuidElapsed, "UUIDElapsed");	
+			if(info!=null) {
+				synchronized(managedObjects) {
+					cacheMBeanInfo(Reflector.newMerger(getCachedMBeanInfo()).append(info).merge());
+					fireMBeanInfoChanged();					
+				}
 			}
 		}
 		
+		private void fireMBeanInfoChanged() {
+			Notification notif = new Notification("jmx.mbean.info.changed", this, notifSerial.incrementAndGet());
+			notif.setUserData(getCachedMBeanInfo());
+			sendNotification(notif);
+		}
+		
 		public void unpopEWMAs() {
-			managedObjects.remove("UUIDElapsed");
-			synchronized(managedObjects) {
-				cacheMBeanInfo(managedObjects.mergeAllMBeanInfos());
-				sendNotification(new Notification("jmx.mbean.info.changed", this, notifSerial.incrementAndGet()));
+			if(managedObjects.remove("UUIDElapsed")!=null) {
+				synchronized(managedObjects) {
+					cacheMBeanInfo(managedObjects.mergeAllMBeanInfos());
+					fireMBeanInfoChanged();
+				}
 			}
-			
 		}
 		
 /*		protected void addManagedSubObject(Object obj, Class<?> mbeanInterface) {

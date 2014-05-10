@@ -116,18 +116,19 @@ public class ManagedObjectRepo<T> {
 	public MBeanInfo put(T objectToAdd, String name) {
 		final long id = lhc(name);
 		nvl(objectToAdd, "Managed Object");
-		ManagedObject<T> mo = objectsByNameId.get(id);
+		ManagedObject<T> mo = objectsByTargetObject.get(objectToAdd);
 		if(mo==null) {
-			synchronized(objectsByNameId) {
-				mo = objectsByNameId.get(id);
+			synchronized(objectsByTargetObject) {
+				mo = objectsByTargetObject.get(objectToAdd);
 				if(mo==null) {
 					mo = new ManagedObject<T>(objectToAdd, name==null ? ("" + ownerId) : name);
 					objectsByNameId.put(id, mo);
-					objectsByTargetObject.put(objectToAdd, mo);		
+					objectsByTargetObject.put(objectToAdd, mo);
+					return mo.info;
 				}
 			}
 		}
-		return mo.info;
+		return null;
 	}
 	
 	/**
@@ -217,8 +218,9 @@ public class ManagedObjectRepo<T> {
 		if(mo!=null) {
 			clearEntries(mo);
 			objectsByTargetObject.remove(mo.managedObject);
+			return mo;
 		}
-		return mo;		
+		return null;		
 	}
 	
 	/**
