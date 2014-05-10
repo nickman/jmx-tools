@@ -22,41 +22,30 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package org.helios.jmx.annotation;
-
-import java.lang.annotation.Documented;
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
+package org.helios.jmx.managed;
 
 /**
- * <p>Title: MetricGroup</p>
- * <p>Description: Annotates a class or package to categorize the metric classifications for managed metrics therein</p> 
+ * <p>Title: Invoker</p>
+ * <p>Description: Defines an op or attribute invoker for MBeans</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.jmx.annotation.MetricGroup</code></p>
+ * <p><code>org.helios.jmx.managed.Invoker</code></p>
+ * @param <T> The assumed type of the invoker's target
+ * @param <R> The assumed type of the invocation return type
  */
-@Target({ElementType.TYPE, ElementType.PACKAGE})
-@Retention(RetentionPolicy.RUNTIME)
-@Documented
-public @interface MetricGroup {
-	/**
-	 * The metric category describing the class or package that the metric is grouped into
-	 */
-	String category();
-	
-	/**
-	 * A description of the annotated class or package
-	 */
-	String description();
-	
-	/**
-	 * The optional subkeys for this metric
-	 */
-	String[] subkeys() default {};
-	
-	
-	
 
+public interface Invoker<T, R> {
+	/**
+	 * Binds the target of the invocation to the invoker
+	 * @param target The target of the invocation
+	 * @return the return value of the target invocation
+	 */
+	public Invoker<T, R> bindTo(T target);
+	
+	/**
+	 * Invokes against the target 
+	 * @param args The arguments to the invocation
+	 * @return the invocation return value
+	 */
+	public R invoke(Object...args);
 }

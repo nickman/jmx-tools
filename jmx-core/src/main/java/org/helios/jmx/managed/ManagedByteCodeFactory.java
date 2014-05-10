@@ -22,41 +22,41 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package org.helios.jmx.annotation;
-
-import java.lang.annotation.Documented;
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
+package org.helios.jmx.managed;
 
 /**
- * <p>Title: MetricGroup</p>
- * <p>Description: Annotates a class or package to categorize the metric classifications for managed metrics therein</p> 
+ * <p>Title: ManagedByteCodeFactory</p>
+ * <p>Description: </p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.jmx.annotation.MetricGroup</code></p>
+ * <p><code>org.helios.jmx.managed.ManagedByteCodeFactory</code></p>
  */
-@Target({ElementType.TYPE, ElementType.PACKAGE})
-@Retention(RetentionPolicy.RUNTIME)
-@Documented
-public @interface MetricGroup {
-	/**
-	 * The metric category describing the class or package that the metric is grouped into
-	 */
-	String category();
+
+public class ManagedByteCodeFactory {
+	/** The singleton instance */
+	private static volatile ManagedByteCodeFactory instance = null;
+	/** The singleton instance ctor lock */
+	private static final Object lock = new Object();
 	
 	/**
-	 * A description of the annotated class or package
+	 * Acquires the singleton ManagedByteCodeFactory instance
+	 * @return the singleton ManagedByteCodeFactory instance
 	 */
-	String description();
-	
+	public static ManagedByteCodeFactory getInstance() {
+		if(instance==null) {
+			synchronized(lock) {
+				if(instance==null) {
+					instance = new ManagedByteCodeFactory();
+				}
+			}
+		}
+		return instance;
+	}
 	/**
-	 * The optional subkeys for this metric
+	 * Creates a new ManagedByteCodeFactory
 	 */
-	String[] subkeys() default {};
-	
-	
-	
+	private ManagedByteCodeFactory() {
+		// TODO Auto-generated constructor stub
+	}
 
 }

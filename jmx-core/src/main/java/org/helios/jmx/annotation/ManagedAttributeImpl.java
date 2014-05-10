@@ -114,11 +114,11 @@ public class ManagedAttributeImpl {
 	
 	/**
 	 * Creates a new ManagedAttributeImpl
-	 * @param methodAttrName The attribute name to use if the annotation does not supply one
+	 * @param method The method for the name will be used as the attribute name if the annotation does not supply one
 	 * @param ma The managed attribute to extract from
 	 */
-	public ManagedAttributeImpl(String methodAttrName, ManagedAttribute ma) {
-		name = nws(nvl(ma, "Managed Attribute").name())==null ? nvl(methodAttrName, "methodAttrName") : ma.name().trim();
+	public ManagedAttributeImpl(Method method, ManagedAttribute ma) {
+		name = nws(nvl(ma, "Managed Attribute").name())==null ? Reflector.attr(nvl(method, "method")) : ma.name().trim();
 		description = nws(ma.description());
 		this.notifications = ManagedNotificationImpl.from(ma.notifications());
 	}
@@ -237,7 +237,9 @@ public class ManagedAttributeImpl {
 	 */
 	public String toString() {
 		return String.format("ManagedResourceImpl [name:%s, description:%s]", name==null ? "none" : name, description==null ? "none" : description);
-	}	
+	}
+
+
 
 	
 }

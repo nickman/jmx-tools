@@ -27,13 +27,14 @@ package org.helios.jmx.annotation;
 import java.io.Serializable;
 import java.lang.annotation.Annotation;
 import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
@@ -47,10 +48,12 @@ import javax.management.MBeanFeatureInfo;
 import javax.management.MBeanInfo;
 import javax.management.MBeanNotificationInfo;
 import javax.management.MBeanOperationInfo;
+import javax.management.MBeanParameterInfo;
 import javax.management.ObjectName;
 import javax.management.modelmbean.DescriptorSupport;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
+import org.cliffc.high_scale_lib.NonBlockingHashMapLong.IteratorLong;
 import org.helios.jmx.util.helpers.JMXHelper;
 import org.helios.jmx.util.helpers.StringHelper;
 
@@ -73,6 +76,9 @@ public class Reflector {
 	/** Replacement pattern for the get/set leading a method name */
 	public static final Pattern GETSET_PATTERN = Pattern.compile("get|set|is|has", Pattern.CASE_INSENSITIVE);
 	
+	/** A method handle lookup */
+	public static final Lookup lookup = MethodHandles.lookup();
+	
 	/** An array of the method annotations we'll search for */
 	@SuppressWarnings("unchecked")
 	private static final Class<? extends Annotation>[] SEARCH_ANNOTATIONS = new Class[]{
@@ -82,7 +88,7 @@ public class Reflector {
 	
 	public static MBeanInfo from(Class<?> clazz, final NonBlockingHashMapLong<MethodHandle[]> attrInvokers, final NonBlockingHashMapLong<MethodHandle> opInvokers, final NonBlockingHashMapLong<MethodHandle[]> metricInvokers) {
 		final Map<Class<? extends Annotation>, Set<Method>> methodMap = getAnnotatedMethods(clazz, SEARCH_ANNOTATIONS);
-		final Set<MBeanNotificationInfo> notificationInfo = new HashSet<MBeanNotificationInfo>();
+		final Set<MBeanNotificationInfo> notificationInfo = new TreeSet<MBeanNotificationInfo>(NOTIF_COMP);
 		final Set<MBeanAttributeInfo> attrInfos = new HashSet<MBeanAttributeInfo>();
 		Collections.addAll(attrInfos, getManagedAttributeInfos(notificationInfo, methodMap.get(ManagedAttribute.class), attrInvokers));
 		Collections.addAll(attrInfos, getManagedMetricInfos(notificationInfo, methodMap.get(ManagedMetric.class), metricInvokers));
@@ -111,12 +117,43 @@ public class Reflector {
 		);
 	}
 	
-	public static void addAttributeInvokers(final Set<Method> methods, final Map<String, MethodHandle> attrInvokers) {
-		if(attrInvokers==null) return;
-		for(Method method: methods) {
-			
+	/**
+	 * Generates an array of MBeanOperationInfos for the @ManagedMetric annotated methods in the passed object to represent the pop/unpop operations.
+	 * @param hasManagedMetrics An object assumed to have @ManagedMetric annotated methods
+	 * @param ops Populate this map with the pop/unpop method handles
+	 * @return a [possibly zero length] array of MBeanOperationInfos
+	 */
+	public static MBeanOperationInfo[] popable(Object hasManagedMetrics, NonBlockingHashMapLong<MethodHandle> ops) {
+		if(hasManagedMetrics==null) return EMPTY_OPS_INFO;
+		Set<Method> metricMethods  = getAnnotatedMethods(hasManagedMetrics.getClass(), ManagedMetric.class).get(ManagedMetric.class);
+		if(metricMethods==null || metricMethods.isEmpty()) return EMPTY_OPS_INFO;
+		Set<MBeanOperationInfo> infos = new HashSet<MBeanOperationInfo>();
+		for(Method m: metricMethods) {
+			ManagedMetric mm = m.getAnnotation(ManagedMetric.class);
+			if(mm==null || !mm.popable()) continue;
+			ManagedMetricImpl mmi = new ManagedMetricImpl(m, mm);
+			infos.add(new MBeanOperationInfo(
+				"pop" + mmi.getDisplayName(), "Pop the " + mmi.getDisplayName() + " Metrics",
+				EMPTY_PARAMS_INFO, void.class.getName(), MBeanOperationInfo.ACTION,
+				new DescriptorSupport(new String[] {"popable"}, new Object[] {mmi.toString()})
+			));
+			infos.add(new MBeanOperationInfo(
+				"unpop" + mmi.getDisplayName(), "Unpop the " + mmi.getDisplayName() + " Metrics",
+				EMPTY_PARAMS_INFO, void.class.getName(), MBeanOperationInfo.ACTION,
+				new DescriptorSupport(new String[] {"popable"}, new Object[] {mmi.toString()})
+			));
 		}
+		return infos.toArray(new MBeanOperationInfo[infos.size()]);
 	}
+	
+//	public static Method[] getPopMethods(Method metricAccessor) {
+//		Method[] popMethods = new Method[2];
+//		Class<?> metricClass = metricAccessor.getDeclaringClass();
+//		try {
+//			popMethods[0] = metricClass.getDeclaredMethod("pop, parameterTypes)
+//		} catch (Exception x) { /* No Op */ }
+//		return popMethods;
+//	}
 	
 	/**
 	 * Filters out the unique MBeanNotificationInfos from the passed set of infos
@@ -161,7 +198,7 @@ public class Reflector {
 		Set<MBeanAttributeInfo> infos = new HashSet<MBeanAttributeInfo>(methods.size());
 		for(Method m: methods) {
 			ManagedMetric mm = m.getAnnotation(ManagedMetric.class);
-			ManagedMetricImpl mmi = new ManagedMetricImpl(mm);
+			ManagedMetricImpl mmi = new ManagedMetricImpl(m, mm);
 			Collections.addAll(notificationInfo, ManagedNotificationImpl.from(mmi.getNotifications()));
 			infos.add(mmi.toMBeanInfo(m, metricInvokers));
 		}
@@ -182,7 +219,7 @@ public class Reflector {
 			final int index = m.getParameterTypes().length;
 			if(index>1) throw new RuntimeException(String.format("The method [%s.%s] (%s)] is neither a getter or a setter but was annotated @ManagedAttribute", m.getDeclaringClass().getName(), m.getName(), StringHelper.getMethodDescriptor(m)));
 			ManagedAttribute ma = m.getAnnotation(ManagedAttribute.class);
-			ManagedAttributeImpl maImpl = new ManagedAttributeImpl(attr(m), ma);
+			ManagedAttributeImpl maImpl = new ManagedAttributeImpl(m, ma);
 			Collections.addAll(notificationInfo, ManagedNotificationImpl.from(maImpl.getNotifications()));
 			Class<?> type = index==0 ?  m.getReturnType() : m.getParameterTypes()[0];
 			MBeanAttributeInfo minfo = maImpl.toMBeanInfo(m, attrInvokers);
@@ -208,6 +245,52 @@ public class Reflector {
 		}
 		return infos.toArray(new MBeanAttributeInfo[infos.size()]);
 	}
+	
+	/**
+	 * Creates a lookup map, matching the target id to the target
+	 * @param obj The target object to bind to
+	 * @param attrs The JMX attribute method handles
+	 * @param ops The JMX operation method handles
+	 */
+	public static NonBlockingHashMapLong<Object> invokerTargetMap(Object obj, NonBlockingHashMapLong<MethodHandle[]> attrs, NonBlockingHashMapLong<MethodHandle> ops) {
+		NonBlockingHashMapLong<Object> targets = new NonBlockingHashMapLong<Object>();
+		IteratorLong iter = (IteratorLong)ops.keySet().iterator();
+		while(iter.hasNext()) {
+			targets.put(iter.nextLong(), obj);
+		}
+		iter = (IteratorLong)attrs.keySet().iterator();
+		while(iter.hasNext()) {
+			targets.put(iter.nextLong(), obj);
+		}
+		
+		return targets;
+	}
+	
+	/**
+	 * Binds the method handles to the specified target object
+	 * @param obj The target object to bind to
+	 * @param attrs The JMX attribute method handles
+	 * @param ops The JMX operation method handles
+	 */
+	public static void bindInvokers(Object obj, NonBlockingHashMapLong<MethodHandle[]> attrs, NonBlockingHashMapLong<MethodHandle> ops) {
+		for(MethodHandle[] handles: attrs.values()) {
+			if(handles[0]!=null) {
+				handles[0].bindTo(obj);
+			}			
+			if(handles.length==2 && handles[1]!=null) {
+				handles[1].bindTo(obj);
+			}				
+		}
+		IteratorLong iter = (IteratorLong)ops.keySet().iterator();
+		while(iter.hasNext()) {
+			long id = iter.nextLong();
+			MethodHandle handle = ops.get(id);
+			ops.replace(id, handle.bindTo(obj));
+		}
+	}
+	
+	
+	
 	
 	/**
 	 * Does a bill clinton on the passed info to determine the meaning of "is"
@@ -252,50 +335,8 @@ public class Reflector {
 //		return impls;
 //	}
 	
-	/**
-	 * Creates a new ManagedMetricImpl from the passed method if it is annotated with {@link ManagedMetric}.
-	 * @param method The method to extract a ManagedMetricImpl from 
-	 * @return the ManagedMetricImpl created, or null if the method was not annotated
-	 */
-	public static ManagedMetricImpl managedMetricImplFrom(Method method) {
-		ManagedMetric mm = nvl(method, "method").getAnnotation(ManagedMetric.class);
-		if(mm==null) return null;
-		String category = nws(mm.category());
-		String displayName = nws(mm.displayName());
-		if(displayName==null) {
-			displayName = attr(method);
-		}
-		Class<?> clazz = method.getDeclaringClass();
-		if(category==null) {
-			MetricGroup mg = clazz.getAnnotation(MetricGroup.class);
-			if(mg!=null) {
-				category = nws(mg.category());
-			}
-			if(category==null) {
-				mg = clazz.getPackage().getAnnotation(MetricGroup.class);
-				if(mg!=null) {
-					category = nws(mg.category());
-				}
-			}
-		}
-		if(category==null) {
-			category = clazz.getSimpleName() + " Metric";
-		}
-		return null; //new ManagedMetricImpl(mm.description(), mm.displayName(), mm.metricType(), category, mm.unit(), mm.descriptor());
-	}
-	
-	/**
-	 * Creates a new ManagedAttributeImpl from the passed method if it is annotated with {@link ManagedAttribute}.
-	 * @param method The method to extract a ManagedAttributeImpl from 
-	 * @return the ManagedAttributeImpl created, or null if the method was not annotated
-	 */
-	public static ManagedAttributeImpl managedAttributeImplFrom(Method method) {
-		ManagedAttribute ma = nvl(method, "method").getAnnotation(ManagedAttribute.class);
-		if(ma==null) return null;
-		String name = nws(ma.name())==null ? attr(method) : ma.name();
-		String description = nws(ma.description())==null ? String.format("JMX Managed Attribute [%s.%s]", method.getDeclaringClass().getSimpleName(), name) : ma.description();
-		return null; //new ManagedAttributeImpl(name, description);
-	}
+
+
 	
 	
 	
@@ -314,24 +355,7 @@ public class Reflector {
 //		return impls;
 //	}
 	
-	/**
-	 * Creates and returns a new {@link MBeanAttributeInfo} for the ManagedMetric annotation data on the passed method.
-	 * @param method The method to extract a MBeanAttributeInfo from 
-	 * @return the MBeanAttributeInfo created, or null if the method was not annotated
-	 */
-	public static MBeanAttributeInfo mbeanMetric(Method method) {
-		ManagedMetricImpl mmi = managedMetricImplFrom(method);
-		if(mmi==null) return null;
-		return new MBeanAttributeInfo(
-				mmi.getDisplayName(),
-				method.getReturnType().getName(),
-				mmi.getDescription(),
-				true,
-				false, 
-				false,
-				descriptor(mmi)
-		);		
-	}
+
 	
 	/**
 	 * Inspects each descriptor and removes any non-serializable values
@@ -347,7 +371,6 @@ public class Reflector {
 				}
 			}
 		}
-		System.out.println("MBeanInfo Descriptor:" + Arrays.toString(d.getFieldNames()));
 		for(MBeanAttributeInfo mi: info.getAttributes()) {
 			d = mi.getDescriptor();
 			if(d!=null) {
@@ -357,8 +380,6 @@ public class Reflector {
 					}
 				}
 			}
-			
-			System.out.println("MBeanAttributeInfo Descriptor:" + Arrays.toString(d.getFieldNames()));
 		}
 		for(MBeanOperationInfo mi: info.getOperations()) {
 			d = mi.getDescriptor();
@@ -370,7 +391,6 @@ public class Reflector {
 				}
 			}
 		}
-		
 		return info;
 	}
 	
@@ -394,15 +414,7 @@ public class Reflector {
 //	}
 	
 	
-	/**
-	 * Creates an MBean attribute descriptor for the passed method, if it is annotated with a managed metric
-	 * @param method The method to extract a descriptor from
-	 * @return an MBean attribute descriptor or null if the method was not annotated with a managed metric
-	 */
-	public static Descriptor descriptor(Method method) {
-		ManagedMetricImpl mml = managedMetricImplFrom(method);
-		return mml==null ? null : descriptor(mml);
-	}
+
 	
 	/**
 	 * Creates an MBean attribute descriptor for the ManagedMetricImpl
@@ -547,6 +559,9 @@ public class Reflector {
 	public static final MBeanConstructorInfo[] EMPTY_CTORS_INFO = {};
 	/** Empty MBeanOperationInfo array const */
 	public static final MBeanOperationInfo[] EMPTY_OPS_INFO = {};
+	/** Empty MBeanParameterInfo array const */
+	public static final MBeanParameterInfo[] EMPTY_PARAMS_INFO = {};
+	
 	/** Empty MBeanNotificationInfo array const */
 	public static final MBeanNotificationInfo[] EMPTY_NOTIF_INFO = {};
 	/** Empty MBeanInfo const */

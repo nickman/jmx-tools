@@ -77,6 +77,12 @@ public @interface ManagedMetric {
 	 * An array of managed notifications that may be emitted by the annotated managed metric 
 	 */
 	ManagedNotification[] notifications() default {};
+	
+	/**
+	 * Indicates if the metric type is rendered as a CompositeType 
+	 * and can be enhanced to surface the type's fields as first class mbean attributes 
+	 */
+	boolean popable() default false;
 
 
 }

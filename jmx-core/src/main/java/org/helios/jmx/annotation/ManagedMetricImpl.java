@@ -26,6 +26,7 @@ package org.helios.jmx.annotation;
 
 import static org.helios.jmx.annotation.Reflector.attr;
 import static org.helios.jmx.annotation.Reflector.nvl;
+import static org.helios.jmx.annotation.Reflector.nws;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
@@ -60,6 +61,12 @@ public class ManagedMetricImpl {
 	protected final String unit;
 	/** An array of managed notifications that may be emitted by the annotated managed attribute */
 	protected final ManagedNotificationImpl[] notifications;
+	/**
+	 * Indicates if the metric type is rendered as a CompositeType 
+	 * and can be enhanced to surface the type's fields as first class mbean attributes 
+	 */
+	protected final boolean popable;
+	
 	
 	/**
 	 * The metric category describing the class or package that the metric is grouped into.
@@ -84,14 +91,18 @@ public class ManagedMetricImpl {
 	
 	/**
 	 * Converts an array of ManagedMetrics to an array of ManagedMetricImpls
+	 * @param methods The annotated methods
 	 * @param metrics the array of ManagedMetrics to convert
 	 * @return a [possibly zero length] array of ManagedMetricImpls
 	 */
-	public static ManagedMetricImpl[] from(ManagedMetric...metrics) {
-		if(metrics==null || metrics.length==0) return EMPTY_ARR;
+	public static ManagedMetricImpl[] from(Method[] methods, ManagedMetric...metrics) {
+		if(metrics==null || metrics.length==0 || methods==null || methods.length==0) return EMPTY_ARR;
+		if(methods.length != metrics.length) {
+			throw new IllegalArgumentException("Method/Metrics Array Size Mismatch. Types:" + methods.length + ", Metrics:" + metrics.length);
+		}		
 		ManagedMetricImpl[] mopis = new ManagedMetricImpl[metrics.length];
 		for(int i = 0; i < metrics.length; i++) {
-			mopis[i] = new ManagedMetricImpl(metrics[i]);
+			mopis[i] = new ManagedMetricImpl(methods[i], metrics[i]);
 		}
 		return mopis;		
 	}
@@ -119,6 +130,7 @@ public class ManagedMetricImpl {
 	
 	/**
 	 * Creates a new ManagedMetricImpl
+	 * @param popable true if the metric is popable, false otherwise
 	 * @param description A description of the metric
 	 * @param displayName The name of the metric as exposed in the MBeanAttributeInfo
 	 * @param metricType The type of the metric
@@ -128,7 +140,7 @@ public class ManagedMetricImpl {
 	 * @param notifications An array of managed notifications that may be emitted by the annotated managed attribute
 	 * @param subkeys The metric subkeys
 	 */
-	ManagedMetricImpl(String description, String displayName, MetricType metricType, String category, String unit, String descriptor, ManagedNotificationImpl[] notifications, String...subkeys) {
+	ManagedMetricImpl(boolean popable, String description, String displayName, MetricType metricType, String category, String unit, String descriptor, ManagedNotificationImpl[] notifications, String...subkeys) {
 		this.description = nvl(description, "description");
 		this.displayName = nvl(displayName, "displayName");
 		this.metricType = nvl(metricType, "metricType");
@@ -136,11 +148,13 @@ public class ManagedMetricImpl {
 		this.unit = unit;		
 		this.descriptor = descriptor;
 		this.subkeys = subkeys;
-		this.notifications = notifications==null ? ManagedNotificationImpl.EMPTY_ARR : notifications; 		
+		this.notifications = notifications==null ? ManagedNotificationImpl.EMPTY_ARR : notifications; 	
+		this.popable = popable;
 	}
 	
 	/**
 	 * Creates a new ManagedMetricImpl
+	 * @param popable true if the metric is popable, false otherwise
 	 * @param description A description of the metric
 	 * @param displayName The name of the metric as exposed in the MBeanAttributeInfo
 	 * @param metricType The type of the metric
@@ -150,28 +164,40 @@ public class ManagedMetricImpl {
 	 * @param notifications An array of managed notifications that may be emitted by the annotated managed attribute
 	 * @param subkeys The metric subkeys
 	 */
-	ManagedMetricImpl(String description, String displayName, MetricType metricType, String category, String unit, String descriptor, ManagedNotification[] notifications, String...subkeys) {
-		this(description, displayName, metricType, category, unit, descriptor,ManagedNotificationImpl.from(notifications),  subkeys);
+	ManagedMetricImpl(boolean popable, String description, String displayName, MetricType metricType, String category, String unit, String descriptor, ManagedNotification[] notifications, String...subkeys) {
+		this(popable, description, displayName, metricType, category, unit, descriptor,ManagedNotificationImpl.from(notifications),  subkeys);
 	}
 	
 	/**
 	 * Creates a new ManagedMetricImpl
+	 * @param method The annotated method
 	 * @param managedMetric The managed metric instance to ingest
 	 */
-	public ManagedMetricImpl(ManagedMetric managedMetric) {
+	public ManagedMetricImpl(Method method, ManagedMetric managedMetric) {
 		if(managedMetric==null) throw new IllegalArgumentException("The passed managed metric was null");
-		description = managedMetric.description();
+		MetricGroup mg = method.getDeclaringClass().getAnnotation(MetricGroup.class);
 		displayName = managedMetric.displayName();
-		metricType = managedMetric.metricType();
-		category = managedMetric.category();		
+		metricType = managedMetric.metricType();			
 		descriptor = managedMetric.descriptor().isEmpty() ? null : managedMetric.descriptor();
-		unit = managedMetric.unit().isEmpty() ? null : managedMetric.unit();
-		subkeys = managedMetric.subkeys();
+		unit = managedMetric.unit().isEmpty() ? null : managedMetric.unit();		
 		notifications = ManagedNotificationImpl.from(managedMetric.notifications());
+		popable = managedMetric.popable();
+		//===========
+		if(mg==null) {
+			description = managedMetric.description();
+			category = managedMetric.category();
+			subkeys = managedMetric.subkeys();
+		} else {
+			description = mg.description() + " | " + managedMetric.description();
+			category = mg.category() + " | " + managedMetric.category();
+			String[] _subKeys1 = managedMetric.subkeys();
+			String[] _subKeys2 = mg.subkeys();
+			subkeys = new String[_subKeys1.length + _subKeys2.length];
+			System.arraycopy(_subKeys1, 0, subkeys, 0, _subKeys1.length);
+			System.arraycopy(_subKeys2, 0, subkeys, _subKeys1.length+1, _subKeys2.length);			
+		}		
 	}
-
 	
-
 	/**
 	 * Returns the metric's subkeys
 	 * @return the subkeys
@@ -324,6 +350,14 @@ public class ManagedMetricImpl {
 		return cat;
 	}
 	
+	/**
+	 * Indicates if the metric type is rendered as a CompositeType 
+	 * and can be enhanced to surface the type's fields as first class mbean attributes 
+	 * @return true if popable, false otherwise
+	 */
+	public boolean isPopable() {
+		return popable;
+	}		
 	
 
 	/**
@@ -349,7 +383,8 @@ public class ManagedMetricImpl {
 			builder.append(", descriptor:");
 			builder.append(descriptor);
 		}
-		builder.append("]");
+		builder.append(", popable:").append(popable);
+		builder.append(" ]");
 		return builder.toString();
 	}
 

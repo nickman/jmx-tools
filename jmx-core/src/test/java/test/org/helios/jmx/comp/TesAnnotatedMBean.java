@@ -224,6 +224,7 @@ public class TesAnnotatedMBean extends BaseTest {
 		private static final long serialVersionUID = -67640604151534755L;
 		final NonBlockingHashMapLong<MethodHandle[]> attrInvokers = new NonBlockingHashMapLong<MethodHandle[]>();
 		final NonBlockingHashMapLong<MethodHandle> opInvokers = new NonBlockingHashMapLong<MethodHandle>();
+		final NonBlockingHashMapLong<Object> targetObjects = new NonBlockingHashMapLong<Object>(); 
 		final NotificationBroadcasterSupport broadcaster;  
 		public final MBeanNotificationInfo[] EMPTY_N_INFO = {};
 		ObjectName objectName = null;
@@ -231,6 +232,9 @@ public class TesAnnotatedMBean extends BaseTest {
 			super(mbeanInterface, isMXBean);			
 			cacheMBeanInfo(Reflector.clean(Reflector.from(mbeanInterface, attrInvokers, opInvokers, attrInvokers)));
 			broadcaster = new NotificationBroadcasterSupport(this.getMBeanInfo().getNotifications());
+			targetObjects.putAll(Reflector.invokerTargetMap(this, attrInvokers, opInvokers));
+//			Reflector.bindInvokers(this, attrInvokers, opInvokers);
+			
 		}		
 		final AtomicLong notifSerial = new AtomicLong(0L);
 		final NonBlockingHashMap<Object, AddedObjectMeta> addedObjectMetas = new NonBlockingHashMap<Object, AddedObjectMeta>(); 
@@ -260,21 +264,12 @@ public class TesAnnotatedMBean extends BaseTest {
 			addManagedSubObject(uuidElapsed, DirectEWMAMBean.class);
 		}
 		
+		
 		protected void addManagedSubObject(Object obj, Class<?> mbeanInterface) {
 			if(obj==null) return;
 			final NonBlockingHashMapLong<MethodHandle[]> attrs = new NonBlockingHashMapLong<MethodHandle[]>();
 			final NonBlockingHashMapLong<MethodHandle> ops = new NonBlockingHashMapLong<MethodHandle>();
-			for(MethodHandle[] handles: attrs.values()) {
-				if(handles[0]!=null) {
-					handles[0].bindTo(obj);
-				}
-				if(handles[1]!=null) {
-					handles[1].bindTo(obj);
-				}				
-			}
-			for(MethodHandle handle: ops.values()) {
-				handle.bindTo(obj);
-			}
+//			Reflector.bindInvokers(obj, attrs, ops);
 			
 			MBeanInfo info = Reflector.clean(Reflector.from(mbeanInterface, attrs, ops, attrs));
 			addedObjectMetas.put(obj, new AddedObjectMeta(attrs, ops, info));
@@ -355,6 +350,8 @@ public class TesAnnotatedMBean extends BaseTest {
 			JMXHelper.registerMBean(this, on);
 		}
 		
+		private final Object[] EMPTY_ARGS = {};
+		
 		/**
 		 * {@inheritDoc}
 		 * @see javax.management.StandardMBean#getAttribute(java.lang.String)
@@ -363,10 +360,12 @@ public class TesAnnotatedMBean extends BaseTest {
 		public Object getAttribute(String attribute) throws AttributeNotFoundException, MBeanException, ReflectionException {
 			final long attrCode = StringHelper.longHashCode(attribute);
 			MethodHandle[] mhPair = attrInvokers.get(attrCode);
+			Object target = targetObjects.get(attrCode);
 			if(mhPair==null) throw new AttributeNotFoundException("No attribute named [" + attribute + "]");
 			if(mhPair[0]==null) throw new AttributeNotFoundException("Attribute named [" + attribute + "] is not readable");
+//			log("MethodHandle [%s] : %s", attribute, mhPair[0].getClass().getName());
 			try {				
-				return mhPair[0].invoke(this);
+				return mhPair[0].bindTo(target).invoke();
 			} catch (Throwable e) {
 				throw new ReflectionException(new Exception(e), "Failed to dynInvoke for attribute [" + attribute + "]");				
 			}
@@ -378,11 +377,13 @@ public class TesAnnotatedMBean extends BaseTest {
 		 */
 		@Override
 		public void setAttribute(Attribute attribute) throws AttributeNotFoundException, InvalidAttributeValueException, MBeanException, ReflectionException {
-			MethodHandle[] mhPair = attrInvokers.get(StringHelper.longHashCode(attribute.getName()));
+			long attrCode = StringHelper.longHashCode(attribute.getName());
+			MethodHandle[] mhPair = attrInvokers.get(attrCode);
+			Object target = targetObjects.get(attrCode);
 			if(mhPair==null) throw new AttributeNotFoundException("No attribute named [" + attribute.getName() + "]");
 			if(mhPair.length==1 || mhPair[1]==null) throw new AttributeNotFoundException("Attribute named [" + attribute.getName() + "] is not readable");
 			try {				
-				mhPair[1].invoke(this, attribute.getValue());
+				mhPair[1].bindTo(target).invoke(attribute.getValue());
 			} catch (Throwable e) {
 				throw new ReflectionException(new Exception(e), "Failed to dynInvoke for attribute [" + attribute + "]");				
 			}			
@@ -394,15 +395,20 @@ public class TesAnnotatedMBean extends BaseTest {
 		 */
 		@Override
 		public Object invoke(String actionName, Object[] params, String[] signature) throws MBeanException, ReflectionException {
-			MethodHandle mh = opInvokers.get(opCode(actionName, signature));
+			long opCode = opCode(actionName, signature);
+			MethodHandle mh = opInvokers.get(opCode);
+			Object target = targetObjects.get(opCode);
 			if(mh==null) throw new MBeanException(new Exception(), "No operation named [" + actionName + "] with parameters " + Arrays.toString(signature));
-			try {			
+			try {
 				int plength = (params==null ? 0 : params.length);
 				if(plength>0) {					
-					return mh.bindTo(this).invokeWithArguments(params);
+					return mh.bindTo(target).invokeWithArguments(params);
 				} 				 
-				return mh.invoke(this);
+				return mh.bindTo(target).invoke();
+				
+//				return mh.invokeWithArguments(params);
 			} catch (Throwable e) {
+				e.printStackTrace(System.err);
 				throw new ReflectionException(new Exception(e), "Failed to dynInvoke for operation [" + actionName + "]");				
 			}			
 		}
