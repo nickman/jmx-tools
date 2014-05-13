@@ -24,9 +24,11 @@
  */
 package test.org.helios.jmx.comp;
 
+import static org.helios.jmx.annotation.Reflector.nvl;
+
 import java.io.ObjectStreamException;
 import java.io.Serializable;
-import java.lang.invoke.MethodHandle;
+import java.lang.management.ManagementFactory;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.UUID;
@@ -34,6 +36,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import javax.management.Attribute;
 import javax.management.AttributeNotFoundException;
+import javax.management.Descriptor;
 import javax.management.InvalidAttributeValueException;
 import javax.management.JMX;
 import javax.management.ListenerNotFoundException;
@@ -56,9 +59,6 @@ import javax.management.ReflectionException;
 import javax.management.StandardMBean;
 import javax.management.remote.JMXConnector;
 
-import org.cliffc.high_scale_lib.NonBlockingHashMap;
-import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
-import org.cliffc.high_scale_lib.NonBlockingHashMapLong.IteratorLong;
 import org.helios.jmx.annotation.ManagedAttribute;
 import org.helios.jmx.annotation.ManagedMetric;
 import org.helios.jmx.annotation.ManagedNotification;
@@ -66,6 +66,7 @@ import org.helios.jmx.annotation.ManagedOperation;
 import org.helios.jmx.annotation.ManagedOperationParameter;
 import org.helios.jmx.annotation.ManagedResource;
 import org.helios.jmx.annotation.Reflector;
+import org.helios.jmx.managed.Invoker;
 import org.helios.jmx.managed.ManagedObjectRepo;
 import org.helios.jmx.metrics.ewma.DirectEWMA;
 import org.helios.jmx.metrics.ewma.DirectEWMAMBean;
@@ -124,7 +125,7 @@ public class TesAnnotatedMBean extends BaseTest {
 			String ons = "test.org.helios.jmx.comp:service=TestMBean,type=" + name.getMethodName();
 			ObjectName on = JMXHelper.objectName(ons);
 			
-			TestBean tb = new TestBean(TestBeanMBean.class, true);
+			TestBean tb = new TestBean(TestBeanMBean.class, false);
 			tb.register(on);
 			MBeanServerConnection conn = getRemoteMBeanServer();
 			Object obj = conn.getAttribute(on, "SystemDate");
@@ -156,18 +157,55 @@ public class TesAnnotatedMBean extends BaseTest {
 			obj = conn.invoke(on, "UpdateMultiRandomUUID", oparts, parts);
 			
 			Assert.assertEquals("UUID was unexpected", uuid, obj);
-			TestBeanMBean tbm = JMX.newMBeanProxy(conn, on, TestBeanMBean.class);
-			tbm.popEWMAs();
-			while(true) {
-				for(int i = 0; i < 1000; i++) {
-					tbm.doRandomUUID();					
+			final TestBeanMBean tbm = JMX.newMBeanProxy(conn, on, TestBeanMBean.class);
+			//tbm.popEWMAs();
+			Thread t = new Thread("EWMAExcerciser") {
+				public void run() {
+					while(true) {
+						tbm.doRandomUUID();
+						try { Thread.sleep(100); } catch (Exception x) {}
+					}							
 				}
-				log(tbm.getUUIDElapsed().toString());
-				tbm.reset();
-				Thread.sleep(5000);
+			};
+			t.setDaemon(true);
+			t.start();
+			Thread t2 = new Thread("EWMAResetter") {
+				public void run() {
+					while(true) {						
+						try { Thread.sleep(5000); } catch (Exception x) {}
+						tbm.reset();
+					}							
+				}
+			};
+			t2.setDaemon(true);
+			t2.start();
+			try { Thread.sleep(5000); } catch (Exception x) {}
+			log(tbm.getUUIDElapsed().toString());
+			MBeanInfo mi = conn.getMBeanInfo(on);
+			StringBuilder b = new StringBuilder("\t");
+			for(MBeanAttributeInfo minfo: mi.getAttributes()) {
+				Object value = conn.getAttribute(on, minfo.getName());
+				log("[%s] type: [%s], value: [%s]", minfo.getName(), value.getClass().getName(), value);
+				b.append(minfo.getName()).append(":").append(conn.getAttribute(on, minfo.getName())).append(", ");
 			}
-			
-			
+			b.deleteCharAt(b.length()-1);
+			b.deleteCharAt(b.length()-1);
+			log(b.toString());
+			ObjectName OSON = JMXHelper.objectName(ManagementFactory.OPERATING_SYSTEM_MXBEAN_NAME);
+			MBeanInfo osInfo = conn.getMBeanInfo(OSON);
+			MBeanAttributeInfo minfo = null;
+			for(MBeanAttributeInfo m: osInfo.getAttributes()) {
+				if(m.getName().equals("SystemCpuLoad")) {
+					minfo = m;
+					break;
+				}
+			}
+			Descriptor d = minfo.getDescriptor();
+			for(String s: d.getFieldNames()) {
+				Object value = d.getFieldValue(s);
+				log("D Name: [%s], Type: [%s] Value: [%s]", s, value.getClass().getName(), value);
+			}
+			Thread.currentThread().join();
 		} catch (Exception ex) {
 			ex.printStackTrace(System.err);
 			throw ex;
@@ -203,14 +241,36 @@ public class TesAnnotatedMBean extends BaseTest {
 				@ManagedNotification(notificationTypes={"ewma.reset"}, name="EWMAReset", description="Notification emitted when the EWMA is reset")
 		})
 		public void reset();
-		@ManagedOperation(name="popEWMAs", description="Promotes the EWMA fields to be first class MBean attributes", notifications={
-				@ManagedNotification(notificationTypes={"jmx.mbean.info.changed"}, name="MBeanInfoChanged", description="Notification emitted when the MBeanInfo is updated")
-		})
-		public void popEWMAs();
-		@ManagedOperation(name="unpopEWMAs", description="Removes the EWMA fields from first class MBean status", notifications={
-				@ManagedNotification(notificationTypes={"jmx.mbean.info.changed"}, name="MBeanInfoChanged", description="Notification emitted when the MBeanInfo is updated")
-		})		
-		public void unpopEWMAs();
+//		@ManagedOperation(name="popEWMAs", description="Promotes the EWMA fields to be first class MBean attributes", notifications={
+//				@ManagedNotification(notificationTypes={"jmx.mbean.info.changed"}, name="MBeanInfoChanged", description="Notification emitted when the MBeanInfo is updated")
+//		})
+//		public void popEWMAs();
+//		@ManagedOperation(name="unpopEWMAs", description="Removes the EWMA fields from first class MBean status", notifications={
+//				@ManagedNotification(notificationTypes={"jmx.mbean.info.changed"}, name="MBeanInfoChanged", description="Notification emitted when the MBeanInfo is updated")
+//		})		
+//		public void unpopEWMAs();
+
+		/**
+		 * Pops the named attribute
+		 * @param name The name of the attribute
+		 * @return true if the object was popped, false if it could not be found and null if it was already popped. 
+		 */
+		@ManagedOperation(name="popAttribute", description="Pops the named attribute", 
+				notifications={ @ManagedNotification(notificationTypes={"jmx.mbean.info.changed"}, name="MBeanInfoChanged", description="Notification emitted when the MBeanInfo is updated") },
+				parameters={@ManagedOperationParameter(name="AttributeName", description="The name of the attribute to pop")}
+		)
+		public Boolean pop(String name);
+		
+		/**
+		 * Unpops the named attribute
+		 * @param name The name of the attribute
+		 * @return true if the object was unpopped, false if it could not be found and null if it was already unpopped. 
+		 */
+		@ManagedOperation(name="unpopAttribute", description="Unpops the named attribute", 
+				notifications={ @ManagedNotification(notificationTypes={"jmx.mbean.info.changed"}, name="MBeanInfoChanged", description="Notification emitted when the MBeanInfo is updated") },
+				parameters={@ManagedOperationParameter(name="AttributeName", description="The name of the attribute to unpop")}
+		)				
+		public Boolean unpop(String name);
 		
 	}
 	
@@ -240,6 +300,7 @@ public class TesAnnotatedMBean extends BaseTest {
 			super(mbeanInterface, isMXBean);
 			cacheMBeanInfo(managedObjects.put(this));
 			broadcaster = new NotificationBroadcasterSupport(this.getMBeanInfo().getNotifications());
+			log("EWMA ID:" + System.identityHashCode(uuidElapsed));
 		}		
 		final AtomicLong notifSerial = new AtomicLong(0L);
 		
@@ -247,30 +308,47 @@ public class TesAnnotatedMBean extends BaseTest {
 		
 		final DirectEWMAMBean uuidElapsed = new DirectEWMA(100);
 		
-		public void popEWMAs() {
-			MBeanInfo info = managedObjects.put(uuidElapsed, "UUIDElapsed");	
-			if(info!=null) {
-				synchronized(managedObjects) {
-					cacheMBeanInfo(Reflector.newMerger(getCachedMBeanInfo()).append(info).merge());
-					fireMBeanInfoChanged();					
-				}
-			}
-		}
 		
 		private void fireMBeanInfoChanged() {
 			Notification notif = new Notification("jmx.mbean.info.changed", this, notifSerial.incrementAndGet());
 			notif.setUserData(getCachedMBeanInfo());
+			
+			notif = new Notification("jmx.mbean.info.changed", JMXHelper.objectName(MBeanServerDelegate.DELEGATE_NAME), notifSerial.incrementAndGet());
+			notif.setUserData(getCachedMBeanInfo());
 			sendNotification(notif);
 		}
 		
-		public void unpopEWMAs() {
-			if(managedObjects.remove("UUIDElapsed")!=null) {
-				synchronized(managedObjects) {
-					cacheMBeanInfo(managedObjects.mergeAllMBeanInfos());
-					fireMBeanInfoChanged();
-				}
-			}
+		public void popAttribute(String name) {
+			
 		}
+		
+		public Boolean pop(String name) {
+			
+			return managedObjects.pop(name);
+		}
+		public Boolean unpop(String name) {
+			return managedObjects.unpop(name);
+		}
+		
+		
+//		public void popEWMAs() {
+//			MBeanInfo info = managedObjects.put(uuidElapsed, "UUIDElapsed");	
+//			if(info!=null) {
+//				synchronized(managedObjects) {
+//					cacheMBeanInfo(Reflector.newMerger(getCachedMBeanInfo()).append(info).merge());
+//					fireMBeanInfoChanged();					
+//				}
+//			}
+//		}
+//
+//		public void unpopEWMAs() {
+//			if(managedObjects.remove("UUIDElapsed")!=null) {
+//				synchronized(managedObjects) {
+//					cacheMBeanInfo(managedObjects.mergeAllMBeanInfos());
+//					fireMBeanInfoChanged();
+//				}
+//			}
+//		}
 		
 /*		protected void addManagedSubObject(Object obj, Class<?> mbeanInterface) {
 			if(obj==null) return;
@@ -371,7 +449,18 @@ public class TesAnnotatedMBean extends BaseTest {
 //			if(mhPair[0]==null) throw new AttributeNotFoundException("Attribute named [" + attribute + "] is not readable");
 //			log("MethodHandle [%s] : %s", attribute, mhPair[0].getClass().getName());
 			try {				
-				return managedObjects.getAttributeGetter(attribute).invoke();
+				Invoker invoker = managedObjects.getAttributeGetter(attribute);
+				Object target = invoker.getTarget();
+				log("Invoking [%s] against Object ID [%s]" , attribute, System.identityHashCode(target));
+				Object result = invoker.invoke();
+				if(result instanceof Double) {
+					return Math.round(((Double)result).doubleValue());
+				}
+				if(result instanceof Long) {
+					return ((Long)result).longValue();
+				}
+				
+				return result;
 						//mhPair[0].bindTo(target).invoke();
 			} catch (Throwable e) {
 				throw new ReflectionException(new Exception(e), "Failed to dynInvoke for attribute [" + attribute + "]");				
@@ -413,7 +502,7 @@ public class TesAnnotatedMBean extends BaseTest {
 //					return mh.bindTo(target).invokeWithArguments(params);
 //				} 				 
 //				return mh.bindTo(target).invoke();
-				return managedObjects.getOperationHandle(actionName, signature).invokeWithArguments(params);
+				return managedObjects.getOperationHandle(actionName, signature).invoke(params);
 				
 //				return mh.invokeWithArguments(params);
 			} catch (Throwable e) {

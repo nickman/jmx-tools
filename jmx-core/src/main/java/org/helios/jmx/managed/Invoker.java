@@ -30,28 +30,32 @@ package org.helios.jmx.managed;
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
  * <p><code>org.helios.jmx.managed.Invoker</code></p>
- * @param <T> The assumed type of the invoker's target
- * @param <R> The assumed type of the invocation return type
  */
 
-public interface Invoker<T, R> {
+public interface Invoker {
 	/**
 	 * Binds the target of the invocation to the invoker
 	 * @param target The target of the invocation
 	 * @return the return value of the target invocation
 	 */
-	public Invoker<T, R> bindTo(T target);
+	public Invoker bindTo(Object target);
 	
 	/**
 	 * Invokes against the target 
 	 * @param args The arguments to the invocation
 	 * @return the invocation return value
 	 */
-	public R invoke(Object[] args);
+	public Object invoke(Object...args);
 	
 	/**
 	 * Indicates if the invoker is bound
 	 * @return true if the invoker is bound or the target is static
 	 */
 	public boolean isBound();
+	
+	/**
+	 * Returns the bound target
+	 * @return the bound target
+	 */
+	public Object getTarget();
 }

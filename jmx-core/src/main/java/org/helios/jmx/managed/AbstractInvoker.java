@@ -32,9 +32,9 @@ package org.helios.jmx.managed;
  * <p><code>org.helios.jmx.managed.AbstractInvoker</code></p>
  */
 
-public abstract class AbstractInvoker<T, R> implements Invoker<T, R> {
+public abstract class AbstractInvoker implements Invoker {
 	/** The invocation target */
-	protected T target = null;
+	protected Object target = null;
 	
 	
 	
@@ -49,12 +49,17 @@ public abstract class AbstractInvoker<T, R> implements Invoker<T, R> {
 	 * @see org.helios.jmx.managed.Invoker#bindTo(java.lang.Object)
 	 */
 	@Override
-	public Invoker<T, R> bindTo(T target) {
+	public Invoker bindTo(Object target) {
 		this.target = target;
 		return this;
 	}
 	
-	public T getTarget() {
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.managed.Invoker#getTarget()
+	 */
+	@Override
+	public Object getTarget() {
 		return target;
 	}
 

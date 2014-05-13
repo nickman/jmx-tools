@@ -27,8 +27,6 @@ package org.helios.jmx.annotation;
 import static org.helios.jmx.annotation.Reflector.nvl;
 import static org.helios.jmx.annotation.Reflector.nws;
 
-import java.lang.invoke.MethodHandle;
-import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.reflect.Method;
 import java.util.HashMap;
@@ -40,6 +38,9 @@ import javax.management.MBeanAttributeInfo;
 import javax.management.modelmbean.DescriptorSupport;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
+import org.helios.jmx.managed.Invoker;
+import org.helios.jmx.managed.ManagedByteCodeFactory;
+import org.helios.jmx.opentypes.OpenTypeFactory;
 import org.helios.jmx.util.helpers.StringHelper;
 
 /**
@@ -63,8 +64,6 @@ public class ManagedAttributeImpl {
 	/** empty const array */
 	public static final MBeanAttributeInfo[] EMPTY_INFO_ARR = {};
 	
-	/** A method handle lookup */
-	public static final Lookup lookup = MethodHandles.lookup();
 	
 
 	
@@ -89,7 +88,7 @@ public class ManagedAttributeImpl {
 	 * @param attributes The ManagedAttributeImpls to convert
 	 * @return a [possibly zero length] array of MBeanAttributeInfos
 	 */
-	public static MBeanAttributeInfo[] from(final NonBlockingHashMapLong<MethodHandle[]> attrInvokers, Method[] methods, ManagedAttributeImpl...attributes) {
+	public static MBeanAttributeInfo[] from(final NonBlockingHashMapLong<Invoker[]> attrInvokers, Method[] methods, ManagedAttributeImpl...attributes) {
 		if(attributes==null || attributes.length==0 || methods==null || methods.length==0) return EMPTY_INFO_ARR;
 		if(methods.length != attributes.length) {
 			throw new IllegalArgumentException("Type/Attribute Array Size Mismatch. Types:" + methods.length + ", Metrics:" + attributes.length);
@@ -180,25 +179,25 @@ public class ManagedAttributeImpl {
 	 * @param attrInvokers A map of invoker pairs to populate with this attribute's invoker pair
 	 * @return MBeanAttributeInfo rendered form this ManagedAttributeImpl
 	 */
-	public MBeanAttributeInfo toMBeanInfo(Method method, final NonBlockingHashMapLong<MethodHandle[]> attrInvokers) {
+	public MBeanAttributeInfo toMBeanInfo(Method method, final NonBlockingHashMapLong<Invoker[]> attrInvokers) {
 		boolean getter =  method.getParameterTypes().length==0;
 		final long attrCode = StringHelper.longHashCode(name);
 		if(attrInvokers!=null) {
 			final long methodCode = StringHelper.longHashCode(method.getName());
-			MethodHandle[] mhPair = attrInvokers.get(attrCode);
-			MethodHandle[] methodPair = attrInvokers.get(methodCode);
+			Invoker[] mhPair = attrInvokers.get(attrCode);
+			Invoker[] methodPair = attrInvokers.get(methodCode);
 			if(mhPair==null) {
-				mhPair = new MethodHandle[2];
+				mhPair = new Invoker[2];
 				attrInvokers.put(attrCode, mhPair);
 			}
 			if(methodPair==null) {
-				methodPair = new MethodHandle[2];
+				methodPair = new Invoker[2];
 				attrInvokers.put(methodCode, methodPair);
 			}
 			
 			try {
-				mhPair[getter ? 0 : 1] = lookup.unreflect(method);
-				methodPair[getter ? 0 : 1] = lookup.unreflect(method);
+				mhPair[getter ? 0 : 1] = ManagedByteCodeFactory.getInstance().newInvoker(method);
+				methodPair[getter ? 0 : 1] = ManagedByteCodeFactory.getInstance().newInvoker(method);
 			} catch (Exception e) {
 				throw new RuntimeException(e);
 			}
@@ -229,6 +228,10 @@ public class ManagedAttributeImpl {
 		Map<String, Object> map = new HashMap<String, Object>();
 		map.put("signature", StringHelper.getMethodDescriptor(method));
 		map.put(method.getParameterTypes().length==0 ? "getMethod" : "setMethod", method.getName());
+		if(method.getName().startsWith("get") && method.getParameterTypes().length==0 && OpenTypeFactory.SIMPLE_TYPE_MAPPING.containsKey(method.getReturnType())) {
+			map.put("openType", OpenTypeFactory.SIMPLE_TYPE_MAPPING.get(method.getReturnType()));
+			map.put("originalType", method.getReturnType().getName());
+		}
 
 		return immutable ?  new ImmutableDescriptor(map) : new DescriptorSupport(map.keySet().toArray(new String[map.size()]), map.values().toArray(new Object[map.size()]));
 	}

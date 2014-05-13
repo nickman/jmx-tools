@@ -27,9 +27,6 @@ package org.helios.jmx.annotation;
 import java.io.Serializable;
 import java.lang.annotation.Annotation;
 import java.lang.annotation.Inherited;
-import java.lang.invoke.MethodHandle;
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.Collections;
@@ -55,6 +52,7 @@ import javax.management.modelmbean.DescriptorSupport;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong.IteratorLong;
+import org.helios.jmx.managed.Invoker;
 import org.helios.jmx.util.helpers.JMXHelper;
 import org.helios.jmx.util.helpers.StringHelper;
 
@@ -77,8 +75,6 @@ public class Reflector {
 	/** Replacement pattern for the get/set leading a method name */
 	public static final Pattern GETSET_PATTERN = Pattern.compile("get|set|is|has", Pattern.CASE_INSENSITIVE);
 	
-	/** A method handle lookup */
-	public static final Lookup lookup = MethodHandles.lookup();
 	
 	/** An array of the method annotations we'll search for */
 	@SuppressWarnings("unchecked")
@@ -98,7 +94,7 @@ public class Reflector {
 	 * @param metricInvokers The JMX metric accessor invokers keyed by the attribute name long hash code are placed in this provided map if it is not null
 	 * @return the MBeanInfo generated for the class
 	 */
-	public static MBeanInfo from(Class<?> targetClass, final NonBlockingHashMapLong<MethodHandle[]> attrInvokers, final NonBlockingHashMapLong<MethodHandle> opInvokers, final NonBlockingHashMapLong<MethodHandle[]> metricInvokers) {
+	public static MBeanInfo from(Class<?> targetClass, final NonBlockingHashMapLong<Invoker[]> attrInvokers, final NonBlockingHashMapLong<Invoker> opInvokers, final NonBlockingHashMapLong<Invoker[]> metricInvokers) {
 		Class<?> annotatedClass = null;
 		ManagedResource mr = targetClass.getAnnotation(ManagedResource.class);
 		if(mr!=null) {
@@ -128,7 +124,14 @@ public class Reflector {
 		}
 		if(description==null) description = annotatedClass.getName() + " Management Interface";
 		if(on == null)  on = JMXHelper.objectName(targetClass);
-		Descriptor descriptor = new DescriptorSupport(new String[] {"objectName"}, new Object[]{on}); 
+		Map<String, Object> dmap = new HashMap<String, Object>();
+		dmap.put("immutableInfo", true);
+		dmap.put("interfaceClassName", annotatedClass.getName());
+		dmap.put("mxbean", false);
+		dmap.put("objectName", on);
+		
+		Descriptor descriptor = new DescriptorSupport(dmap.keySet().toArray(new String[dmap.size()]), dmap.values().toArray(new Object[dmap.size()]));
+				//new DescriptorSupport(new String[] {"objectName"}, new Object[]{on}); 
 		return new MBeanInfo(
 				annotatedClass.getName(), description, 
 				attrInfos.toArray(new MBeanAttributeInfo[attrInfos.size()]),
@@ -208,7 +211,7 @@ public class Reflector {
 //	 * @param ops Populate this map with the pop/unpop method handles
 //	 * @return a [possibly zero length] array of MBeanOperationInfos
 //	 */
-//	public static MBeanOperationInfo[] popable(Class<?> hasManaged, NonBlockingHashMapLong<MethodHandle> ops) {
+//	public static MBeanOperationInfo[] popable(Class<?> hasManaged, NonBlockingHashMapLong<Invoker> ops) {
 //		if(hasManaged==null) return EMPTY_OPS_INFO;
 //		Set<Method> metricMethods  = getAnnotatedMethods(hasManagedMetrics.getClass(), ManagedMetric.class).get(ManagedMetric.class);
 //		if(metricMethods==null || metricMethods.isEmpty()) return EMPTY_OPS_INFO;
@@ -261,7 +264,7 @@ public class Reflector {
 	 * @param opInvokers The map of op invokers to populate
 	 * @return a [possibly zero length] MBeanOperationInfo array
 	 */
-	public static MBeanOperationInfo[] getManagedOperationInfos(Class<?> targetClass, final Set<MBeanNotificationInfo> notificationInfo, final Set<Method> methods, final NonBlockingHashMapLong<MethodHandle> opInvokers) {
+	public static MBeanOperationInfo[] getManagedOperationInfos(Class<?> targetClass, final Set<MBeanNotificationInfo> notificationInfo, final Set<Method> methods, final NonBlockingHashMapLong<Invoker> opInvokers) {
 		Set<MBeanOperationInfo> infos = new HashSet<MBeanOperationInfo>(methods.size());
 		for(Method annotatedMethod: methods) {
 			Method concreteMethod = getTargetMethodMatching(targetClass, annotatedMethod);
@@ -282,7 +285,7 @@ public class Reflector {
 	 * @param metricInvokers A map of metric invokers to populate
 	 * @return a [possibly zero length] MBeanAttributeInfo array
 	 */
-	public static MBeanAttributeInfo[] getManagedMetricInfos(Class<?> targetClass, final Set<MBeanNotificationInfo> notificationInfo, final Set<Method> methods, final NonBlockingHashMapLong<MethodHandle[]> metricInvokers) {
+	public static MBeanAttributeInfo[] getManagedMetricInfos(Class<?> targetClass, final Set<MBeanNotificationInfo> notificationInfo, final Set<Method> methods, final NonBlockingHashMapLong<Invoker[]> metricInvokers) {
 		Set<MBeanAttributeInfo> infos = new HashSet<MBeanAttributeInfo>(methods.size());
 		for(Method annotatedMethod: methods) {
 			Method concreteMethod = getTargetMethodMatching(targetClass, annotatedMethod);
@@ -302,7 +305,7 @@ public class Reflector {
 	 * @param attrInvokers A map of attribute invoker pairs to populate
 	 * @return a [possibly zero length] MBeanAttributeInfo array
 	 */
-	public static MBeanAttributeInfo[] getManagedAttributeInfos(Class<?> targetClass, final Set<MBeanNotificationInfo> notificationInfo, final Set<Method> attrs, final NonBlockingHashMapLong<MethodHandle[]> attrInvokers) {
+	public static MBeanAttributeInfo[] getManagedAttributeInfos(Class<?> targetClass, final Set<MBeanNotificationInfo> notificationInfo, final Set<Method> attrs, final NonBlockingHashMapLong<Invoker[]> attrInvokers) {
 		Set<MBeanAttributeInfo> infos = new HashSet<MBeanAttributeInfo>(attrs.size());
 		Map<String, MBeanAttributeInfo[]> attributes = new HashMap<String, MBeanAttributeInfo[]>(attrs.size());
 		for(Method annotatedMethod: attrs) {
@@ -363,7 +366,7 @@ public class Reflector {
 	 * @param attrs The JMX attribute method handles
 	 * @param ops The JMX operation method handles
 	 */
-	public static NonBlockingHashMapLong<Object> invokerTargetMap(Object obj, NonBlockingHashMapLong<MethodHandle[]> attrs, NonBlockingHashMapLong<MethodHandle> ops) {
+	public static NonBlockingHashMapLong<Object> invokerTargetMap(Object obj, NonBlockingHashMapLong<Invoker[]> attrs, NonBlockingHashMapLong<Invoker> ops) {
 		NonBlockingHashMapLong<Object> targets = new NonBlockingHashMapLong<Object>();
 		IteratorLong iter = (IteratorLong)ops.keySet().iterator();
 		while(iter.hasNext()) {
@@ -383,8 +386,8 @@ public class Reflector {
 	 * @param attrs The JMX attribute method handles
 	 * @param ops The JMX operation method handles
 	 */
-	public static void bindInvokers(Object obj, NonBlockingHashMapLong<MethodHandle[]> attrs, NonBlockingHashMapLong<MethodHandle> ops) {
-		for(MethodHandle[] handles: attrs.values()) {
+	public static void bindInvokers(Object obj, NonBlockingHashMapLong<Invoker[]> attrs, NonBlockingHashMapLong<Invoker> ops) {
+		for(Invoker[] handles: attrs.values()) {
 			if(handles[0]!=null) {
 				handles[0].bindTo(obj);
 			}			
@@ -395,7 +398,7 @@ public class Reflector {
 		IteratorLong iter = (IteratorLong)ops.keySet().iterator();
 		while(iter.hasNext()) {
 			long id = iter.nextLong();
-			MethodHandle handle = ops.get(id);
+			Invoker handle = ops.get(id);
 			ops.replace(id, handle.bindTo(obj));
 		}
 	}
@@ -781,7 +784,6 @@ public class Reflector {
 			);
 		}
 	}
-	
 	
 
 	private Reflector() {}

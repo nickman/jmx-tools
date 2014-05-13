@@ -24,6 +24,8 @@
  */
 package org.helios.jmx.managed;
 
+import java.lang.management.ManagementFactory;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.Collections;
@@ -61,15 +63,27 @@ public class ManagedByteCodeFactory {
 	/** The javassist classpool */
 	private final ClassPool classPool = new ClassPool();
 	
-	private final CtClass[] objectArray;
+	private final CtClass objectCt;
+	private final CtClass objectArray;
 	private final CtClass invokerIface;
 	private final CtClass absractInvoker;
 	
+	
 	/** Maps a java primitive class to the equivalent javassist primitive class */
 	public final Map<Class<?>, CtClass> primitives;
+	/** Maps a java primitive class to the equivalent boxed class */
+	public final Map<Class<?>, Class<?>> boxed;
+	/** Maps a java primitive class to the appropriate unboxing expression */
+	public final Map<Class<?>, String> unboxed;
+	
 	
 	/** Empty ctclass array const */
 	public static final CtClass[] EMPTY_CT_CLASS_ARRAY = {};
+
+	/** A cache of invoker classes keyed by the long hashcode of the target method's toGenericString */
+	private final NonBlockingHashMapLong<Constructor<? extends Invoker>> cachedInvokerClasses  = new NonBlockingHashMapLong<Constructor<? extends Invoker>>();
+	/** Invoker instance serial number factory */
+	private final AtomicLong invokerSerialFactory = new AtomicLong(0L);
 	
 	/**
 	 * Acquires the singleton ManagedByteCodeFactory instance
@@ -96,16 +110,41 @@ public class ManagedByteCodeFactory {
 	
 	public static void main(String[] args) {
 		log("Test Invoker");
-		try {
-			 Method m = Foo.class.getDeclaredMethod("generateRandoms");
-			 getInstance().newInvoker(m, null);
+		try {			
+			Foo foo = new Foo();
+			 Invoker invoker = getInstance().newInvoker(Foo.class.getDeclaredMethod("generateRandoms"), null);
+			 Invoker invoker2 =  getInstance().newInvoker(Foo.class.getDeclaredMethod("generateRandoms", int.class), foo);
+			 Invoker invoker3 =  getInstance().newInvoker(Foo.class.getDeclaredMethod("getPID"));
+			 Invoker invoker4 =  getInstance().newInvoker(Foo.class.getDeclaredMethod("generateRandomsVoid"), foo);
+			 Invoker invoker5 =  getInstance().newInvoker(Foo.class.getDeclaredMethod("generateRandomsVoidStatic"));
+			 
+			 //generateRandomsVoid, generateRandomsVoidStatic
+			 
+			 Method meth = null;
+			 for(Method m: invoker2.getClass().getDeclaredMethods()) {
+				 log(m.toGenericString() + "    vargs:" + m.isVarArgs() +  "   Abstract:" + Modifier.isAbstract(m.getModifiers())) ;
+				 
+				 meth = m;
+			 }
+			 log("Invoker: [" + invoker.bindTo(foo).invoke() + "]");
+			 log("Invoker2: [" + invoker2.invoke(43) + "]");
+			 Object o = invoker3.invoke();
+			 
+			 log("Invoker3: [" + o + "]");
+			 int pidplus = 73 + (int)invoker3.invoke();
+			 log("pidplus:" + pidplus);
+			 log("Invoker3: [" + (invoker3.invoke().toString()) + "]");
+			 log("Invoker3: [" + invoker3.invoke() + "]");
+			 log("Invoker4: [" + invoker4.invoke() + "]");
+			 log("Invoker5: [" + invoker5.invoke() + "]");
+//			 log("Invoker2 Reflected: [" + meth.invoke(invoker2, 43) + "]");
 			 log("Done");
 		} catch (Exception ex) {
 			ex.printStackTrace(System.err);
 		}
 	}
 	
-	public class Foo {
+	public static class Foo {
 		Random random = new Random(System.currentTimeMillis());
 		int maxRange = 10;
 		public String generateRandoms() {
@@ -116,7 +155,29 @@ public class ManagedByteCodeFactory {
 			}
 			return et.printAvg("UUID rate", loops);
 		}
+		public String generateRandoms(int range) {
+			int loops = Math.abs(random.nextInt(range));
+			ElapsedTime et = SystemClock.startClock();
+			for(int i = 0; i < loops; i++) {
+				String s = UUID.randomUUID().toString();
+			}
+			return et.printAvg("UUID rate", loops);
+		}
+		
+		public static int getPID() {
+			return Integer.parseInt(ManagementFactory.getRuntimeMXBean().getName().split("@")[0]);
+		}
+		
+		public void generateRandomsVoid() {
+			String s = generateRandoms();
+			log("generateRandomsVoid: [" + s + "]");
+		}
 	
+		public static void generateRandomsVoidStatic() {
+			Foo foo = new Foo();
+			String s = foo.generateRandoms();
+			log("generateRandomsVoidStatic: [" + s + "]");
+		}
 	
 	}
 	
@@ -126,12 +187,24 @@ public class ManagedByteCodeFactory {
 		System.out.println(msg);
 	}
 	
-	/** A cache of invoker classes keyed by the long hashcode of the target method's toGenericString */
-	private final NonBlockingHashMapLong<Class<? extends Invoker<?, ?>>> cachedInvokerClasses  = new NonBlockingHashMapLong<Class<? extends Invoker<?, ?>>>();
-	/** Invoker instance serial number factory */
-	private final AtomicLong invokerSerialFactory = new AtomicLong(0L);
 	
-	public Invoker<?, ?> newInvoker(Method method, Object target) {
+	/**
+	 * Returns a dynamically generated unbound invoker for the passed method
+	 * @param method The method to create the invoker for 
+	 * @return the invoker instance
+	 */
+	public Invoker newInvoker(Method method) {
+		return newInvoker(method, null);
+	}
+	
+	
+	/**
+	 * Returns a dynamically generated invoker for the passed method, optionally bound to the passed optional target
+	 * @param method The method to create the invoker for 
+	 * @param target The optional invocation target
+	 * @return the invoker instance
+	 */
+	public Invoker newInvoker(Method method, Object target) {
 		if(method==null) throw new IllegalArgumentException("The passed method was null");
 		final long methodId = StringHelper.longHashCode(method.toGenericString());
 		final int methodModifiers = method.getModifiers();
@@ -139,34 +212,56 @@ public class ManagedByteCodeFactory {
 			throw new IllegalStateException("Abstract or private method cannot be Invoker Wrapped [" + method.toGenericString() + "]");
 		}
 		final boolean isStatic = Modifier.isStatic(methodModifiers);
-		Class<? extends Invoker<?, ?>> invokerClass = cachedInvokerClasses.get(methodId);
-		if(invokerClass==null) {
+		Constructor<? extends Invoker> invokerCtor = cachedInvokerClasses.get(methodId);
+		if(invokerCtor==null) {
 			synchronized(cachedInvokerClasses) {
-				invokerClass = cachedInvokerClasses.get(methodId);
-				if(invokerClass==null) {
+				invokerCtor = cachedInvokerClasses.get(methodId);
+				if(invokerCtor==null) {
 					try {
 						final long serial = invokerSerialFactory.incrementAndGet();
 						ClassPool cp = localClassPool();
-						CtClass invokerCtClass = cp.makeClass(method.getName() + "Invoker" + serial, absractInvoker);
+						CtClass invokerCtClass = cp.makeClass(method.getDeclaringClass().getPackage().getName() + "." + method.getName() + "Invoker" + serial, absractInvoker);
 						CtClass returnType = convert(cp, method.getReturnType())[0]; 
 						CtClass[] sig = convert(cp, method.getParameterTypes());
-						CtMethod invokeMethod = new CtMethod(returnType, "invoke", objectArray, invokerCtClass);
+						CtMethod invokeMethod = new CtMethod(objectCt, "invoke", new CtClass[]{objectArray}, invokerCtClass);
 						invokeMethod.setExceptionTypes(convert(cp, method.getExceptionTypes()));
 						
 						invokerCtClass.addMethod(invokeMethod);
 						CtConstructor ctor = new CtConstructor(EMPTY_CT_CLASS_ARRAY, invokerCtClass);
 						invokerCtClass.addConstructor(ctor);
+						ctor.setBody("{}");
 						StringBuilder m = new StringBuilder("{");
+//						m.append("\n\tSystem.out.println(\"ARGS:\" + java.util.Arrays.toString($1));");
 						int argId = 0;
 						for(Class<?> argType: method.getParameterTypes()) {
-							m.append("\n\t").append(argType.getName()).append("arg").append(argId).append(" = $1[").append(argId).append("]");
+							String argName = "arg" + argId;
+							if(argType.isPrimitive()) {
+								m.append("\n\t").append(argType.getName()).append(" ").append(argName).append(" = ").append(cast(argType, argId)).append(";");
+							} else {
+								m.append("\n\t").append(argType.getName()).append(" ").append(argName).append(" = ").append(cast(argType, argId)).append("$1[").append(argId).append("];");
+							}
+							
 							argId++;
 						}
 						m.append("\n\t");
-						if(!method.getReturnType().equals(Void.class) && !method.getReturnType().equals(void.class)) {
-							m.append("return ");
+						Class<?> RET_TYPE = method.getReturnType(); 
+						if(!RET_TYPE.equals(Void.class) && !RET_TYPE.equals(void.class)) {
+							m.append("return ($w)");
+//							if(RET_TYPE.isPrimitive()) {
+////								m.append("((").append(boxed.get(RET_TYPE).getName()).append(") ");
+//								m.append(" ($w)");
+//							}
 						}
-						m.append("((").append(method.getDeclaringClass().getName()).append(")target).").append(method.getName()).append("(");
+						
+						if(!isStatic) {
+							m.append("((").append(method.getDeclaringClass().getName()).append(")target).").append(method.getName()).append("(");
+						} else {
+							m.append(method.getDeclaringClass().getName()).append(".").append(method.getName()).append("(");
+						}
+						
+//						if(RET_TYPE.isPrimitive()) {
+//							m.append(")");
+//						}
 						
 						
 						argId = 0;
@@ -176,14 +271,21 @@ public class ManagedByteCodeFactory {
 						}
 						if(argId>0) m.deleteCharAt(m.length()-1);
 						m.append(");");
-						m.append("\n\t}");
-						log(m.toString());
+						if(RET_TYPE.equals(Void.class) || RET_TYPE.equals(void.class)) {
+							m.append("\n\treturn null;");
+						}
+						
+						m.append("\n\t}");						
+//						log(m.toString());
 						invokeMethod.setBody(m.toString());
-						invokeMethod.setModifiers(invokeMethod.getModifiers() & ~Modifier.ABSTRACT);
+						invokeMethod.setModifiers(invokeMethod.getModifiers() & ~javassist.Modifier.ABSTRACT);
+						
+						invokeMethod.setModifiers(invokeMethod.getModifiers() | javassist.Modifier.VARARGS);
 						invokerCtClass.setModifiers(invokerCtClass.getModifiers() & ~Modifier.ABSTRACT);
-						invokerCtClass.writeFile("/tmp/a");
-						invokerClass = invokerCtClass.toClass();
-						cachedInvokerClasses.put(methodId, invokerClass);
+//						invokerCtClass.writeFile("C:/temp/a");
+						
+						invokerCtor = invokerCtClass.toClass().getDeclaredConstructor();
+						cachedInvokerClasses.put(methodId, invokerCtor);
 					} catch (Exception x) {
 						throw new RuntimeException("Failed to create new invoker class for [" + method.toGenericString() + "]", x);
 					}
@@ -191,10 +293,19 @@ public class ManagedByteCodeFactory {
 			}
 		}		
 		try {			
-			return invokerClass.newInstance(); 
+			Invoker invoker = invokerCtor.newInstance();
+			if(target != null) invoker.bindTo(target);
+			return invoker; 
 		} catch (Exception x) {
 			throw new RuntimeException("Failed to create new invoker for [" + method.toGenericString() + "]", x);
 		}		
+	}
+	
+	protected String cast(Class<?> argType, int argId) {
+		if(argType.isPrimitive()) {
+			return String.format(unboxed.get(argType), argId);
+		} 
+		return String.format("(%s)", argType.getName());
 	}
 	
 	/**
@@ -237,11 +348,36 @@ public class ManagedByteCodeFactory {
 		tmp.put(double.class, CtClass.doubleType);
 		tmp.put(void.class, CtClass.voidType);
 		primitives = Collections.unmodifiableMap(tmp);
+		Map<Class<?>, Class<?>> btmp = new HashMap<Class<?>, Class<?>>(9);
+		btmp.put(boolean.class, Boolean.class);
+		btmp.put(char.class, Character.class);
+		btmp.put(byte.class, Byte.class);
+		btmp.put(short.class, Short.class);
+		btmp.put(int.class, Integer.class);
+		btmp.put(long.class, Long.class);
+		btmp.put(float.class, Float.class);
+		btmp.put(double.class, Double.class);
+		btmp.put(void.class, Void.class);
+		boxed = Collections.unmodifiableMap(btmp);
+		
+		
+		Map<Class<?>, String> utmp = new HashMap<Class<?>, String>(8);
+		utmp.put(boolean.class, "((Boolean)$1[%s]).booleanValue()");
+		utmp.put(char.class, "((Character)$1[%s]).charValue()");
+		utmp.put(byte.class, "((Byte)$1[%s]).byteValue()");
+		utmp.put(short.class, "((Short)$1[%s]).shortValue()");
+		utmp.put(int.class, "((Integer)$1[%s]).intValue()");
+		utmp.put(long.class, "((Long)$1[%s]).longValue()");
+		utmp.put(float.class, "((Float)$1[%s]).floatValue()");
+		utmp.put(double.class, "((Double)$1[%s]).doubleValue()");
+		unboxed = Collections.unmodifiableMap(utmp);
+		
 		
 		try {
-			objectArray = new CtClass[] {classPool.get(Object[].class.getName())};
+			objectArray = classPool.get(Object[].class.getName());
 			invokerIface = classPool.get(Invoker.class.getName());
 			absractInvoker = classPool.get(AbstractInvoker.class.getName());
+			objectCt = classPool.get(Object.class.getName());
 		} catch (Exception x) {
 			throw new RuntimeException("Failed to initialize ManagedByteCodeFactory base pool", x);
 		}

@@ -27,16 +27,13 @@ package org.helios.jmx.annotation;
 import static org.helios.jmx.annotation.Reflector.nvl;
 import static org.helios.jmx.annotation.Reflector.nws;
 
-import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
 import javax.management.Descriptor;
 import javax.management.ImmutableDescriptor;
-import javax.management.MBeanAttributeInfo;
 import javax.management.MBeanNotificationInfo;
-import javax.management.MBeanOperationInfo;
 import javax.management.Notification;
 import javax.management.modelmbean.DescriptorSupport;
 

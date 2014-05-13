@@ -27,12 +27,13 @@ package org.helios.jmx.managed;
 import static org.helios.jmx.annotation.Reflector.from;
 import static org.helios.jmx.annotation.Reflector.nvl;
 
-import java.lang.invoke.MethodHandle;
 import java.util.Arrays;
 
 import javax.management.AttributeNotFoundException;
+import javax.management.MBeanAttributeInfo;
 import javax.management.MBeanException;
 import javax.management.MBeanInfo;
+import javax.management.MBeanOperationInfo;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
@@ -56,9 +57,9 @@ public class ManagedObjectRepo<T> {
 	final NonBlockingHashMap<Object, ManagedObject<T>> objectsByTargetObject = new NonBlockingHashMap<Object, ManagedObject<T>>();
 	
 	/** All of the extracted managed object's MBean attribute method handles */
-	final NonBlockingHashMapLong<MethodHandle[]> globalAttrInvokers = new NonBlockingHashMapLong<MethodHandle[]>();
+	final NonBlockingHashMapLong<Invoker[]> globalAttrInvokers = new NonBlockingHashMapLong<Invoker[]>();
 	/** All of the extracted managed object's MBean operation method handles */
-	final NonBlockingHashMapLong<MethodHandle> globalOpInvokers = new NonBlockingHashMapLong<MethodHandle>();
+	final NonBlockingHashMapLong<Invoker> globalOpInvokers = new NonBlockingHashMapLong<Invoker>();
 	/** All of the invocation target objects */
 	final NonBlockingHashMapLong<Object> globalTargetObjects = new NonBlockingHashMapLong<Object>();
 
@@ -106,6 +107,32 @@ public class ManagedObjectRepo<T> {
 		return put(objectToAdd, null);
 	}
 
+	/**
+	 * Pops the named attribute
+	 * @param name The name of the attribute
+	 * @return true if the object was popped, false if it could not be found and null if it was already popped. 
+	 */
+	public Boolean pop(String name) {
+		
+		long hash = StringHelper.longHashCode(nvl(name, "Attribute Name"));
+		Invoker[] invokerPair = globalAttrInvokers.get(hash);
+		if(invokerPair==null || invokerPair.length==0 || invokerPair[0]==null) return false;
+		Object target = invokerPair[0].getTarget();
+		return put((T) target, name)!=null ? true : null;
+	}
+	
+	/**
+	 * Unpops the named attribute
+	 * @param name The name of the attribute
+	 * @return true if the object was unpopped, false if it could not be found and null if it was already unpopped. 
+	 */
+	public Boolean unpop(String name) {
+		long hash = StringHelper.longHashCode(nvl(name, "Attribute Name"));
+		Object managedObject = objectsByNameId.get(hash);		
+		if(managedObject==null) return false;
+		return remove((T) managedObject)!=null ? true : null;
+	}
+	
 	
 	/**
 	 * Indexes the passed object and returns the ManagedObject generated
@@ -121,9 +148,9 @@ public class ManagedObjectRepo<T> {
 			synchronized(objectsByTargetObject) {
 				mo = objectsByTargetObject.get(objectToAdd);
 				if(mo==null) {
-					mo = new ManagedObject<T>(objectToAdd, name==null ? ("" + ownerId) : name);
+					mo = new ManagedObject<T>(objectToAdd, name);
 					objectsByNameId.put(id, mo);
-					objectsByTargetObject.put(objectToAdd, mo);
+					objectsByTargetObject.put(objectToAdd, mo);					
 					return mo.info;
 				}
 			}
@@ -138,9 +165,9 @@ public class ManagedObjectRepo<T> {
 	 * @throws AttributeNotFoundException Thrown when the attribute name is not recognized
 	 * @throws MBeanException Thrown when attribute is not readable
 	 */
-	public MethodHandle getAttributeGetter(String attributeName) throws AttributeNotFoundException, MBeanException {
+	public Invoker getAttributeGetter(String attributeName) throws AttributeNotFoundException, MBeanException {
 		final long id = nhc(attributeName);
-		MethodHandle[] pair = globalAttrInvokers.get(id);
+		Invoker[] pair = globalAttrInvokers.get(id);
 		if(pair==null) throw new AttributeNotFoundException("No attribute found for [" + attributeName + "]");
 		if(pair.length==0 || pair[0]==null) throw new MBeanException(new Exception(), "The attribute [" + attributeName + "] is not readable");
 		return pair[0].bindTo(globalTargetObjects.get(id));
@@ -153,9 +180,9 @@ public class ManagedObjectRepo<T> {
 	 * @throws AttributeNotFoundException Thrown when the attribute name is not recognized
 	 * @throws MBeanException Thrown when attribute is not writable
 	 */
-	public MethodHandle getAttributeSetter(String attributeName) throws AttributeNotFoundException, MBeanException {
+	public Invoker getAttributeSetter(String attributeName) throws AttributeNotFoundException, MBeanException {
 		final long id = nhc(attributeName);
-		MethodHandle[] pair = globalAttrInvokers.get(id);
+		Invoker[] pair = globalAttrInvokers.get(id);
 		if(pair==null) throw new AttributeNotFoundException("No attribute found for [" + attributeName + "]");
 		if(pair.length<2 || pair[1]==null) throw new MBeanException(new Exception(), "The attribute [" + attributeName + "] is not writable");
 		return pair[1].bindTo(globalTargetObjects.get(id));
@@ -167,9 +194,9 @@ public class ManagedObjectRepo<T> {
 	 * @return the method handle or null if one was not found
 	 * @throws MBeanException thrown when the operation is not recognized
 	 */
-	public MethodHandle getOperationHandle(String opName, String[] signature) throws MBeanException {	
+	public Invoker getOperationHandle(String opName, String[] signature) throws MBeanException {	
 		final long opCode = opCode(opName, signature);
-		MethodHandle mh = globalOpInvokers.get(opCode).bindTo(globalTargetObjects.get(opCode));
+		Invoker mh = globalOpInvokers.get(opCode).bindTo(globalTargetObjects.get(opCode));
 		if(mh==null) {
 			throw new MBeanException(new Exception(), "Failed to locate operation with name [" + opName + "] and signature " + Arrays.toString(signature));
 		}
@@ -255,6 +282,9 @@ public class ManagedObjectRepo<T> {
 		return mo;				
 	}
 	
+	public static void log(String fmt, Object...args) {
+		System.out.println(String.format(fmt, args));
+	}	
 	
 	/**
 	 * <p>Title: ManagedObject</p>
@@ -272,9 +302,9 @@ public class ManagedObjectRepo<T> {
 		/** The extracted managed object's MBean info */
 		protected MBeanInfo info;
 		/** The extracted managed object's MBean attribute method handles */
-		final NonBlockingHashMapLong<MethodHandle[]> attrInvokers = new NonBlockingHashMapLong<MethodHandle[]>();
+		final NonBlockingHashMapLong<Invoker[]> attrInvokers = new NonBlockingHashMapLong<Invoker[]>();
 		/** The extracted managed object's MBean operation method handles */
-		final NonBlockingHashMapLong<MethodHandle> opInvokers = new NonBlockingHashMapLong<MethodHandle>();
+		final NonBlockingHashMapLong<Invoker> opInvokers = new NonBlockingHashMapLong<Invoker>();
 		
 		/**
 		 * Creates a new ManagedObject
@@ -282,16 +312,57 @@ public class ManagedObjectRepo<T> {
 		 * @param name The logical name
 		 */
 		private ManagedObject(T objectToAdd, String name) {
+			final boolean subObject = name!=null;
+			if(!subObject) {
+				name = "" + ownerId;
+			}
+			log("Adding Object ID [%s]" , System.identityHashCode(objectToAdd));
+			long start = System.currentTimeMillis();
 			managedObject = objectToAdd;
 			this.name = name;	
 			Class<?> clazz = managedObject.getClass();
-			info = from(clazz, attrInvokers, opInvokers, attrInvokers);					
+			MBeanInfo _info = from(clazz, attrInvokers, opInvokers, attrInvokers);
+			if(subObject) {
+				info = prefixSubObjects(_info);
+				remapInvokerHashCodes(_info);
+			} else {
+				info =  _info;
+			}
+			
+			Reflector.bindInvokers(objectToAdd, attrInvokers, opInvokers);
 			globalAttrInvokers.putAll(attrInvokers);
 			globalOpInvokers.putAll(opInvokers);
 			for(long id: getAttributeIds()) { globalTargetObjects.put(id, objectToAdd); }
 			for(long id: getOperationIds()) { globalTargetObjects.put(id, objectToAdd); }
+			long elapsed = System.currentTimeMillis() - start;
+			log("Added Object ID [%s] in [%s] ms" , System.identityHashCode(objectToAdd), elapsed);
 		}
 		
+		private MBeanInfo prefixSubObjects(MBeanInfo _info) {
+			MutableMBeanAttributeInfo[] mutableAttrs = MutableMBeanAttributeInfo.from(name, _info.getAttributes());  
+			MutableMBeanOperationInfo[] mutableOps = MutableMBeanOperationInfo.from(name, _info.getOperations());
+			return new MBeanInfo(_info.getClassName(), _info.getDescription(), 
+					MutableMBeanAttributeInfo.toImmutable(mutableAttrs), _info.getConstructors(),
+					MutableMBeanOperationInfo.toImmutable(mutableOps), _info.getNotifications(),
+					_info.getDescriptor()
+					
+			);		
+		}
+		
+		private void remapInvokerHashCodes(MBeanInfo unremappedInfo) {
+			for(MBeanAttributeInfo info: unremappedInfo.getAttributes()) {
+				long oldHash = StringHelper.longHashCode(info.getName());
+				long newHash = StringHelper.longHashCode(name + info.getName());
+				Invoker[] invs = attrInvokers.remove(oldHash);
+				if(invs!=null) attrInvokers.put(newHash, invs);
+			}
+			for(MBeanOperationInfo info: unremappedInfo.getOperations()) {
+				long oldHash = StringHelper.longHashCode(info.getName());
+				long newHash = StringHelper.longHashCode(name + info.getName());
+				Invoker invs = opInvokers.remove(oldHash);
+				if(invs!=null) opInvokers.put(newHash, invs);
+			}			
+		}
 		
 		/**
 		 * Removes this managed objects indexes from global 

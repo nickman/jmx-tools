@@ -27,9 +27,6 @@ package org.helios.jmx.annotation;
 import static org.helios.jmx.annotation.Reflector.attr;
 import static org.helios.jmx.annotation.Reflector.nvl;
 
-import java.lang.invoke.MethodHandle;
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -43,8 +40,11 @@ import javax.management.MBeanInfo;
 import javax.management.modelmbean.DescriptorSupport;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
+import org.helios.jmx.managed.Invoker;
+import org.helios.jmx.managed.ManagedByteCodeFactory;
 import org.helios.jmx.managed.MutableMBeanAttributeInfo;
 import org.helios.jmx.managed.MutableMBeanOperationInfo;
+import org.helios.jmx.opentypes.OpenTypeFactory;
 import org.helios.jmx.util.helpers.StringHelper;
 /**
  * <p>Title: ManagedMetricImpl</p>
@@ -92,8 +92,6 @@ public class ManagedMetricImpl {
 	/** empty const array */
 	public static final MBeanAttributeInfo[] EMPTY_INFO_ARR = {};
 	
-	/** A method handle lookup */
-	public static final Lookup lookup = MethodHandles.lookup();
 	
 
 	
@@ -122,7 +120,7 @@ public class ManagedMetricImpl {
 	 * @param metrics The ManagedMetricImpls to convert
 	 * @return a [possibly zero length] array of MBeanAttributeInfos
 	 */
-	public static MBeanAttributeInfo[] from(Method[] methods, final NonBlockingHashMapLong<MethodHandle[]> metricInvokers, ManagedMetricImpl...metrics) {
+	public static MBeanAttributeInfo[] from(Method[] methods, final NonBlockingHashMapLong<Invoker[]> metricInvokers, ManagedMetricImpl...metrics) {
 		if(metrics==null || metrics.length==0 || methods==null || methods.length==0) return EMPTY_INFO_ARR;
 		if(methods.length != metrics.length) {
 			throw new IllegalArgumentException("Method/Metric Array Size Mismatch. Methods:" + methods.length + ", Metrics:" + metrics.length);
@@ -304,12 +302,12 @@ public class ManagedMetricImpl {
 	 * @param metricInvokers  A map to add the invoker for this metric to
 	 * @return MBeanAttributeInfo rendered form this ManagedMetricImpl
 	 */
-	public MBeanAttributeInfo toMBeanInfo(Method method, final NonBlockingHashMapLong<MethodHandle[]> metricInvokers) {		
+	public MBeanAttributeInfo toMBeanInfo(Method method, final NonBlockingHashMapLong<Invoker[]> metricInvokers) {		
 		if(metricInvokers!=null) {
 			long hash = StringHelper.longHashCode(getDisplayName());
 			long mhash = StringHelper.longHashCode(method.getName());		
 			try {
-				MethodHandle[] methodHandles = new MethodHandle[]{lookup.unreflect(method)};
+				Invoker[] methodHandles = new Invoker[]{ManagedByteCodeFactory.getInstance().newInvoker(method)};
 				metricInvokers.put(hash, methodHandles);
 				metricInvokers.put(mhash, methodHandles);
 			} catch (Exception e) {
@@ -357,6 +355,10 @@ public class ManagedMetricImpl {
 		descriptorMap.put("metricType", getMetricType().name());		
 		descriptorMap.put("subkeys", getSubkeys());
 		descriptorMap.put("unit", getUnit());
+		if(method.getName().startsWith("get") && method.getParameterTypes().length==0 && OpenTypeFactory.SIMPLE_TYPE_MAPPING.containsKey(method.getReturnType())) {
+			descriptorMap.put("openType", OpenTypeFactory.SIMPLE_TYPE_MAPPING.get(method.getReturnType()));
+			descriptorMap.put("originalType", method.getReturnType());
+		}
 		return !immutable ?  new ImmutableDescriptor(descriptorMap) : new DescriptorSupport(descriptorMap.keySet().toArray(new String[descriptorMap.size()]), descriptorMap.values().toArray(new Object[descriptorMap.size()]));	
 	}
 	

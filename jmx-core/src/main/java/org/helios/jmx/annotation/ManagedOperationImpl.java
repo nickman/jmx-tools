@@ -27,9 +27,6 @@ package org.helios.jmx.annotation;
 import static org.helios.jmx.annotation.Reflector.nvl;
 import static org.helios.jmx.annotation.Reflector.nws;
 
-import java.lang.invoke.MethodHandle;
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Map;
@@ -40,6 +37,8 @@ import javax.management.MBeanOperationInfo;
 import javax.management.modelmbean.DescriptorSupport;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
+import org.helios.jmx.managed.Invoker;
+import org.helios.jmx.managed.ManagedByteCodeFactory;
 import org.helios.jmx.util.helpers.StringHelper;
 
 /**
@@ -68,9 +67,6 @@ public class ManagedOperationImpl {
 	/** empty const array */
 	public static final MBeanOperationInfo[] EMPTY_INFO_ARR = {};
 	
-	/** A method handle lookup */
-	public static final Lookup lookup = MethodHandles.lookup();
-	
 	
 	/**
 	 * Converts an array of ManagedOperations to an array of ManagedOperationImpls
@@ -98,7 +94,7 @@ public class ManagedOperationImpl {
 	 * @param ops The ManagedOperationImpls to convert
 	 * @return a [possibly zero length] array of MBeanOperationInfos
 	 */
-	public static MBeanOperationInfo[] from(final NonBlockingHashMapLong<MethodHandle> opInvokers, Method[] methods, ManagedOperationImpl...ops) {
+	public static MBeanOperationInfo[] from(final NonBlockingHashMapLong<Invoker> opInvokers, Method[] methods, ManagedOperationImpl...ops) {
 		if(ops==null || ops.length==0) return EMPTY_INFO_ARR;
 		if(methods.length != ops.length) {
 			throw new IllegalArgumentException("Method/Ops Array Size Mismatch. Methods:" + methods.length + ", ManagedOps:" + ops.length);
@@ -204,7 +200,7 @@ public class ManagedOperationImpl {
 	 * @param opInvokers A map of invokers to place this method's invoker into
 	 * @return a MBeanOperationInfo rendered form this ManagedOperationImpl
 	 */
-	public MBeanOperationInfo toMBeanInfo(Method method, final NonBlockingHashMapLong<MethodHandle> opInvokers) {		
+	public MBeanOperationInfo toMBeanInfo(Method method, final NonBlockingHashMapLong<Invoker> opInvokers) {		
 		Class<?>[] sig = method.getParameterTypes();
 		if(sig.length != parameters.length) {
 			throw new IllegalArgumentException("Parameter Mismatch. Method:" + sig.length + ", ManagedParams:" + parameters.length);
@@ -213,7 +209,7 @@ public class ManagedOperationImpl {
 			long hash = StringHelper.longHashCode(name + StringHelper.concat(method.getParameterTypes()));		
 			long mhash = StringHelper.longHashCode(method.getName() + StringHelper.concat(method.getParameterTypes()));
 			try {
-				MethodHandle mh = lookup.unreflect(method);
+				Invoker mh = ManagedByteCodeFactory.getInstance().newInvoker(method);
 				opInvokers.put(hash, mh);
 				opInvokers.put(mhash, mh);
 			} catch (Exception e) {
@@ -252,7 +248,7 @@ public class ManagedOperationImpl {
 		map.put("methodName", method.getName());
 //		MethodType methodType = MethodType.methodType(method.getReturnType(), method.getParameterTypes());
 //		map.put("methodDescriptor", methodType.toMethodDescriptorString());
-//		MethodHandle mh = MethodHandles.exactInvoker(methodType);		
+//		Invoker mh = Invokers.exactInvoker(methodType);		
 //		map.put("*methodHandle", mh);		
 		return !immutable ?  new ImmutableDescriptor(map) : new DescriptorSupport(map.keySet().toArray(new String[map.size()]), map.values().toArray(new Object[map.size()]));	
 	}

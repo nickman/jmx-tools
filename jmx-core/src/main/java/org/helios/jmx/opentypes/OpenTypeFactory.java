@@ -29,8 +29,12 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.Type;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.AbstractMap;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
@@ -38,6 +42,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 
+import javax.management.ObjectName;
 import javax.management.openmbean.ArrayType;
 import javax.management.openmbean.CompositeType;
 import javax.management.openmbean.OpenType;
@@ -72,6 +77,8 @@ public class OpenTypeFactory {
 	/** The com.sun internal MXBeanMapping class name */
 	public static final String MX_MAPPING_NAME = "com.sun.jmx.mbeanserver.MXBeanMapping";
 	
+	public static final Map<Class<?>, SimpleType> SIMPLE_TYPE_MAPPING;
+	
 	/** The com.sun internal MXBeanMappingFactory instance  */
 	protected static final Object mxMappingFactory;
 	/** The com.sun internal MXBeanMappingFactory mappingForType method  */
@@ -80,6 +87,32 @@ public class OpenTypeFactory {
 	protected static final Method getOpenType;
 	
 	static {
+		Map<Class<?>, SimpleType> simpleTypes = new HashMap<Class<?>, SimpleType>();
+		simpleTypes.put(Void.class, SimpleType.VOID);
+		simpleTypes.put(void.class, SimpleType.VOID);
+		simpleTypes.put(Boolean.class, SimpleType.BOOLEAN);
+		simpleTypes.put(boolean.class, SimpleType.BOOLEAN);
+		simpleTypes.put(Character.class, SimpleType.CHARACTER);
+		simpleTypes.put(char.class, SimpleType.CHARACTER);
+		simpleTypes.put(Byte.class, SimpleType.BYTE);
+		simpleTypes.put(byte.class, SimpleType.BYTE);
+		simpleTypes.put(Short.class, SimpleType.SHORT);
+		simpleTypes.put(short.class, SimpleType.SHORT);
+		simpleTypes.put(Integer.class, SimpleType.INTEGER);
+		simpleTypes.put(int.class, SimpleType.INTEGER);
+		simpleTypes.put(Long.class, SimpleType.LONG);
+		simpleTypes.put(long.class, SimpleType.LONG);
+		simpleTypes.put(Float.class, SimpleType.FLOAT);
+		simpleTypes.put(float.class, SimpleType.FLOAT);
+		simpleTypes.put(Double.class, SimpleType.DOUBLE);
+		simpleTypes.put(double.class, SimpleType.DOUBLE);
+		simpleTypes.put(String.class, SimpleType.STRING);
+		simpleTypes.put(BigDecimal.class, SimpleType.BIGDECIMAL);
+		simpleTypes.put(BigInteger.class, SimpleType.BIGINTEGER);
+		simpleTypes.put(Date.class, SimpleType.DATE);
+		simpleTypes.put(ObjectName.class, SimpleType.OBJECTNAME);
+
+		SIMPLE_TYPE_MAPPING = Collections.unmodifiableMap(simpleTypes);
 		Object defaultMapper = null;
 		Method mappingMethod = null;
 		Method getOpenTypeMethod = null;
