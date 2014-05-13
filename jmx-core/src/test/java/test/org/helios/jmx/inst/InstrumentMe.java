@@ -22,36 +22,44 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package org.helios.jmx.managed;
+package test.org.helios.jmx.inst;
+
+import java.util.Random;
+import java.util.UUID;
+
+import org.helios.jmx.util.helpers.SystemClock;
+import org.helios.jmx.util.helpers.SystemClock.ElapsedTime;
 
 /**
- * <p>Title: Invoker</p>
- * <p>Description: Defines an op or attribute invoker for MBeans</p> 
+ * <p>Title: InstrumentMe</p>
+ * <p>Description: Test class to instrument</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.jmx.managed.Invoker</code></p>
- * @param <T> The assumed type of the invoker's target
- * @param <R> The assumed type of the invocation return type
+ * <p><code>test.org.helios.jmx.inst.InstrumentMe</code></p>
  */
 
-public interface Invoker<T, R> {
+public class InstrumentMe {
+	private final int maxRange;
+	private final Random random;
 	/**
-	 * Binds the target of the invocation to the invoker
-	 * @param target The target of the invocation
-	 * @return the return value of the target invocation
+	 * Creates a new InstrumentMe
 	 */
-	public Invoker<T, R> bindTo(T target);
+	public InstrumentMe(int maxRange) {
+		this.maxRange = Math.abs(maxRange);
+		random = new Random(System.currentTimeMillis());
+	}
 	
-	/**
-	 * Invokes against the target 
-	 * @param args The arguments to the invocation
-	 * @return the invocation return value
-	 */
-	public R invoke(Object[] args);
+	static {
+		System.out.println("\n\t========================\n\tInitialized: InstrumentMe\n\t========================\n");
+	}
 	
-	/**
-	 * Indicates if the invoker is bound
-	 * @return true if the invoker is bound or the target is static
-	 */
-	public boolean isBound();
+	public String generateRandoms() {
+		int loops = Math.abs(random.nextInt(maxRange));
+		ElapsedTime et = SystemClock.startClock();
+		for(int i = 0; i < loops; i++) {
+			String s = UUID.randomUUID().toString();
+		}
+		return et.printAvg("UUID rate", loops);
+	}
+
 }

@@ -25,33 +25,52 @@
 package org.helios.jmx.managed;
 
 /**
- * <p>Title: Invoker</p>
- * <p>Description: Defines an op or attribute invoker for MBeans</p> 
+ * <p>Title: AbstractInvoker</p>
+ * <p>Description: </p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.jmx.managed.Invoker</code></p>
- * @param <T> The assumed type of the invoker's target
- * @param <R> The assumed type of the invocation return type
+ * <p><code>org.helios.jmx.managed.AbstractInvoker</code></p>
  */
 
-public interface Invoker<T, R> {
-	/**
-	 * Binds the target of the invocation to the invoker
-	 * @param target The target of the invocation
-	 * @return the return value of the target invocation
-	 */
-	public Invoker<T, R> bindTo(T target);
+public abstract class AbstractInvoker<T, R> implements Invoker<T, R> {
+	/** The invocation target */
+	protected T target = null;
+	
+	
 	
 	/**
-	 * Invokes against the target 
-	 * @param args The arguments to the invocation
-	 * @return the invocation return value
+	 * Creates a new AbstractInvoker
 	 */
-	public R invoke(Object[] args);
-	
+	public AbstractInvoker() {
+	}
+
 	/**
-	 * Indicates if the invoker is bound
-	 * @return true if the invoker is bound or the target is static
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.managed.Invoker#bindTo(java.lang.Object)
 	 */
-	public boolean isBound();
+	@Override
+	public Invoker<T, R> bindTo(T target) {
+		this.target = target;
+		return this;
+	}
+	
+	public T getTarget() {
+		return target;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.managed.Invoker#isBound()
+	 */
+	@Override
+	public boolean isBound() {
+		return target!=null;
+	}
+
+//	@Override
+//	public R invoke(Object... args) {
+//		// TODO Auto-generated method stub
+//		return null;
+//	}
+
 }

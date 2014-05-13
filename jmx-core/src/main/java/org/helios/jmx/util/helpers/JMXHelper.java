@@ -79,6 +79,24 @@ public class JMXHelper {
 	public static final String[] NO_ARG_SIGNATURE = {}; 
 	/** A no arg op arg array */
 	public static final Object[] NO_ARG_ARR = {}; 
+	
+	/** The debug agent library */
+	public static final String AGENT_LIB = "-agentlib:";
+	
+	/** The legacy debug agent library */
+	public static final String LEGACY_AGENT_LIB = "-Xrunjdwp:";
+	
+	/**
+	 * Determines if this JVM is running with the debug agent enabled
+	 * @return true if this JVM is running with the debug agent enabled, false otherwise
+	 */
+	public static boolean isDebugAgentLoaded() {
+		List<String> inputArguments = ManagementFactory.getRuntimeMXBean().getInputArguments();
+		for(String s: inputArguments) {
+			if(s.trim().startsWith(AGENT_LIB) || s.trim().startsWith(LEGACY_AGENT_LIB)) return true;
+		}
+		return false;
+	}
 
 	/**
 	 * Creates a new JMXServiceURL

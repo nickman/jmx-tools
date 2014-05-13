@@ -26,6 +26,7 @@ package org.helios.jmx.annotation;
 
 import java.io.Serializable;
 import java.lang.annotation.Annotation;
+import java.lang.annotation.Inherited;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
@@ -86,20 +87,24 @@ public class Reflector {
 	};
 
 	
+	/**
+	 * Analyzes the passed target class and builds:<ol>
+	 * 	<li>An MBeanInfo built from the @ManagedX annotations on the class or its parents</li>
+	 * 	<li>Concrete method invokers mapping the MBeanInfo attributes and operations to the class functions</li>
+	 * </ol>
+	 * @param targetClass The target class to analyze
+	 * @param attrInvokers The JMX attribute invokers keyed by the attribute name long hash code are placed in this provided map if it is not null
+	 * @param opInvokers The JMX operation invokers keyed by the action name and signature long hash code  are placed in this provided map if it is not null
+	 * @param metricInvokers The JMX metric accessor invokers keyed by the attribute name long hash code are placed in this provided map if it is not null
+	 * @return the MBeanInfo generated for the class
+	 */
 	public static MBeanInfo from(Class<?> targetClass, final NonBlockingHashMapLong<MethodHandle[]> attrInvokers, final NonBlockingHashMapLong<MethodHandle> opInvokers, final NonBlockingHashMapLong<MethodHandle[]> metricInvokers) {
 		Class<?> annotatedClass = null;
 		ManagedResource mr = targetClass.getAnnotation(ManagedResource.class);
 		if(mr!=null) {
 			annotatedClass = targetClass;
 		} else {
-			// FIXME: need to climb the hierarchy
-			for(Class<?> iface: targetClass.getInterfaces()) {
-				mr = iface.getAnnotation(ManagedResource.class);
-				if(mr!=null) {
-					annotatedClass = iface;
-					break;
-				}
-			}
+			annotatedClass = getAnnotated(targetClass, ManagedResource.class);
 		}
 		if(annotatedClass == null){
 			throw new RuntimeException("The class [" + targetClass.getName() + "] is not annotated with @ManagedResource and does not implement any interfaces that do");
@@ -132,6 +137,65 @@ public class Reflector {
 				unify(notificationInfo),
 				descriptor
 		);
+	}
+	
+	/**
+	 * Extracts the names of the popable attributes in the passed class 
+	 * @param targetClass The class to extract from
+	 * @return a [possiblyzero length] array of attribute names
+	 */
+	public static String[] getPopableAttributeNames(Class<?> targetClass) {
+		Set<String> names = new HashSet<String>();
+		
+		return names.toArray(new String[names.size()]);
+	}
+	
+	
+	/**
+	 * Determines if the passed annotation type is @Inherited
+	 * @param annotationType The annotation type to inspect
+	 * @return true if the passed annotation type is @Inherited, false otherwise
+	 */
+	public static boolean isAnnotationInherited(Class<? extends Annotation> annotationType) {
+		return annotationType.getAnnotation(Inherited.class)!=null;
+	}
+	
+	/**
+	 * Determines if the passed annotation instance is @Inherited
+	 * @param annotation The annotation instance to inspect
+	 * @return true if the passed annotation instance is @Inherited, false otherwise
+	 */
+	public static boolean isAnnotationInherited(Annotation annotation) {
+		return isAnnotationInherited(annotation.annotationType());
+	}
+	
+	
+	/**
+	 * Climbs the interface and superclass hierarchy of the passed class to find a parent that is annotated with the passed annotation type
+	 * @param targetClass The class to climb
+	 * @param annotationType the annotation type to look for
+	 * @return the located class or null if one was not found
+	 */
+	public static Class<?> getAnnotated(Class<?> targetClass, Class<? extends Annotation> annotationType) {
+		final boolean climbSupers = !targetClass.isInterface() && !isAnnotationInherited(annotationType);
+		Annotation annotation = targetClass.getAnnotation(annotationType);
+		if(annotation!=null) {
+			return targetClass;
+		} else {
+			Class<?> currentClass = targetClass;
+			while(currentClass != null && !Object.class.equals(currentClass)) {
+				Set<Class<?>> supers = new HashSet<Class<?>>(Arrays.asList(currentClass.getInterfaces()));
+				if(climbSupers) supers.add(currentClass.getSuperclass());
+				for(Class<?> _super: supers) {
+					if(_super.getAnnotation(annotationType)!=null) return _super;					
+				}
+				for(Class<?> _super: supers) {
+					Class<?> located = getAnnotated(_super, annotationType);
+					if(located!=null) return located;
+				}
+			}
+			return null;
+		}
 	}
 	
 	

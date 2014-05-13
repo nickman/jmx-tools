@@ -96,41 +96,65 @@ public class UnsafeAdapter {
     
     /** The JVM's OS Process ID (PID) */
     public static final long JVM_PID = Long.parseLong(ManagementFactory.getRuntimeMXBean().getName().split("@")[0]);
-    
-    
-    
-    //==================================================================================================
-    //		String internals
-    //==================================================================================================
-//    /** The offset of the char array in a String */
-//    public static final long STRING_CHARS_OFFSET;
-//    /** The offset of the char array in a String */
-//    public static final long STRING_ARR_OFFSET;
-//    /** The offset of the char array in a String */
-//    public static final long STRING_COUNT_OFFSET;
 	
 	/** The configured native memory tracking enablement  */
 	public static final boolean trackMem;
 	/** The configured native memory alignment enablement  */
 	public static final boolean alignMem;
-	
-	
-//	/** A set of the allocating/re-allocating callers */
-//	private static final Set<String> allocators;
-//	/** A set of the de-allocating callers */
-//	private static final Set<String> deallocators;
-	
 	/** The unsafe memory management MBean */
 	public static final UnsafeMemoryMBean unsafeMemoryStats;
 	
-	
 	/** A map of memory allocation sizes keyed by the address */
 	private static final NonBlockingHashMapLong<long[]> memoryAllocations;
-    
 	/** The total native memory allocation */
 	private static final AtomicLong totalMemoryAllocated;
 	/** The total native memory allocation overhead for alignment */
 	private static final AtomicLong totalAlignmentOverhead;
+	
+	/** The debug agent library */
+	public static final String AGENT_LIB = "-agentlib:";
+	
+	/** The legacy debug agent library */
+	public static final String LEGACY_AGENT_LIB = "-Xrunjdwp:";
+	
+    /** An empty map returned when state is requested by the management interface is disabled */
+    private static final Map<String, Long> EMPTY_STAT_MAP = Collections.unmodifiableMap(new HashMap<String, Long>(0));
+    /** The JVM's end of line character */
+    public static final String EOL = System.getProperty("line.separator", "\n");
+    
+    //=========================================================================================================
+    //			Memory Allocation Management
+    //=========================================================================================================
+    
+    /** Empty long array const */
+    private static final long[] EMPTY_LONG_ARR = {};
+    /** Empty long[] array const */
+    private static final long[][] EMPTY_ADDRESSES = {{}};
+    /** Empty MemoryAllocationReference list const */
+    private static final List<MemoryAllocationReference> EMPTY_ALLOC_LIST = Collections.unmodifiableList(new ArrayList<MemoryAllocationReference>(0));
+    /** The current reference queue size */
+    protected static final AtomicLong refQueueSize = new AtomicLong(0L);
+    /** A map of memory allocation references keyed by an internal counter */
+    protected static final NonBlockingHashMapLong<MemoryAllocationReference> deAllocs = new NonBlockingHashMapLong<MemoryAllocationReference>(1024, false);
+    /** The reference queue for DeAllocateMe instances that have been enqueued */
+    private static final ReferenceQueue<DeAllocateMe> deallocations = new ReferenceQueue<DeAllocateMe>();
+    /** Serial number factory for memory allocationreferences */
+    private static final AtomicLong refIndexFactory = new AtomicLong(0L);
+    
+	
+	
+	/**
+	 * Determines if this JVM is running with the debug agent enabled
+	 * @return true if this JVM is running with the debug agent enabled, false otherwise
+	 */
+	public static boolean isDebugAgentLoaded() {
+		List<String> inputArguments = ManagementFactory.getRuntimeMXBean().getInputArguments();
+		for(String s: inputArguments) {
+			if(s.trim().startsWith(AGENT_LIB) || s.trim().startsWith(LEGACY_AGENT_LIB)) return true;
+		}
+		return false;
+	}
+	
 	
 	/**
 	 * Simple out formatted logger
@@ -146,6 +170,13 @@ public class UnsafeAdapter {
     }
     
     
+    /**
+     * <p>Title: UnsafeMemoryMBean</p>
+     * <p>Description: JMX MBean interface for unsafe memory allocation trackers</p> 
+     * <p>Company: Helios Development Group LLC</p>
+     * @author Whitehead (nwhitehead AT heliosdev DOT org)
+     * <p><code>org.helios.jmx.util.unsafe.UnsafeAdapter.UnsafeMemoryMBean</code></p>
+     */
     public static interface UnsafeMemoryMBean {
     	
     	/** The map key for the total memory allocation in bytes */
@@ -210,63 +241,84 @@ public class UnsafeAdapter {
     	 */
     	public int getPendingRefs();
     	
-//    	/**
-//   	 * Returns the distinct native memory de-allocating callers
-//   	 * @return the distinct native memory de-allocating callers
-//   	 */
-//   	public Set<String> getDeallocators();
-//   	
-//   	/**
-//   	 * Returns the distinct native memory allocating callers
-//   	 * @return the distinct native memory allocating callers
-//   	 */
-//   	public Set<String> getAllocators();
-   	
-//   	/**
-//   	 * Returns the distinct native memory allocating callers with no de-allocating calls.
-//   	 * @return the distinct native memory allocating callers with no de-allocating calls.
-//   	 */
-//   	public Set<String> getNonDeallocatingAllocators();
-    	
     }
 
+    /**
+     * <p>Title: InactiveUnsafeMemory</p>
+     * <p>Description: Stub for unsafe memory allocation tracking when tracking is not enabled</p> 
+     * <p>Company: Helios Development Group LLC</p>
+     * @author Whitehead (nwhitehead AT heliosdev DOT org)
+     * <p><code>org.helios.jmx.util.unsafe.UnsafeAdapter.InactiveUnsafeMemory</code></p>
+     */
     public static class InactiveUnsafeMemory implements UnsafeMemoryMBean  {
 
-		@Override
+    	/**
+    	 * Returns a map of unsafe memory stats keyed by the stat name
+    	 * @return a map of unsafe memory stats
+    	 */
+    	@Override
 		public Map<String, Long> getState() {
 			return Collections.EMPTY_MAP;
 		}
 
+    	/**
+    	 * Returns the total off-heap allocated memory in bytes
+    	 * @return the total off-heap allocated memory
+    	 */
 		@Override
 		public long getTotalAllocatedMemory() {
 			return -1L;
 		}
 
+    	/**
+    	 * Returns the total aligned memory overhead in bytes
+    	 * @return the total aligned memory overhead in bytes
+    	 */
 		@Override
 		public long getAlignedMemoryOverhead() {
 			return -1L;
 		}
 
+    	/**
+    	 * Returns the total off-heap allocated memory in Kb
+    	 * @return the total off-heap allocated memory
+    	 */
 		@Override
 		public long getTotalAllocatedMemoryKb() {
 			return -1L;
 		}
 
+    	/**
+    	 * Returns the total off-heap allocated memory in Mb
+    	 * @return the total off-heap allocated memory
+    	 */
 		@Override
 		public long getTotalAllocatedMemoryMb() {
 			return -1L;
 		}
 
+    	/**
+    	 * Returns the total number of existing allocations
+    	 * @return the total number of existing allocations
+    	 */
 		@Override
 		public int getTotalAllocationCount() {
 			return -1;
 		}
 
+    	/**
+    	 * Returns the size of the memory allocation cleaner reference queue
+    	 * @return the size of the memory allocation cleaner reference queue
+    	 */
 		@Override
 		public long getRefQueueSize() {
 			return -1L;
 		}
 
+    	/**
+    	 * Returns the number of retained phantom references to memory allocations
+    	 * @return the number of retained phantom references to memory allocations
+    	 */
 		@Override
 		public int getPendingRefs() {			
 			return -1;
@@ -274,6 +326,13 @@ public class UnsafeAdapter {
     	
     }
     
+    /**
+     * <p>Title: UnsafeMemory</p>
+     * <p>Description: Management stats for unsafe memory allocation</p> 
+     * <p>Company: Helios Development Group LLC</p>
+     * @author Whitehead (nwhitehead AT heliosdev DOT org)
+     * <p><code>org.helios.jmx.util.unsafe.UnsafeAdapter.UnsafeMemory</code></p>
+     */
     public static class UnsafeMemory implements UnsafeMemoryMBean  {
     	
     	/** The map key for the total memory allocation in bytes */
@@ -362,35 +421,6 @@ public class UnsafeAdapter {
 			if(t<1) return 0L;
 			return t/1024/1024;
 		}
-
-//		/**
-//		 * {@inheritDoc}
-//		 * @see org.helios.jmx.util.unsafe.UnsafeAdapter.UnsafeMemoryMBean#getDeallocators()
-//		 */
-//		@Override
-//		public Set<String> getDeallocators() {
-//			return deallocators;
-//		}
-//
-//		/**
-//		 * {@inheritDoc}
-//		 * @see org.helios.jmx.util.unsafe.UnsafeAdapter.UnsafeMemoryMBean#getAllocators()
-//		 */
-//		@Override
-//		public Set<String> getAllocators() {			
-//			return allocators;
-//		}
-
-//		/**
-//		 * {@inheritDoc}
-//		 * @see org.helios.jmx.util.unsafe.UnsafeAdapter.UnsafeMemoryMBean#getNonDeallocatingAllocators()
-//		 */
-//		@Override
-//		public Set<String> getNonDeallocatingAllocators() {
-//			Set<String> allocs = new HashSet<String>(allocators);
-//			allocs.removeAll(deallocators);
-//			return allocs;			
-//		}    	
 		
     	/**
     	 * {@inheritDoc}
@@ -412,19 +442,14 @@ public class UnsafeAdapter {
 		
     }
     
-    //=========================================================================================================
-    //			Memory Allocation Management
-    //=========================================================================================================
     
-    private static final long[] EMPTY_LONG_ARR = {};
-    private static final long[][] EMPTY_ADDRESSES = {{}};
-    private static final List<MemoryAllocationReference> EMPTY_ALLOC_LIST = Collections.emptyList();
-    protected static final AtomicLong refQueueSize = new AtomicLong(0L);
-    protected static final NonBlockingHashMapLong<MemoryAllocationReference> deAllocs = new NonBlockingHashMapLong<MemoryAllocationReference>(1024, false);
-    
-    private static final ReferenceQueue<DeAllocateMe> deallocations = new ReferenceQueue<DeAllocateMe>(); 
-    private static final AtomicLong refIndexFactory = new AtomicLong(0L);
-    
+    /**
+     * <p>Title: MemoryAllocationReference</p>
+     * <p>Description: A phantom reference extension for tracking memory allocations without preventing them from being enqueued for de-allocation</p> 
+     * <p>Company: Helios Development Group LLC</p>
+     * @author Whitehead (nwhitehead AT heliosdev DOT org)
+     * <p><code>org.helios.jmx.util.unsafe.UnsafeAdapter.MemoryAllocationReference</code></p>
+     */
     public static class MemoryAllocationReference extends PhantomReference<DeAllocateMe> {
     	/** The index of this reference */
     	private final long index = refIndexFactory.incrementAndGet();
@@ -457,6 +482,10 @@ public class UnsafeAdapter {
 			
 		}    	
 		
+		/**
+		 * {@inheritDoc}
+		 * @see java.lang.ref.Reference#clear()
+		 */
 		@Override
 		public void clear() {
 			for(long[] address: addresses) {
@@ -476,6 +505,7 @@ public class UnsafeAdapter {
     private static final Logger LOG = LoggerFactory.getLogger(UnsafeAdapter.class);
 
     
+    /** The memory allocation de-allocator task */
     private static final Runnable deallocator = new Runnable() {
     	public void run() {
     		latch.countDown();
@@ -543,49 +573,66 @@ public class UnsafeAdapter {
             BYTE_ARRAY_OFFSET = UNSAFE.arrayBaseOffset(byte[].class);
             CHAR_ARRAY_OFFSET = UNSAFE.arrayBaseOffset(char[].class);
             
-//            STRING_CHARS_OFFSET = UNSAFE.objectFieldOffset(String.class.getDeclaredField("value"));
-//            STRING_ARR_OFFSET = UNSAFE.objectFieldOffset(String.class.getDeclaredField("offset"));
-//            STRING_COUNT_OFFSET = UNSAFE.objectFieldOffset(String.class.getDeclaredField("count"));
             
             int copyMemCount = 0;
             int setMemCount = 0;
-//            log("\n\t=======================================================\n\tUnsafe Method Analysis\n\t=======================================================");
+
             for(Method method: Unsafe.class.getDeclaredMethods()) {
             	if("copyMemory".equals(method.getName())) {
             		copyMemCount++;
-//            		log(method.toGenericString());
-            		
             	}
             	if("setMemory".equals(method.getName())) {
             		setMemCount++;
-//            		log(method.toGenericString());
             	}
             }
-//            log("\n\t=======================================================\n");
             FIVE_COPY = copyMemCount>1;
             FOUR_SET = setMemCount>1;
-        	trackMem = System.getProperties().containsKey("unsafe.allocations.track");   
+        	trackMem = System.getProperties().containsKey("unsafe.allocations.track") || isDebugAgentLoaded();   
         	alignMem = System.getProperties().containsKey("unsafe.allocations.align");
         	if(trackMem) {
         		unsafeMemoryStats = new UnsafeMemory();
         		memoryAllocations = new NonBlockingHashMapLong<long[]>(1024, true);
         		totalMemoryAllocated = new AtomicLong(0L);
         		totalAlignmentOverhead = new AtomicLong(0L);
-//        		deallocators = new HashSet<String>(1024);
-//        		allocators = new HashSet<String>(1024);
         		JMXHelper.registerMBean(unsafeMemoryStats, JMXHelper.objectName("%s:%s=%s", UnsafeAdapter.class.getPackage().getName(), "service", UnsafeMemory.class.getSimpleName()));
         	} else {
         		totalMemoryAllocated = null;
         		memoryAllocations = null;
         		totalAlignmentOverhead = null;
         		unsafeMemoryStats = new InactiveUnsafeMemory();
-//        		deallocators = null;
-//        		allocators = null;
         	}
         } catch (Exception e) {
             throw new AssertionError(e);
         }
     }
+    
+	/**
+	 * Sets all bytes in a given block of memory to a copy of another block.
+	 * Equivalent to {@code copyMemory(null, srcAddress, null, destAddress, bytes)}.
+	 * @param srcAddress The address of the source
+	 * @param targetAddress The address of the target
+	 * @param numberOfBytes The number of bytes to copy
+	 * @see sun.misc.Unsafe#copyMemory(long, long, long)
+	 */
+	public static void copyMemory(long srcAddress, long targetAddress, long numberOfBytes) {
+		UNSAFE.copyMemory(srcAddress, targetAddress, numberOfBytes);
+	}
+	
+    /**
+     * Sets all bytes in a given block of memory to a copy of another block
+     * @param srcBase The source object
+     * @param srcOffset The source object offset
+     * @param destBase The destination object
+     * @param destOffset The destination object offset
+     * @param bytes The byte count to copy
+     */
+    public static void copyMemory(Object srcBase, long srcOffset, Object destBase, long destOffset, long bytes) {
+    	if(FIVE_COPY) {
+    		UNSAFE.copyMemory(srcBase, srcOffset, destBase, destOffset, bytes);
+    	} else {
+    		UNSAFE.copyMemory(srcOffset + getAddressOf(srcBase), destOffset + getAddressOf(destBase), bytes);
+    	}
+    }    
     
     
     /**
@@ -603,10 +650,19 @@ public class UnsafeAdapter {
     	}
     }
     
-    /** An empty map returned when state is requested by the management interface is disabled */
-    private static final Map<String, Long> EMPTY_STAT_MAP = Collections.unmodifiableMap(new HashMap<String, Long>(0));
-    /** The JVM's end of line character */
-    public static final String EOL = System.getProperty("line.separator", "\n");
+
+	/**
+	 * Sets all bytes in a given block of memory to a fixed value (usually zero). This provides a single-register addressing mode, as discussed in {@link #getInt(Object,long)} 
+	 * @param address The starting address of the segment to write to
+	 * @param bytes The number of bytes in the segment 
+	 * @param value The value to write to each byte in the segment 
+	 * @see sun.misc.Unsafe#setMemory(long, long, byte)
+	 */
+	public static void setMemory(long address, long bytes, byte value) {
+		UNSAFE.setMemory(address, bytes, value);
+	}
+	
+    
     
     /**
      * Returns a map of unsafe memory stats keyed by the stat name
@@ -688,7 +744,6 @@ public class UnsafeAdapter {
 			memoryAllocations.put(address, new long[]{size, alignmentOverhead});
 			totalMemoryAllocated.addAndGet(size);
 			totalAlignmentOverhead.addAndGet(alignmentOverhead);
-//				allocators.add(sun.reflect.Reflection.getCallerClass(3).getName());
 		}
 		return address;
 	}
@@ -717,7 +772,6 @@ public class UnsafeAdapter {
 			memoryAllocations.put(newAddress, new long[]{size, alignmentOverhead});
 			totalMemoryAllocated.addAndGet(size);
 			totalAlignmentOverhead.addAndGet(alignmentOverhead);
-//				allocators.add(sun.reflect.Reflection.getCallerClass(3).getName());
 		}
 		return newAddress;
 
@@ -879,141 +933,137 @@ public class UnsafeAdapter {
 		return UNSAFE.compareAndSwapObject(object, offset, expect, value);
 	}
 
-	/**
-	 * Sets all bytes in a given block of memory to a copy of another block.
-	 * Equivalent to {@code copyMemory(null, srcAddress, null, destAddress, bytes)}.
-	 * @param srcAddress The address of the source
-	 * @param targetAddress The address of the target
-	 * @param numberOfBytes The number of bytes to copy
-	 * @see sun.misc.Unsafe#copyMemory(long, long, long)
-	 */
-	public static void copyMemory(long srcAddress, long targetAddress, long numberOfBytes) {
-		UNSAFE.copyMemory(srcAddress, targetAddress, numberOfBytes);
-	}
 	
-    /**
-     * Sets all bytes in a given block of memory to a copy of another block
-     * @param srcBase The source object
-     * @param srcOffset The source object offset
-     * @param destBase The destination object
-     * @param destOffset The destination object offset
-     * @param bytes The byte count to copy
-     */
-    public static void copyMemory(Object srcBase, long srcOffset, Object destBase, long destOffset, long bytes) {
-    	if(FIVE_COPY) {
-    		UNSAFE.copyMemory(srcBase, srcOffset, destBase, destOffset, bytes);
-    	} else {
-    		UNSAFE.copyMemory(srcOffset + getAddressOf(srcBase), destOffset + getAddressOf(destBase), bytes);
-    	}
-    }	
     
     /**
      * Finds the next <b><code>power of 2</code></b> higher or equal to than the passed value.
-     * If {@link #alignMem} is false, will simply return the passed value. 
      * @param value The initial value
      * @return the pow2
      */
     public static int findNextPositivePowerOfTwo(final int value) {
-//		if(alignMem) return 1 << (32 - Integer.numberOfLeadingZeros(value - 1));
-//		return value;
     	return  1 << (32 - Integer.numberOfLeadingZeros(value - 1));
+	}    
+    
+    /**
+     * Finds the next <b><code>power of 2</code></b> higher or equal to than the passed value.
+     * @param value The initial value
+     * @return the pow2
+     */
+    public static int findNextPositivePowerOfTwo(final long value) {
+    	return  1 << (64 - Long.numberOfLeadingZeros(value - 1));
 	}    
 
 	/**
-	 * @param arg0
-	 * @param arg1
-	 * @param arg2
-	 * @return
+	 * Define a class but do not make it known to the class loader or system dictionary.
+	 * @param hostClass the host class to define the anonymous class in
+	 * @param byte[] byteCode The byte code for the class to create
+	 * @param cpPatches An array of constant pool patches
+	 * @return the defined anonymous class
 	 * @see sun.misc.Unsafe#defineAnonymousClass(java.lang.Class, byte[], java.lang.Object[])
 	 */
-	public static Class<?> defineAnonymousClass(Class<?> arg0, byte[] arg1, Object[] arg2) {
-		return UNSAFE.defineAnonymousClass(arg0, arg1, arg2);
+	public static Class<?> defineAnonymousClass(Class<?> hostClass, byte[] byteCode, Object... cpPatches) {
+		return UNSAFE.defineAnonymousClass(hostClass, byteCode, cpPatches);
 	}
-
+ 
 	/**
-	 * @param arg0
-	 * @param arg1
-	 * @param arg2
-	 * @param arg3
-	 * @param arg4
-	 * @param arg5
-	 * @return
+	 * Tell the VM to define a class, without security checks.  By default, the 
+	 * class loader and protection domain come from the caller's class.
+	 * @param className The name of the class to define 
+	 * @param byteCode The byte code for the class to define
+	 * @param offset The offset in the byte code array to start at
+	 * @param length The length of the byte code in the byte code array
+	 * @param classLoader the classloader to load the class with
+	 * @param The protection domain of the defined class  
+	 * @return the defined class
 	 * @see sun.misc.Unsafe#defineClass(java.lang.String, byte[], int, int, java.lang.ClassLoader, java.security.ProtectionDomain)
 	 */
-	public static Class<?> defineClass(String arg0, byte[] arg1, int arg2, int arg3,
-			ClassLoader arg4, ProtectionDomain arg5) {
-		return UNSAFE.defineClass(arg0, arg1, arg2, arg3, arg4, arg5);
+	public static Class<?> defineClass(String className, byte[] byteCode, int offset, int length,
+			ClassLoader classLoader, ProtectionDomain protectionDomain) {
+		return UNSAFE.defineClass(className, byteCode, offset, length, classLoader, protectionDomain);
 	}
 
 	/**
-	 * @param arg0
-	 * @param arg1
-	 * @param arg2
-	 * @param arg3
-	 * @return
+	 * Tell the VM to define a class, without security checks.  By default, the 
+	 * class loader and protection domain come from the caller's class.
+	 * @param className The name of the class to define 
+	 * @param byteCode The byte code for the class to define
+	 * @param offset The offset in the byte code array to start at
+	 * @param length The length of the byte code in the byte code array
+	 * @return the defined class
+	 * @deprecated
 	 * @see sun.misc.Unsafe#defineClass(java.lang.String, byte[], int, int)
 	 */
-	public static Class<?> defineClass(String arg0, byte[] arg1, int arg2, int arg3) {
-		return UNSAFE.defineClass(arg0, arg1, arg2, arg3);
+	public static Class<?> defineClass(String className, byte[] byteCode, int offset, int length) {
+		return UNSAFE.defineClass(className, byteCode, offset, length);
 	}
 
 	/**
-	 * @param arg0
+	 * Ensure the given class has been initialized. This is often needed in conjunction 
+	 * with obtaining the static field base of a class.
+	 * @param clazz The class to ensure initialization for
 	 * @see sun.misc.Unsafe#ensureClassInitialized(java.lang.Class)
 	 */
-	public static void ensureClassInitialized(Class<?> arg0) {
-		UNSAFE.ensureClassInitialized(arg0);
+	public static void ensureClassInitialized(Class<?> clazz) {
+		UNSAFE.ensureClassInitialized(clazz);
 	}
 
 	/**
-	 * @param arg0
-	 * @return
+	 * Returns the offset of a field, truncated to 32 bits.
+	 * Deprecated! As - of 1.4.1, use {@link #staticFieldOffset} for static fields and {@link #objectFieldOffset} for non-static fields.
+	 * @param field The field to get the offset of
+	 * @return the field offset
 	 * @deprecated
 	 * @see sun.misc.Unsafe#fieldOffset(java.lang.reflect.Field)
 	 */
-	public static int fieldOffset(Field arg0) {
-		return UNSAFE.fieldOffset(arg0);
+	public static int fieldOffset(Field field) {
+		return UNSAFE.fieldOffset(field);
 	}
 
 
 	/**
-	 * @param arg0
-	 * @return
+	 * Fetches a native pointer from a given memory address.  If the address is 
+	 * zero, or does not point into a block obtained from {@link #allocateMemory}, the results are undefined. 
+	 * @param address The address to read from
+	 * @return the returned address
 	 * @see sun.misc.Unsafe#getAddress(long)
 	 */
-	public static long getAddress(long arg0) {
-		return UNSAFE.getAddress(arg0);
+	public static long getAddress(long address) {
+		return UNSAFE.getAddress(address);
 	}
 
 	/**
-	 * @param arg0
-	 * @param arg1
-	 * @return
-	 * @deprecated
+	 * Reads a boolean from an object at the specified offset.
+	 * Deprecated! As - of 1.4.1, cast the 32-bit offset argument to a long. See {@link #staticFieldOffset}.
+	 * @param Object object
+	 * @param offset the offset of the field in the object
+	 * @return the read boolean value
+	 * @deprecated 
 	 * @see sun.misc.Unsafe#getBoolean(java.lang.Object, int)
 	 */
-	public static boolean getBoolean(Object arg0, int arg1) {
-		return UNSAFE.getBoolean(arg0, arg1);
+	public static boolean getBoolean(Object object, int offset) {
+		return UNSAFE.getBoolean(object, offset);
 	}
 
 	/**
-	 * @param arg0
-	 * @param arg1
-	 * @return
+	 * Reads a boolean from an object at the specified offset.
+	 * @param Object object
+	 * @param offset the offset of the field in the object
+	 * @return the read boolean value
 	 * @see sun.misc.Unsafe#getBoolean(java.lang.Object, long)
 	 */
-	public static boolean getBoolean(Object arg0, long arg1) {
-		return UNSAFE.getBoolean(arg0, arg1);
+	public static boolean getBoolean(Object object, long offset) {
+		return UNSAFE.getBoolean(object, offset);
 	}
 
 	/**
-	 * @param arg0
-	 * @param arg1
-	 * @return
+	 * Volatile version of {@link #getBoolean(Object, long)} 
+	 * @param Object object
+	 * @param offset the offset of the field in the object
+	 * @return the read boolean value
 	 * @see sun.misc.Unsafe#getBooleanVolatile(java.lang.Object, long)
 	 */
-	public static boolean getBooleanVolatile(Object arg0, long arg1) {
-		return UNSAFE.getBooleanVolatile(arg0, arg1);
+	public static boolean getBooleanVolatile(Object object, long offset) {
+		return UNSAFE.getBooleanVolatile(object, offset);
 	}
 
 	/**
@@ -1867,16 +1917,6 @@ public class UnsafeAdapter {
 
 
 
-	/**
-	 * Sets all bytes in a given block of memory to a fixed value (usually zero). This provides a single-register addressing mode, as discussed in {@link #getInt(Object,long)} 
-	 * @param address The starting address of the segment to write to
-	 * @param bytes The number of bytes in the segment 
-	 * @param value The value to write to each byte in the segment 
-	 * @see sun.misc.Unsafe#setMemory(long, long, byte)
-	 */
-	public static void setMemory(long address, long bytes, byte value) {
-		UNSAFE.setMemory(address, bytes, value);
-	}
 
 	/**
 	 * @param arg0

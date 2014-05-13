@@ -22,36 +22,44 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package org.helios.jmx.managed;
+package test.org.helios.jmx.inst;
+
+import org.helios.jmx.metrics.ewma.ConcurrentDirectEWMA;
 
 /**
- * <p>Title: Invoker</p>
- * <p>Description: Defines an op or attribute invoker for MBeans</p> 
+ * <p>Title: EWMAWrapper</p>
+ * <p>Description: EWMA invocation wrapper</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.jmx.managed.Invoker</code></p>
- * @param <T> The assumed type of the invoker's target
- * @param <R> The assumed type of the invocation return type
+ * <p><code>test.org.helios.jmx.inst.EWMAWrapper</code></p>
  */
 
-public interface Invoker<T, R> {
-	/**
-	 * Binds the target of the invocation to the invoker
-	 * @param target The target of the invocation
-	 * @return the return value of the target invocation
-	 */
-	public Invoker<T, R> bindTo(T target);
+public class EWMAWrapper {
+	protected static final ConcurrentDirectEWMA ewma = new ConcurrentDirectEWMA(100);
 	
-	/**
-	 * Invokes against the target 
-	 * @param args The arguments to the invocation
-	 * @return the invocation return value
-	 */
-	public R invoke(Object[] args);
+	protected static final ThreadLocal<long[]> startTime = new ThreadLocal<long[]>() {
+		@Override
+		protected long[] initialValue() {
+			return new long[1];
+		}
+	};
 	
-	/**
-	 * Indicates if the invoker is bound
-	 * @return true if the invoker is bound or the target is static
-	 */
-	public boolean isBound();
+	static {
+		System.out.println("\n\t========================\n\tInitialized: XXX\n\t========================\n");
+	}
+
+	
+	public static void start() {
+		startTime.get()[0] = System.nanoTime();
+	}
+	
+	public static void end() {
+		ewma.append(System.nanoTime() - startTime.get()[0]);
+		System.out.println(ewma);
+	}
+	
+	public static void error() {
+		ewma.error();
+	}
+	
 }
