@@ -24,14 +24,12 @@
  */
 package test.org.helios.jmx.comp;
 
-import static org.helios.jmx.annotation.Reflector.nvl;
-
 import java.io.ObjectStreamException;
 import java.io.Serializable;
 import java.lang.management.ManagementFactory;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Date;
+import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -51,7 +49,6 @@ import javax.management.MBeanOperationInfo;
 import javax.management.MBeanServer;
 import javax.management.MBeanServerConnection;
 import javax.management.MBeanServerDelegate;
-import javax.management.MBeanServerNotification;
 import javax.management.Notification;
 import javax.management.NotificationBroadcasterSupport;
 import javax.management.NotificationEmitter;
@@ -69,13 +66,16 @@ import org.helios.jmx.annotation.ManagedOperation;
 import org.helios.jmx.annotation.ManagedOperationParameter;
 import org.helios.jmx.annotation.ManagedResource;
 import org.helios.jmx.annotation.Reflector;
-import org.helios.jmx.managed.Invoker;
+import org.helios.jmx.annotation.Reflector.MBeanInfoMerger;
 import org.helios.jmx.managed.ManagedObjectRepo;
+import org.helios.jmx.metrics.ewma.ConcurrentDirectEWMA;
+import org.helios.jmx.metrics.ewma.ConcurrentDirectEWMAMBean;
 import org.helios.jmx.metrics.ewma.DirectEWMA;
 import org.helios.jmx.metrics.ewma.DirectEWMAMBean;
 import org.helios.jmx.util.helpers.JMXHelper;
 import org.helios.jmx.util.helpers.StringHelper;
 import org.helios.jmx.util.helpers.SystemClock;
+import org.helios.jmx.util.helpers.SystemClock.ElapsedTime;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -161,7 +161,8 @@ public class TesAnnotatedMBean extends BaseTest {
 			
 			Assert.assertEquals("UUID was unexpected", uuid, obj);
 			final TestBeanMBean tbm = JMX.newMBeanProxy(conn, on, TestBeanMBean.class);
-			tbm.pop("UUIDElapsed");
+//			tbm.pop("UUIDElapsed");
+			tbm.popAll();
 			Thread t = new Thread("EWMAExcerciser") {
 				public void run() {
 					while(true) {
@@ -182,6 +183,17 @@ public class TesAnnotatedMBean extends BaseTest {
 			};
 			t2.setDaemon(true);
 			t2.start();
+			Thread t3 = new Thread("RandomExcerciser") {
+				public void run() {
+					while(true) {						
+						try { Thread.sleep(4000); } catch (Exception x) {}
+						tbm.generateRandoms();
+					}							
+				}
+			};
+			t3.setDaemon(true);
+			t3.start();
+			
 			try { Thread.sleep(5000); } catch (Exception x) {}
 //			log(tbm.getUUIDElapsed().toString());
 			MBeanInfo mi = conn.getMBeanInfo(on);
@@ -238,8 +250,15 @@ public class TesAnnotatedMBean extends BaseTest {
 		})
 		public String doRandomUUID(String a, String b, String c, String d, String e);		
 		
-		@ManagedMetric(displayName="UUIDElapsed", description="Elapsed times for UUID generation", unit="ns")
+		@ManagedOperation(name="GenerateRandoms", description="Generates a random number of UUIDs")
+		public void generateRandoms();
+		
+		
+		@ManagedMetric(displayName="UUIDElapsed", description="Elapsed times for UUID generation", unit="ns", popable=true)
 		public DirectEWMAMBean getUUIDElapsed();
+		@ManagedMetric(displayName="UUIDRandom", description="The rate of random generation", unit="Randoms/ms", popable=true)
+		public DirectEWMAMBean getUUIDRandom();
+		
 		@ManagedOperation(name="reset", description="Resets the metrics", notifications={
 				@ManagedNotification(notificationTypes={"ewma.reset"}, name="EWMAReset", description="Notification emitted when the EWMA is reset")
 		})
@@ -275,6 +294,15 @@ public class TesAnnotatedMBean extends BaseTest {
 		)				
 		public Boolean unpop(String name);
 		
+		/**
+		 * Pops all the popable attributes that have not been popped
+		 * @return the number of objects popped
+		 */
+		@ManagedOperation(name="popAll", description="Pops all the popable attributes", 
+				notifications={ @ManagedNotification(notificationTypes={"jmx.mbean.info.changed"}, name="MBeanInfoChanged", description="Notification emitted when the MBeanInfo is updated") }				
+		)				
+		public int popAll();
+		
 	}
 	
 	/**
@@ -306,10 +334,41 @@ public class TesAnnotatedMBean extends BaseTest {
 		}		
 		final AtomicLong notifSerial = new AtomicLong(0L);
 		
+		private final Random R = new Random(System.currentTimeMillis());
+		
 		
 		
 		final DirectEWMAMBean uuidElapsed = new DirectEWMA(100);
+		public DirectEWMAMBean getUUIDElapsed() {
+			return uuidElapsed;
+		}
 		
+		final DirectEWMAMBean randomElapsed = new DirectEWMA(10000);
+		public DirectEWMAMBean getUUIDRandom() {
+			return randomElapsed;
+		}
+		
+		public void generateRandoms() {
+			ElapsedTime et = SystemClock.startClock();
+			long alloy = 0;
+			int loops = Math.abs(R.nextInt(1000)) + 1000;
+			int cnt = 0;
+			for(int i = 0; i < loops; i++) {
+				long t = UUID.randomUUID().getLeastSignificantBits();
+				if(cnt%2==0) {
+					alloy += t;
+				} else {
+					alloy -= t;
+				}
+				cnt++;
+			}
+			
+			long elapsed = et.elapsedMs();
+			long rate = et.rateMs(cnt);
+			log("genRand Rate: %s/ms  (Loops: %s Elapsed: %s Alloy: %s)", rate, loops, elapsed, alloy);
+			randomElapsed.append(rate);	
+//			randomElapsed.increment(loops-1);
+		}
 		
 		private void fireMBeanInfoChanged() {
 			Notification notif = new Notification("jmx.mbean.info.changed", this, notifSerial.incrementAndGet());
@@ -347,11 +406,27 @@ public class TesAnnotatedMBean extends BaseTest {
 			return result;
 		}
 		
+		/**
+		 * @return
+		 */
+		public int popAll() {
+			MBeanInfo[] infos = managedObjects.popAll();
+			if(infos!=null && infos.length>0) {				
+				synchronized(managedObjects) {
+					MBeanInfo merged = Reflector.newMerger(getCachedMBeanInfo()).append(infos).merge();
+					cacheMBeanInfo(merged);
+					fireMBeanInfoChanged();					
+				}
+			}
+			return infos.length;
+		}
+		
 		
 		
 		public void reset() {			
 			sendNotification(new Notification("ewma.reset", this, notifSerial.incrementAndGet(), SystemClock.time(), "EWMA Resets: " + uuidElapsed.toString()));
-			uuidElapsed.reset();			
+			uuidElapsed.reset();	
+			randomElapsed.reset();
 		}
 		
 		/**
@@ -367,9 +442,6 @@ public class TesAnnotatedMBean extends BaseTest {
 		protected Date date = new Date();
 		protected String randomUUID = null;
 		
-		public DirectEWMAMBean getUUIDElapsed() {
-			return uuidElapsed;
-		}
 		
 		public Date getDate() {
 			return date;

@@ -24,6 +24,7 @@
  */
 package org.helios.jmx.metrics.ewma;
 
+import java.io.ObjectStreamException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -79,6 +80,16 @@ public class ConcurrentDirectEWMA extends DirectEWMA implements ConcurrentDirect
 		if(invoker==null) return null;
 		return invoker.bindTo(instance).invoke();		
 	}
+	
+	/**
+	 * Replaces this objects with a serializable {@link ReadOnlyEWMA} when it is written to a serialization stream
+	 * @return a {@link ReadOnlyEWMA} representing a snapshot of this ewma.
+	 * @throws ObjectStreamException
+	 */
+	Object writeReplace() throws ObjectStreamException {
+		return new ReadOnlyEWMA(this);
+	}	
+	
 	
 	
 

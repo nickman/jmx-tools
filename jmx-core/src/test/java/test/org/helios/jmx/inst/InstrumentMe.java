@@ -53,8 +53,8 @@ public class InstrumentMe {
 		System.out.println("\n\t========================\n\tInitialized: InstrumentMe\n\t========================\n");
 	}
 	
-	public String generateRandoms() {
-		int loops = Math.abs(random.nextInt(maxRange));
+	public String generateRandoms(int added) {
+		int loops = Math.abs(random.nextInt(maxRange)) + added;
 		ElapsedTime et = SystemClock.startClock();
 		for(int i = 0; i < loops; i++) {
 			String s = UUID.randomUUID().toString();

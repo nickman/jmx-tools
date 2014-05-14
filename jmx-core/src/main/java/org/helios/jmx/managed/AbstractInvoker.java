@@ -24,6 +24,7 @@
  */
 package org.helios.jmx.managed;
 
+
 /**
  * <p>Title: AbstractInvoker</p>
  * <p>Description: </p> 
@@ -35,15 +36,24 @@ package org.helios.jmx.managed;
 public abstract class AbstractInvoker implements Invoker {
 	/** The invocation target */
 	protected Object target = null;
+	/** The target logical name */
+	protected final String name;
 	
 	
 	
 	/**
 	 * Creates a new AbstractInvoker
+	 * @param name The logical name of the invoker's target object.
+	 * Typically a JMX attribute name or operation action
 	 */
-	public AbstractInvoker() {
+	public AbstractInvoker(String name) {
+		this.name = name;
 	}
 
+	public String getName() {
+		return name;
+	}
+	
 	/**
 	 * {@inheritDoc}
 	 * @see org.helios.jmx.managed.Invoker#bindTo(java.lang.Object)

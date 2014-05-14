@@ -28,6 +28,8 @@ import static org.helios.jmx.annotation.Reflector.from;
 import static org.helios.jmx.annotation.Reflector.nvl;
 
 import java.util.Arrays;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 import javax.management.AttributeNotFoundException;
 import javax.management.MBeanAttributeInfo;
@@ -38,6 +40,7 @@ import javax.management.MBeanOperationInfo;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong.IteratorLong;
+import org.helios.jmx.annotation.Popable;
 import org.helios.jmx.annotation.Reflector;
 import org.helios.jmx.annotation.Reflector.MBeanInfoMerger;
 import org.helios.jmx.util.helpers.StringHelper;
@@ -106,6 +109,7 @@ public class ManagedObjectRepo<T> {
 	public MBeanInfo put(T objectToAdd) {
 		return put(objectToAdd, null);
 	}
+	
 
 	/**
 	 * Pops the named attribute
@@ -117,8 +121,31 @@ public class ManagedObjectRepo<T> {
 		long hash = StringHelper.longHashCode(nvl(name, "Attribute Name"));
 		Invoker[] invokerPair = globalAttrInvokers.get(hash);
 		if(invokerPair==null || invokerPair.length==0 || invokerPair[0]==null) return null;
+		if(!invokerPair[0].getClass().getAnnotation(Popable.class).value()) {
+			return null;
+		}
 		Object target = invokerPair[0].invoke();
 		return put((T) target, name);
+	}
+	
+	/**
+	 * Pops all the managed objects that have not been popped
+	 * @return an array of mbean infos for the objects that were popped
+	 */
+	@SuppressWarnings("unchecked")
+	public MBeanInfo[] popAll() {
+		Set<MBeanInfo> infos = new LinkedHashSet<MBeanInfo>();
+		for(Invoker[] invokerPair: globalAttrInvokers.values()) {
+			if(invokerPair==null || invokerPair.length==0 || invokerPair[0]==null) continue;
+			boolean poppable = invokerPair[0].getClass().getAnnotation(Popable.class).value();
+			if(!poppable) continue;
+			Object target = invokerPair[0].invoke();
+			MBeanInfo info = put((T) target, invokerPair[0].getName());
+			if(info!=null) {
+				infos.add(info);
+			}
+		}
+		return infos.toArray(new MBeanInfo[infos.size()]);		
 	}
 	
 	/**

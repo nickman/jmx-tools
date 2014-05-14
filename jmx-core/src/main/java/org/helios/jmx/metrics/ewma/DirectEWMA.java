@@ -55,7 +55,7 @@ import org.helios.jmx.util.unsafe.UnsafeAdapter;
  * <p><code>org.helios.rindle.period.impl.DirectEWMA</code></p>
  */
 
-public class DirectEWMA implements DeAllocateMe, DirectEWMAMBean, IMetricSetter, Serializable, CompositeData, CompositeDataView {
+public class DirectEWMA implements DeAllocateMe, DirectEWMAMBean, IMetricSetter {
 	/**  */
 	private static final long serialVersionUID = 4057837003464578145L;
 
@@ -129,10 +129,20 @@ public class DirectEWMA implements DeAllocateMe, DirectEWMAMBean, IMetricSetter,
 		this(windowSize, TOTAL);
 	}
 	
+	/**
+	 * Replaces this objects with a serializable {@link ReadOnlyEWMA} when it is written to a serialization stream
+	 * @return a {@link ReadOnlyEWMA} representing a snapshot of this ewma.
+	 * @throws ObjectStreamException
+	 */
 	Object writeReplace() throws ObjectStreamException {
-		return toCompositeData(openType);
+		return new ReadOnlyEWMA(this);
 	}	
 	
+	/**
+	 * {@inheritDoc}
+	 * @see javax.management.openmbean.CompositeDataView#toCompositeData(javax.management.openmbean.CompositeType)
+	 */
+	@Override
 	public CompositeData toCompositeData(CompositeType ct) {
 		try {
 			return new CompositeDataSupport(openType, invokers.keySet().toArray(new String[0]), values().toArray(new Object[0])) ;

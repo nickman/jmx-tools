@@ -192,21 +192,20 @@ public class Reflector {
 		Annotation annotation = targetClass.getAnnotation(annotationType);
 		if(annotation!=null) {
 			return targetClass;
-		} else {
-			Class<?> currentClass = targetClass;
-			while(currentClass != null && !Object.class.equals(currentClass)) {
-				Set<Class<?>> supers = new HashSet<Class<?>>(Arrays.asList(currentClass.getInterfaces()));
-				if(climbSupers) supers.add(currentClass.getSuperclass());
-				for(Class<?> _super: supers) {
-					if(_super.getAnnotation(annotationType)!=null) return _super;					
-				}
-				for(Class<?> _super: supers) {
-					Class<?> located = getAnnotated(_super, annotationType);
-					if(located!=null) return located;
-				}
-			}
-			return null;
 		}
+		Class<?> currentClass = targetClass;
+		while(currentClass != null && !Object.class.equals(currentClass)) {
+			Set<Class<?>> supers = new HashSet<Class<?>>(Arrays.asList(currentClass.getInterfaces()));
+			if(climbSupers) supers.add(currentClass.getSuperclass());
+			for(Class<?> _super: supers) {
+				if(_super.getAnnotation(annotationType)!=null) return _super;					
+			}
+			for(Class<?> _super: supers) {
+				Class<?> located = getAnnotated(_super, annotationType);
+				if(located!=null) return located;
+			}
+		}
+		return null;
 	}
 	
 	
@@ -360,7 +359,7 @@ public class Reflector {
 			m = targetClass.getDeclaredMethod(pattern.getName(), pattern.getParameterTypes());
 		} catch (Exception e) {
 			try {
-				m = targetClass.getDeclaredMethod(pattern.getName(), pattern.getParameterTypes());
+				m = targetClass.getMethod(pattern.getName(), pattern.getParameterTypes());
 			} catch (Exception ex) {
 				throw new RuntimeException("Failed to find method [" + pattern.toGenericString() + "] in class [" + targetClass + "]", ex);
 			}
@@ -743,8 +742,9 @@ public class Reflector {
 		 * @return this builder
 		 */
 		public MBeanInfoMerger append(MBeanInfo...infos) {
-			for(MBeanInfo info: infos) {
-				if(infos==null) continue;
+			if(infos==null || infos.length==0) return this;
+			for(MBeanInfo info: infos) {				
+				if(info==null) continue;
 				if(className==null) className = info.getClassName();
 				if(description==null) description = info.getDescription();
 				append(info.getDescriptor());
@@ -762,6 +762,7 @@ public class Reflector {
 		 * @return this builder
 		 */
 		public MBeanInfoMerger append(Descriptor...descriptors) {
+			if(descriptors==null || descriptors.length==0) return this;
 			for(Descriptor descriptor : descriptors) {
 				if(descriptor==null) continue;
 				if(rootDescriptor==null) rootDescriptor = descriptor;
@@ -869,6 +870,36 @@ public class Reflector {
 		}
 	}
 	
+	/**
+	 * Returns the logical name of the passed method
+	 * @param method the method to get the logical name of
+	 * @return the logical name
+	 */
+	public static String getLogicalName(Method method) {
+		Class<?> targetClass = method.getDeclaringClass();
+		Class<?> annotatedClass = null;
+		ManagedResource mr = targetClass.getAnnotation(ManagedResource.class);
+		if(mr!=null) {
+			annotatedClass = targetClass;
+		} else {
+			annotatedClass = getAnnotated(targetClass, ManagedResource.class);
+		}
+		if(annotatedClass == null){
+			return attr(method);
+		}
+		Method targetMethod = null;
+		try {
+			targetMethod = annotatedClass.getDeclaredMethod(method.getName(), method.getParameterTypes());
+		} catch(Exception ex) {
+			return attr(method);
+		}
+		ManagedMetric mm = targetMethod.getAnnotation(ManagedMetric.class);
+		if(mm==null) {
+			return attr(method);
+		}
+		ManagedMetricImpl mmi = new ManagedMetricImpl(targetMethod, mm);
+		return mmi.getDisplayName();		
+	}
 
 	private Reflector() {}
 

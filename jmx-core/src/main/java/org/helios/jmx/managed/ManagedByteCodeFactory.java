@@ -37,11 +37,18 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import javassist.ClassPool;
 import javassist.CtClass;
-import javassist.CtConstructor;
 import javassist.CtMethod;
 import javassist.LoaderClassPath;
+import javassist.bytecode.AnnotationsAttribute;
+import javassist.bytecode.ClassFile;
+import javassist.bytecode.ConstPool;
+import javassist.bytecode.annotation.BooleanMemberValue;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
+import org.helios.jmx.annotation.ManagedMetric;
+import org.helios.jmx.annotation.ManagedResource;
+import org.helios.jmx.annotation.Popable;
+import org.helios.jmx.annotation.Reflector;
 import org.helios.jmx.util.helpers.StringHelper;
 import org.helios.jmx.util.helpers.SystemClock;
 import org.helios.jmx.util.helpers.SystemClock.ElapsedTime;
@@ -208,6 +215,16 @@ public class ManagedByteCodeFactory {
 		if(method==null) throw new IllegalArgumentException("The passed method was null");
 		final long methodId = StringHelper.longHashCode(method.toGenericString());
 		final int methodModifiers = method.getModifiers();
+		Class<?> annotatedClass = Reflector.getAnnotated(method.getDeclaringClass(), ManagedResource.class);
+		Method annotatedMethod = Reflector.getTargetMethodMatching(annotatedClass, method);
+		final boolean popable;
+		final String logicalName = Reflector.getLogicalName(annotatedMethod);
+		ManagedMetric mm = annotatedMethod.getAnnotation(ManagedMetric.class);
+		if(mm==null) {
+			popable = false;
+		} else {
+			popable = mm.popable();
+		}
 		if(Modifier.isAbstract(methodModifiers) || Modifier.isPrivate(methodModifiers)) {
 			throw new IllegalStateException("Abstract or private method cannot be Invoker Wrapped [" + method.toGenericString() + "]");
 		}
@@ -227,9 +244,9 @@ public class ManagedByteCodeFactory {
 						invokeMethod.setExceptionTypes(convert(cp, method.getExceptionTypes()));
 						
 						invokerCtClass.addMethod(invokeMethod);
-						CtConstructor ctor = new CtConstructor(EMPTY_CT_CLASS_ARRAY, invokerCtClass);
-						invokerCtClass.addConstructor(ctor);
-						ctor.setBody("{}");
+//						CtConstructor ctor = new CtConstructor(new CtClass[]{cp.get(String.class.getName())}, invokerCtClass);
+//						invokerCtClass.addConstructor(ctor);
+//						ctor.setBody("{}");
 						StringBuilder m = new StringBuilder("{");
 //						m.append("\n\tSystem.out.println(\"ARGS:\" + java.util.Arrays.toString($1));");
 						int argId = 0;
@@ -283,8 +300,15 @@ public class ManagedByteCodeFactory {
 						invokeMethod.setModifiers(invokeMethod.getModifiers() | javassist.Modifier.VARARGS);
 						invokerCtClass.setModifiers(invokerCtClass.getModifiers() & ~Modifier.ABSTRACT);
 //						invokerCtClass.writeFile("C:/temp/a");
-						
-						invokerCtor = invokerCtClass.toClass().getDeclaredConstructor();
+						ClassFile cf = invokerCtClass.getClassFile();
+						ConstPool constPool = cf.getConstPool();
+						AnnotationsAttribute attr = new AnnotationsAttribute(constPool, AnnotationsAttribute.visibleTag);
+						javassist.bytecode.annotation.Annotation a = new javassist.bytecode.annotation.Annotation(Popable.class.getName(), constPool);
+						a.addMemberValue("value", new BooleanMemberValue(popable, constPool));
+						attr.setAnnotation(a);
+						cf.addAttribute(attr);
+						cf.setVersionToJava5(); 
+						invokerCtor = invokerCtClass.toClass().getDeclaredConstructor(String.class);
 						cachedInvokerClasses.put(methodId, invokerCtor);
 					} catch (Exception x) {
 						throw new RuntimeException("Failed to create new invoker class for [" + method.toGenericString() + "]", x);
@@ -293,7 +317,7 @@ public class ManagedByteCodeFactory {
 			}
 		}		
 		try {			
-			Invoker invoker = invokerCtor.newInstance();
+			Invoker invoker = invokerCtor.newInstance(logicalName);
 			if(target != null) invoker.bindTo(target);
 			return invoker; 
 		} catch (Exception x) {
@@ -335,6 +359,11 @@ public class ManagedByteCodeFactory {
 	 * Creates a new ManagedByteCodeFactory
 	 */
 	private ManagedByteCodeFactory() {
+		
+		if(System.getProperties().containsKey("org.helios.bytecode.dir")) {
+			CtClass.debugDump=System.getProperty("org.helios.bytecode.dir");
+		}
+		
 		classPool.appendSystemPath();
 		classPool.appendClassPath(new LoaderClassPath(Invoker.class.getClassLoader()));
 		Map<Class<?>, CtClass> tmp = new HashMap<Class<?>, CtClass>(9);

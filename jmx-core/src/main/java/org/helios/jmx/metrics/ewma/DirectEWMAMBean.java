@@ -24,6 +24,11 @@
  */
 package org.helios.jmx.metrics.ewma;
 
+import java.io.Serializable;
+
+import javax.management.openmbean.CompositeData;
+import javax.management.openmbean.CompositeDataView;
+
 import org.helios.jmx.annotation.ManagedAttribute;
 import org.helios.jmx.annotation.ManagedResource;
 
@@ -35,7 +40,7 @@ import org.helios.jmx.annotation.ManagedResource;
  * <p><code>org.helios.jmx.metrics.DirectEWMAMBean</code></p>
  */
 @ManagedResource(description="An exponentially weighted moving average metric tracker")
-public interface DirectEWMAMBean extends EWMAAppenderMBean{
+public interface DirectEWMAMBean extends EWMAAppenderMBean, CompositeData, CompositeDataView, Serializable {
 	/**
 	 * Resets the EWMA
 	 */

@@ -24,6 +24,7 @@
  */
 package org.helios.jmx.util.helpers;
 
+import java.lang.management.ManagementFactory;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -41,6 +42,29 @@ import java.util.concurrent.TimeUnit;
  */
 
 public class SystemClock {
+	/** The platform high rez clock */
+	private static final sun.misc.Perf PERF = sun.misc.Perf.getPerf();
+	/** The JVM start time */
+	private static final long START_DATE = ManagementFactory.getRuntimeMXBean().getStartTime();
+	/** The JVM up time */
+	private static final long START_TIME = ManagementFactory.getRuntimeMXBean().getUptime();
+
+	/** The high res clock ticks per s */
+	private static final double TICK_FREQ_S = PERF.highResCounter();
+	/** The high res clock ticks per s */
+	private static final double TICK_FREQ_MS = TICK_FREQ_S/1000D;
+	/** The high res clock ticks per us */
+	private static final double TICK_FREQ_US = TICK_FREQ_MS/1000D;	
+	/** The high res clock ticks per ns */
+	private static final double TICK_FREQ_NS = TICK_FREQ_US/1000D;
+
+	// VM Linux: 786828  Native Windows: 218969
+	public static void main(String[] args) {
+		System.out.println("High Rez Freq:" + TICK_FREQ_S);
+		System.out.println("High Rez Freq (ms):" + TICK_FREQ_MS);
+		System.out.println("High Rez Freq (us):" + TICK_FREQ_US);
+		System.out.println("High Rez Freq (ns):" + TICK_FREQ_NS);
+	}
 	
 	/**
 	 * Starts a new timer
@@ -205,6 +229,16 @@ public class SystemClock {
 		}
 		
 		/**
+		 * Returns the rate of events in events per ms. for the passed number of events
+		 * @param cnt The number of events
+		 * @return The average rate time in event/ms.
+		 */
+		public long rateMs(double cnt) {			
+			return _rate(elapsed(TimeUnit.MILLISECONDS), cnt);
+		}
+		
+		
+		/**
 		 * Returns the average elapsed time in ns. for the passed number of events
 		 * @param cnt The number of events
 		 * @return The average elapsed time in ns.
@@ -220,6 +254,13 @@ public class SystemClock {
 			double d = time/cnt;
 			return Math.round(d);
 		}
+		
+		private long _rate(double time, double cnt) {
+			if(time==0 || cnt==0 ) return 0L;
+			double d = cnt/time;
+			return Math.round(d);
+		}
+		
 		
 		/**
 		 * Returns the elapsed time since start in ns.

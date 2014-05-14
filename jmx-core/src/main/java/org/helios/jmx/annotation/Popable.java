@@ -2,7 +2,7 @@
  * Helios, OpenSource Monitoring
  * Brought to you by the Helios Development Group
  *
- * Copyright 2007, Helios Development Group and individual contributors
+ * Copyright 2014, Helios Development Group and individual contributors
  * as indicated by the @author tags. See the copyright.txt file in the
  * distribution for a full listing of individual contributors.
  *
@@ -22,47 +22,29 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package org.helios.jmx.managed;
+package org.helios.jmx.annotation;
+
+import java.lang.annotation.Documented;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Inherited;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
 /**
- * <p>Title: Invoker</p>
- * <p>Description: Defines an op or attribute invoker for MBeans</p> 
+ * <p>Title: Popable</p>
+ * <p>Description: Annotation woven into {@link org.helios.jmx.managed.Invoker} instances to indicate if they are invokers for a popable type</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.jmx.managed.Invoker</code></p>
+ * <p><code>org.helios.jmx.annotation.Popable</code></p>
  */
-
-public interface Invoker {
+@Target(ElementType.TYPE)
+@Retention(RetentionPolicy.RUNTIME)
+@Inherited
+@Documented
+public @interface Popable {
 	/**
-	 * Binds the target of the invocation to the invoker
-	 * @param target The target of the invocation
-	 * @return the return value of the target invocation
+	 * true if the returned type is popable, false otherwise
 	 */
-	public Invoker bindTo(Object target);
-	
-	/**
-	 * Invokes against the target 
-	 * @param args The arguments to the invocation
-	 * @return the invocation return value
-	 */
-	public Object invoke(Object...args);
-	
-	/**
-	 * Returns the logical name of the invoker's target object.
-	 * Typically a JMX attribute name or operation action
-	 * @return the logical name of the invoker's target object
-	 */
-	public String getName();
-	
-	/**
-	 * Indicates if the invoker is bound
-	 * @return true if the invoker is bound or the target is static
-	 */
-	public boolean isBound();
-	
-	/**
-	 * Returns the bound target
-	 * @return the bound target
-	 */
-	public Object getTarget();
+	boolean value() default true;
 }
