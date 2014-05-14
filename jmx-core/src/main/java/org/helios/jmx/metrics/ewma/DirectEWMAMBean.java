@@ -122,6 +122,8 @@ public interface DirectEWMAMBean extends EWMAAppenderMBean{
 	 */
 	public long error();
 	
+	
+	
 //	/**
 //	 * Returns an appender to this EWMA
 //	 * @return an appender to this EWMA

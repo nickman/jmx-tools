@@ -110,27 +110,29 @@ public class ManagedObjectRepo<T> {
 	/**
 	 * Pops the named attribute
 	 * @param name The name of the attribute
-	 * @return true if the object was popped, false if it could not be found and null if it was already popped. 
+	 * @return the MBeanInfo of the popped attribute, or null  
 	 */
-	public Boolean pop(String name) {
-		
+	@SuppressWarnings("unchecked")
+	public MBeanInfo pop(String name) {		
 		long hash = StringHelper.longHashCode(nvl(name, "Attribute Name"));
 		Invoker[] invokerPair = globalAttrInvokers.get(hash);
-		if(invokerPair==null || invokerPair.length==0 || invokerPair[0]==null) return false;
-		Object target = invokerPair[0].getTarget();
-		return put((T) target, name)!=null ? true : null;
+		if(invokerPair==null || invokerPair.length==0 || invokerPair[0]==null) return null;
+		Object target = invokerPair[0].invoke();
+		return put((T) target, name);
 	}
 	
 	/**
 	 * Unpops the named attribute
 	 * @param name The name of the attribute
-	 * @return true if the object was unpopped, false if it could not be found and null if it was already unpopped. 
+	 * @return true if the attribute was successfully unpopped  
 	 */
-	public Boolean unpop(String name) {
+	@SuppressWarnings("unchecked")
+	public boolean unpop(String name) {
 		long hash = StringHelper.longHashCode(nvl(name, "Attribute Name"));
-		Object managedObject = objectsByNameId.get(hash);		
-		if(managedObject==null) return false;
-		return remove((T) managedObject)!=null ? true : null;
+		Invoker[] invokerPair = globalAttrInvokers.get(hash);
+		if(invokerPair==null || invokerPair.length==0 || invokerPair[0]==null) return false;
+		Object target = invokerPair[0].invoke();
+		return remove((T) target)!=null;
 	}
 	
 	

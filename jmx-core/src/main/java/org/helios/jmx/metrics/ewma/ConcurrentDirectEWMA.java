@@ -24,10 +24,19 @@
  */
 package org.helios.jmx.metrics.ewma;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 import javax.management.ObjectName;
+import javax.management.openmbean.CompositeType;
 
+import org.helios.jmx.annotation.Reflector;
+import org.helios.jmx.managed.Invoker;
 import org.helios.jmx.util.unsafe.UnsafeAdapter;
 import org.helios.jmx.util.unsafe.UnsafeAdapter.SpinLock;
 
@@ -42,6 +51,36 @@ import org.helios.jmx.util.unsafe.UnsafeAdapter.SpinLock;
 public class ConcurrentDirectEWMA extends DirectEWMA implements ConcurrentDirectEWMAMBean {
 	/** The spin lock to guard the EWMA */
 	protected final SpinLock lock = UnsafeAdapter.allocateSpinLock();
+	
+	/** The composite type for this class */
+	private static final CompositeType concurrentOpenType;
+	
+	/** A map of invokers keyed by the corresponding open type key  */
+	private static final Map<String, Invoker> concurrentInvokers;
+	
+	static {
+		Map<String, Invoker> invs = new LinkedHashMap<String, Invoker>(); 
+		concurrentOpenType = Reflector.getCompositeTypeForAnnotatedClass(ConcurrentDirectEWMA.class, invs);
+		Map<String, Invoker> sizedInvs = new LinkedHashMap<String, Invoker>(invs.size()+1, 1F);
+		sizedInvs.putAll(invs);
+		concurrentInvokers = Collections.unmodifiableMap(sizedInvs);		
+	}
+	
+	/**
+	 * Invokes the named invoker, retruning the resulting value, 
+	 * or null if the passed name was null, or no invoker was found.
+	 * @param instance The instance to invoke on
+	 * @param name The name of the invoker to execute
+	 * @return the invoker's returned value or null
+	 */
+	private static Object invoke(ConcurrentDirectEWMAMBean instance, String name) {
+		if(name==null || instance==null) return null;
+		Invoker invoker = concurrentInvokers.get(name);
+		if(invoker==null) return null;
+		return invoker.bindTo(instance).invoke();		
+	}
+	
+	
 
 	/**
 	 * Creates a new ConcurrentDirectEWMA
@@ -280,5 +319,87 @@ public class ConcurrentDirectEWMA extends DirectEWMA implements ConcurrentDirect
 		}					
 	}
 	
+	/**
+	 * {@inheritDoc}
+	 * @see javax.management.openmbean.CompositeData#getCompositeType()
+	 */
+	@Override
+	public CompositeType getCompositeType() {
+		return concurrentOpenType;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see javax.management.openmbean.CompositeData#get(java.lang.String)
+	 */
+	@Override
+	public Object get(String key) {
+		return invoke(this, key);
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see javax.management.openmbean.CompositeData#getAll(java.lang.String[])
+	 */
+	@Override
+	public Object[] getAll(String[] keys) {
+		lock.xlock();
+		try {
+			Object[] results = new Object[keys.length];
+			for(int i = 0; i < keys.length; i++) {
+				results[i] = invoke(this, keys[i]);
+			}
+			return results;		
+		} finally {
+			lock.xunlock();
+		}					
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see javax.management.openmbean.CompositeData#containsKey(java.lang.String)
+	 */
+	@Override
+	public boolean containsKey(String key) {
+		if(key==null) return false;
+		return concurrentInvokers.containsValue(key);
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see javax.management.openmbean.CompositeData#containsValue(java.lang.Object)
+	 */
+	@Override
+	public boolean containsValue(Object value) {
+		lock.xlock();
+		try {
+			if(value==null) return false;
+			for(Invoker invoker: concurrentInvokers.values()) {
+				Object result = invoker.invoke();
+				if(value.equals(result)) return true;
+			}
+			return false;
+		} finally {
+			lock.xunlock();
+		}					
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see javax.management.openmbean.CompositeData#values()
+	 */
+	@Override
+	public Collection<?> values() {
+		lock.xlock();
+		try {
+			List<Object> values = new ArrayList<Object>(concurrentInvokers.size());
+			for(Invoker invoker: concurrentInvokers.values()) {
+				values.add(invoker.invoke());
+			}
+			return values;
+		} finally {
+			lock.xunlock();
+		}					
+	}
 	
 }

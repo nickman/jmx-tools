@@ -26,10 +26,23 @@ package org.helios.jmx.metrics.ewma;
 
 import java.io.ObjectStreamException;
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 import javax.management.ObjectName;
+import javax.management.openmbean.CompositeData;
+import javax.management.openmbean.CompositeDataSupport;
+import javax.management.openmbean.CompositeDataView;
+import javax.management.openmbean.CompositeType;
+import javax.management.openmbean.OpenDataException;
 
+import org.helios.jmx.annotation.Reflector;
+import org.helios.jmx.managed.Invoker;
 import org.helios.jmx.util.helpers.JMXHelper;
 import org.helios.jmx.util.unsafe.DeAllocateMe;
 import org.helios.jmx.util.unsafe.UnsafeAdapter;
@@ -42,7 +55,7 @@ import org.helios.jmx.util.unsafe.UnsafeAdapter;
  * <p><code>org.helios.rindle.period.impl.DirectEWMA</code></p>
  */
 
-public class DirectEWMA implements DeAllocateMe, DirectEWMAMBean, IMetricSetter, Serializable {
+public class DirectEWMA implements DeAllocateMe, DirectEWMAMBean, IMetricSetter, Serializable, CompositeData, CompositeDataView {
 	/**  */
 	private static final long serialVersionUID = 4057837003464578145L;
 
@@ -71,6 +84,34 @@ public class DirectEWMA implements DeAllocateMe, DirectEWMAMBean, IMetricSetter,
 	/** The total memory allocation  */
 	public final static byte TOTAL = ERRORS + UnsafeAdapter.LONG_SIZE;
 	
+	/** The composite type for this class */
+	private static final CompositeType openType;
+	
+	/** A map of invokers keyed by the corresponding open type key  */
+	private static final Map<String, Invoker> invokers;
+	
+	static {
+		Map<String, Invoker> invs = new LinkedHashMap<String, Invoker>(); 
+		openType = Reflector.getCompositeTypeForAnnotatedClass(DirectEWMA.class, invs);
+		Map<String, Invoker> sizedInvs = new LinkedHashMap<String, Invoker>(invs.size()+1, 1F);
+		sizedInvs.putAll(invs);
+		invokers = Collections.unmodifiableMap(sizedInvs);		
+	}
+	
+	/**
+	 * Invokes the named invoker, retruning the resulting value, 
+	 * or null if the passed name was null, or no invoker was found.
+	 * @param instance The instance to invoke on
+	 * @param name The name of the invoker to execute
+	 * @return the invoker's returned value or null
+	 */
+	private static Object invoke(DirectEWMA instance, String name) {
+		if(name==null || instance==null) return null;
+		Invoker invoker = invokers.get(name);
+		if(invoker==null) return null;
+		return invoker.bindTo(instance).invoke();		
+	}
+	
 	/**
 	 * Creates a new DirectEWMA
 	 * @param windowSize The length of the sliding window in ms.
@@ -89,8 +130,16 @@ public class DirectEWMA implements DeAllocateMe, DirectEWMAMBean, IMetricSetter,
 	}
 	
 	Object writeReplace() throws ObjectStreamException {
-		return new ReadOnlyEWMA(this);
+		return toCompositeData(openType);
 	}	
+	
+	public CompositeData toCompositeData(CompositeType ct) {
+		try {
+			return new CompositeDataSupport(openType, invokers.keySet().toArray(new String[0]), values().toArray(new Object[0])) ;
+		} catch (OpenDataException ex) {
+			throw new RuntimeException(ex);
+		}		
+	}
 	
 	/**
 	 * Creates a new DirectEWMA to represent the stats for an instrumented method
@@ -357,6 +406,74 @@ public class DirectEWMA implements DeAllocateMe, DirectEWMAMBean, IMetricSetter,
 	@Override
 	public void incr() {
 		increment(1L);
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see javax.management.openmbean.CompositeData#getCompositeType()
+	 */
+	@Override
+	public CompositeType getCompositeType() {
+		return openType;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see javax.management.openmbean.CompositeData#get(java.lang.String)
+	 */
+	@Override
+	public Object get(String key) {
+		return invoke(this, key);
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see javax.management.openmbean.CompositeData#getAll(java.lang.String[])
+	 */
+	@Override
+	public Object[] getAll(String[] keys) {
+		Object[] results = new Object[keys.length];
+		for(int i = 0; i < keys.length; i++) {
+			results[i] = invoke(this, keys[i]);
+		}
+		return results;		
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see javax.management.openmbean.CompositeData#containsKey(java.lang.String)
+	 */
+	@Override
+	public boolean containsKey(String key) {
+		if(key==null) return false;
+		return invokers.containsValue(key);
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see javax.management.openmbean.CompositeData#containsValue(java.lang.Object)
+	 */
+	@Override
+	public boolean containsValue(Object value) {
+		if(value==null) return false;
+		for(Invoker invoker: invokers.values()) {
+			Object result = invoker.bindTo(this).invoke();
+			if(value.equals(result)) return true;
+		}
+		return false;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see javax.management.openmbean.CompositeData#values()
+	 */
+	@Override
+	public Collection<?> values() {
+		List<Object> values = new ArrayList<Object>(invokers.size());
+		for(Invoker invoker: invokers.values()) {
+			values.add(invoker.bindTo(this).invoke());
+		}
+		return values;
 	}
 
 }

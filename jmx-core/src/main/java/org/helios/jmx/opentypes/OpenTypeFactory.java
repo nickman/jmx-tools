@@ -53,6 +53,8 @@ import org.helios.jmx.opentypes.annotations.ACompositeType;
 import org.helios.jmx.opentypes.annotations.ACompositeTypeItem;
 import org.helios.jmx.opentypes.annotations.AOpenType;
 
+import com.sun.jmx.mbeanserver.MXBeanMappingFactory;
+
 
 
 /**
@@ -85,6 +87,8 @@ public class OpenTypeFactory {
 	protected static final Method mappingForType;
 	/** The com.sun internal MXBeanMapping getOpenType method  */
 	protected static final Method getOpenType;
+	
+	protected final MXBeanMappingFactory mxBeanMappingFactory;
 	
 	static {
 		Map<Class<?>, SimpleType> simpleTypes = new HashMap<Class<?>, SimpleType>();
@@ -131,6 +135,7 @@ public class OpenTypeFactory {
 		mxMappingFactory = defaultMapper;
 		mappingForType = mappingMethod;
 		getOpenType = getOpenTypeMethod;
+		
 	}
 	
 	/** A cache of created composite types keyed by the type name */
@@ -171,7 +176,10 @@ public class OpenTypeFactory {
 		arrayTypes = new ConcurrentHashMap<String, ArrayType<?>>();
 		tabularTypes = new ConcurrentHashMap<String, TabularType>();
 		openTypes = new ConcurrentHashMap<String, OpenType<?>>();
-		masterIndex = new ConcurrentHashMap<String, Map<String, ? extends OpenType<?>>>(); 
+		masterIndex = new ConcurrentHashMap<String, Map<String, ? extends OpenType<?>>>();
+		mxBeanMappingFactory = MXBeanMappingFactory.DEFAULT;
+		
+		
 		try {
 			for(Field f: SimpleType.class.getDeclaredFields()) {
 				if(!Modifier.isStatic(f.getModifiers())) continue;
@@ -181,6 +189,14 @@ public class OpenTypeFactory {
 			}
 		} catch (Exception ex) {
 			throw new RuntimeException("Failed to initialize OpenTypeFactory OpenType Cache", ex);
+		}
+	}
+	
+	public OpenType<?> openTypeForType(Type t) {
+		try {
+			return mxBeanMappingFactory.mappingForType(t, MXBeanMappingFactory.DEFAULT).getOpenType();
+		} catch (Exception ex) {
+			throw new RuntimeException(ex);
 		}
 	}
 	

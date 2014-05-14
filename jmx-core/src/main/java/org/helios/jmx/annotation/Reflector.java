@@ -28,11 +28,14 @@ import java.io.Serializable;
 import java.lang.annotation.Annotation;
 import java.lang.annotation.Inherited;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
@@ -49,10 +52,15 @@ import javax.management.MBeanOperationInfo;
 import javax.management.MBeanParameterInfo;
 import javax.management.ObjectName;
 import javax.management.modelmbean.DescriptorSupport;
+import javax.management.openmbean.CompositeType;
+import javax.management.openmbean.OpenType;
 
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong.IteratorLong;
 import org.helios.jmx.managed.Invoker;
+import org.helios.jmx.managed.ManagedByteCodeFactory;
+import org.helios.jmx.opentypes.OpenTypeFactory;
 import org.helios.jmx.util.helpers.JMXHelper;
 import org.helios.jmx.util.helpers.StringHelper;
 
@@ -125,9 +133,9 @@ public class Reflector {
 		if(description==null) description = annotatedClass.getName() + " Management Interface";
 		if(on == null)  on = JMXHelper.objectName(targetClass);
 		Map<String, Object> dmap = new HashMap<String, Object>();
-		dmap.put("immutableInfo", true);
+		dmap.put("immutableInfo", false);
 		dmap.put("interfaceClassName", annotatedClass.getName());
-		dmap.put("mxbean", false);
+		dmap.put("mxbean", true);
 		dmap.put("objectName", on);
 		
 		Descriptor descriptor = new DescriptorSupport(dmap.keySet().toArray(new String[dmap.size()]), dmap.values().toArray(new Object[dmap.size()]));
@@ -573,6 +581,11 @@ public class Reflector {
 				}
 			}
 		}
+		for(Class<? extends Annotation> annClazz: annotationTypes) {
+			if(!methodMap.containsKey(annClazz)) {
+				methodMap.put(annClazz, new HashSet<Method>(0));
+			}
+		}
 		return methodMap;
 	}	
 	
@@ -782,6 +795,77 @@ public class Reflector {
 					notifInfos.toArray(new MBeanNotificationInfo[0]),
 					mergeDescriptors()
 			);
+		}
+	}
+	
+	/**
+	 * Generates a composite type for types annotated with @ManagedAttribute and @ManagedMetric annotations 
+	 * @param targetClazz The class to acquire a composite type for
+	 * @param attrInvokers An optional map to populate with invokers for each annotated method
+	 * @return the composite type
+	 */
+	public static CompositeType getCompositeTypeForAnnotatedClass(Class<?> targetClazz, final Map<String, Invoker> attrInvokers) {
+		Class<?> annotatedClass = null;
+		ManagedResource mr = targetClazz.getAnnotation(ManagedResource.class);
+		if(mr!=null) {
+			annotatedClass = targetClazz;
+		} else {
+			annotatedClass = getAnnotated(targetClazz, ManagedResource.class);			
+		}
+		if(annotatedClass == null){
+			throw new RuntimeException("The class [" + targetClazz.getName() + "] is not annotated with @ManagedResource and does not implement any interfaces that do");
+		}		
+		mr = annotatedClass.getAnnotation(ManagedResource.class);
+		try {
+			String typeName = targetClazz.getName() + "CompositeType";
+			String description = null;
+			ManagedResourceImpl mri = null;
+			if(mr!=null) {
+				mri = new ManagedResourceImpl(mr);
+				description = mri.getDescription();
+			} else {
+				description = "Composite type for class " + targetClazz.getName();
+			}
+			Set<String> itemNames = new LinkedHashSet<String>();
+			List<String> itemDescriptions = new ArrayList<String>();
+			List<OpenType<?>> itemTypes = new ArrayList<OpenType<?>>();
+			Set<Method> methods = null;
+			Map<Class<? extends Annotation>, Set<Method>> methodMap = getAnnotatedMethods(annotatedClass, ManagedMetric.class, ManagedAttribute.class);
+			for(Method imethod: methodMap.get(ManagedAttribute.class)) {
+				Method method = getTargetMethodMatching(targetClazz, imethod);
+				if(method.getParameterTypes().length>0) continue;
+				OpenType<?> ot = OpenTypeFactory.SIMPLE_TYPE_MAPPING.get(method.getReturnType());
+				if(ot==null) continue;
+				ManagedAttribute ma = imethod.getAnnotation(ManagedAttribute.class);
+				ManagedAttributeImpl mai = new ManagedAttributeImpl(ma);
+				String name = mai.getName();
+				if(name==null) name = attr(method);
+				String adescription = mai.getDescription();
+				if(adescription==null) adescription =  targetClazz.getName() + "/" + attr(method);
+				itemNames.add(name);
+				itemDescriptions.add(adescription);
+				itemTypes.add(ot);
+				if(attrInvokers!=null) {
+					attrInvokers.put(name, ManagedByteCodeFactory.getInstance().newInvoker(method));
+				}
+			}
+			for(Method imethod: methodMap.get(ManagedMetric.class)) {
+				Method method = getTargetMethodMatching(targetClazz, imethod);
+				if(method.getParameterTypes().length>0) continue;
+				OpenType<?> ot = OpenTypeFactory.SIMPLE_TYPE_MAPPING.get(method.getReturnType());
+				if(ot==null) continue;
+				ManagedMetric mm = imethod.getAnnotation(ManagedMetric.class);
+				ManagedMetricImpl mmi = new ManagedMetricImpl(imethod, mm);
+				itemNames.add(mmi.getDisplayName());
+				itemDescriptions.add(mmi.getDescription());
+				itemTypes.add(ot);
+				if(attrInvokers!=null) {
+					attrInvokers.put(mmi.getDisplayName(), ManagedByteCodeFactory.getInstance().newInvoker(method));
+				}
+			}
+			return new CompositeType(typeName, description, itemNames.toArray(new String[itemNames.size()]), itemDescriptions.toArray(new String[itemDescriptions.size()]), itemTypes.toArray(new OpenType[itemTypes.size()]));
+		} catch (Exception ex) {
+			throw new RuntimeException("Failed to build CompositeType for class [" + targetClazz.getName() + "]", ex);
 		}
 	}
 	

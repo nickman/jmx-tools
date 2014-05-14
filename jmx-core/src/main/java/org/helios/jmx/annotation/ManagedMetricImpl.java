@@ -38,6 +38,7 @@ import javax.management.ImmutableDescriptor;
 import javax.management.MBeanAttributeInfo;
 import javax.management.MBeanInfo;
 import javax.management.modelmbean.DescriptorSupport;
+import javax.management.openmbean.OpenType;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
 import org.helios.jmx.managed.Invoker;
@@ -314,10 +315,14 @@ public class ManagedMetricImpl {
 				throw new RuntimeException(e);
 			}						
 		}
+		OpenType<?> ot = null;
+		try {
+			ot=OpenTypeFactory.getInstance().openTypeForType(method.getReturnType());
+		} catch (Exception ex) {}
 		
 		return new MBeanAttributeInfo(
 				getDisplayName(),
-				method.getReturnType().getName(),
+				ot==null ? method.getReturnType().getName() : ot.getClassName(),
 				getDescription(),
 				true,
 				false, 
@@ -358,6 +363,14 @@ public class ManagedMetricImpl {
 		if(method.getName().startsWith("get") && method.getParameterTypes().length==0 && OpenTypeFactory.SIMPLE_TYPE_MAPPING.containsKey(method.getReturnType())) {
 			descriptorMap.put("openType", OpenTypeFactory.SIMPLE_TYPE_MAPPING.get(method.getReturnType()));
 			descriptorMap.put("originalType", method.getReturnType());
+		} else {
+			try {
+				OpenType<?> ot = OpenTypeFactory.getInstance().openTypeForType(method.getReturnType());
+				descriptorMap.put("openType", ot);
+				descriptorMap.put("originalType", method.getReturnType().getName());
+			} catch (Exception ex) {
+				ex.printStackTrace(System.err);
+			}
 		}
 		return !immutable ?  new ImmutableDescriptor(descriptorMap) : new DescriptorSupport(descriptorMap.keySet().toArray(new String[descriptorMap.size()]), descriptorMap.values().toArray(new Object[descriptorMap.size()]));	
 	}

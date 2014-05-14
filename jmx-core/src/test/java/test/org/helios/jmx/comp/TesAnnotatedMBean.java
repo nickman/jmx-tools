@@ -30,11 +30,13 @@ import java.io.ObjectStreamException;
 import java.io.Serializable;
 import java.lang.management.ManagementFactory;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 
 import javax.management.Attribute;
+import javax.management.AttributeList;
 import javax.management.AttributeNotFoundException;
 import javax.management.Descriptor;
 import javax.management.InvalidAttributeValueException;
@@ -49,6 +51,7 @@ import javax.management.MBeanOperationInfo;
 import javax.management.MBeanServer;
 import javax.management.MBeanServerConnection;
 import javax.management.MBeanServerDelegate;
+import javax.management.MBeanServerNotification;
 import javax.management.Notification;
 import javax.management.NotificationBroadcasterSupport;
 import javax.management.NotificationEmitter;
@@ -158,7 +161,7 @@ public class TesAnnotatedMBean extends BaseTest {
 			
 			Assert.assertEquals("UUID was unexpected", uuid, obj);
 			final TestBeanMBean tbm = JMX.newMBeanProxy(conn, on, TestBeanMBean.class);
-			//tbm.popEWMAs();
+			tbm.pop("UUIDElapsed");
 			Thread t = new Thread("EWMAExcerciser") {
 				public void run() {
 					while(true) {
@@ -180,7 +183,7 @@ public class TesAnnotatedMBean extends BaseTest {
 			t2.setDaemon(true);
 			t2.start();
 			try { Thread.sleep(5000); } catch (Exception x) {}
-			log(tbm.getUUIDElapsed().toString());
+//			log(tbm.getUUIDElapsed().toString());
 			MBeanInfo mi = conn.getMBeanInfo(on);
 			StringBuilder b = new StringBuilder("\t");
 			for(MBeanAttributeInfo minfo: mi.getAttributes()) {
@@ -300,7 +303,6 @@ public class TesAnnotatedMBean extends BaseTest {
 			super(mbeanInterface, isMXBean);
 			cacheMBeanInfo(managedObjects.put(this));
 			broadcaster = new NotificationBroadcasterSupport(this.getMBeanInfo().getNotifications());
-			log("EWMA ID:" + System.identityHashCode(uuidElapsed));
 		}		
 		final AtomicLong notifSerial = new AtomicLong(0L);
 		
@@ -312,62 +314,40 @@ public class TesAnnotatedMBean extends BaseTest {
 		private void fireMBeanInfoChanged() {
 			Notification notif = new Notification("jmx.mbean.info.changed", this, notifSerial.incrementAndGet());
 			notif.setUserData(getCachedMBeanInfo());
-			
-			notif = new Notification("jmx.mbean.info.changed", JMXHelper.objectName(MBeanServerDelegate.DELEGATE_NAME), notifSerial.incrementAndGet());
-			notif.setUserData(getCachedMBeanInfo());
 			sendNotification(notif);
-		}
-		
-		public void popAttribute(String name) {
-			
-		}
-		
-		public Boolean pop(String name) {
-			
-			return managedObjects.pop(name);
-		}
-		public Boolean unpop(String name) {
-			return managedObjects.unpop(name);
-		}
-		
-		
-//		public void popEWMAs() {
-//			MBeanInfo info = managedObjects.put(uuidElapsed, "UUIDElapsed");	
-//			if(info!=null) {
-//				synchronized(managedObjects) {
-//					cacheMBeanInfo(Reflector.newMerger(getCachedMBeanInfo()).append(info).merge());
-//					fireMBeanInfoChanged();					
-//				}
-//			}
-//		}
 //
-//		public void unpopEWMAs() {
-//			if(managedObjects.remove("UUIDElapsed")!=null) {
-//				synchronized(managedObjects) {
-//					cacheMBeanInfo(managedObjects.mergeAllMBeanInfos());
-//					fireMBeanInfoChanged();
-//				}
-//			}
-//		}
-		
-/*		protected void addManagedSubObject(Object obj, Class<?> mbeanInterface) {
-			if(obj==null) return;
-			final NonBlockingHashMapLong<MethodHandle[]> attrs = new NonBlockingHashMapLong<MethodHandle[]>();
-			final NonBlockingHashMapLong<MethodHandle> ops = new NonBlockingHashMapLong<MethodHandle>();
-//			Reflector.bindInvokers(obj, attrs, ops);
-			
-			MBeanInfo info = Reflector.clean(Reflector.from(mbeanInterface, attrs, ops, attrs));
-			addedObjectMetas.put(obj, new AddedObjectMeta(attrs, ops, info));
-			attrInvokers.putAll(attrs);
-			opInvokers.putAll(ops);
-			synchronized(addedObjectMetas) {
-				cacheMBeanInfo(Reflector.newMerger(getCachedMBeanInfo()).append(info).merge());
-				sendNotification(new Notification("jmx.mbean.info.changed", this, notifSerial.incrementAndGet()));
-			}
-			
+//			notif = new MBeanServerNotification(MBeanServerNotification.UNREGISTRATION_NOTIFICATION, JMXHelper.objectName(MBeanServerDelegate.DELEGATE_NAME),notifSerial.incrementAndGet(), this.objectName); 			
+//			sendNotification(notif);
+//			notif = new MBeanServerNotification(MBeanServerNotification.REGISTRATION_NOTIFICATION, JMXHelper.objectName(MBeanServerDelegate.DELEGATE_NAME),notifSerial.incrementAndGet(), this.objectName);
+//			notif.setUserData(getCachedMBeanInfo());
+//			sendNotification(notif);
 			
 		}
-*/		
+		
+		public Boolean pop(String name) {			
+			MBeanInfo info = managedObjects.pop(name);
+			if(info!=null) {
+				synchronized(managedObjects) {
+					cacheMBeanInfo(Reflector.newMerger(getCachedMBeanInfo()).append(info).merge());
+					fireMBeanInfoChanged();					
+					return true;
+				}
+			}
+			return false;
+		}
+			
+		public Boolean unpop(String name) {
+			boolean result =  managedObjects.unpop(name);
+			if(result) {
+				synchronized(managedObjects) {
+					cacheMBeanInfo(managedObjects.mergeAllMBeanInfos());
+					fireMBeanInfoChanged();										
+				}				
+			}
+			return result;
+		}
+		
+		
 		
 		public void reset() {			
 			sendNotification(new Notification("ewma.reset", this, notifSerial.incrementAndGet(), SystemClock.time(), "EWMA Resets: " + uuidElapsed.toString()));
@@ -442,29 +422,25 @@ public class TesAnnotatedMBean extends BaseTest {
 		 */
 		@Override
 		public Object getAttribute(String attribute) throws AttributeNotFoundException, MBeanException, ReflectionException {
-//			final long attrCode = StringHelper.longHashCode(attribute);
-//			MethodHandle[] mhPair = attrInvokers.get(attrCode);
-//			Object target = targetObjects.get(attrCode);
-//			if(mhPair==null) throw new AttributeNotFoundException("No attribute named [" + attribute + "]");
-//			if(mhPair[0]==null) throw new AttributeNotFoundException("Attribute named [" + attribute + "] is not readable");
-//			log("MethodHandle [%s] : %s", attribute, mhPair[0].getClass().getName());
-			try {				
-				Invoker invoker = managedObjects.getAttributeGetter(attribute);
-				Object target = invoker.getTarget();
-				log("Invoking [%s] against Object ID [%s]" , attribute, System.identityHashCode(target));
-				Object result = invoker.invoke();
-				if(result instanceof Double) {
-					return Math.round(((Double)result).doubleValue());
-				}
-				if(result instanceof Long) {
-					return ((Long)result).longValue();
-				}
-				
-				return result;
-						//mhPair[0].bindTo(target).invoke();
+			try {
+				return managedObjects.getAttributeGetter(attribute).invoke();
 			} catch (Throwable e) {
 				throw new ReflectionException(new Exception(e), "Failed to dynInvoke for attribute [" + attribute + "]");				
 			}
+		}
+		
+		private final AttributeList EMPTY_ATTR_LIST = new AttributeList(0); 
+		
+		@Override
+		public AttributeList getAttributes(String[] attributes) {
+			if(attributes==null || attributes.length==0) return EMPTY_ATTR_LIST;
+			AttributeList attrList = new AttributeList(attributes.length);
+			for(String s: attributes) {
+				try {
+					attrList.add(new Attribute(s, managedObjects.getAttributeGetter(s).invoke()));
+				} catch (Exception x) {/* No Op */}
+			}
+			return attrList;
 		}
 		
 		/**
@@ -473,14 +449,8 @@ public class TesAnnotatedMBean extends BaseTest {
 		 */
 		@Override
 		public void setAttribute(Attribute attribute) throws AttributeNotFoundException, InvalidAttributeValueException, MBeanException, ReflectionException {
-//			long attrCode = StringHelper.longHashCode(attribute.getName());
-//			MethodHandle[] mhPair = attrInvokers.get(attrCode);
-//			Object target = targetObjects.get(attrCode);
-//			if(mhPair==null) throw new AttributeNotFoundException("No attribute named [" + attribute.getName() + "]");
-//			if(mhPair.length==1 || mhPair[1]==null) throw new AttributeNotFoundException("Attribute named [" + attribute.getName() + "] is not readable");
 			try {			
 				managedObjects.getAttributeSetter(attribute.getName()).invoke(attribute.getValue());
-//				mhPair[1].bindTo(target).invoke(attribute.getValue());
 			} catch (Throwable e) {
 				throw new ReflectionException(new Exception(e), "Failed to dynInvoke for attribute [" + attribute + "]");				
 			}			
