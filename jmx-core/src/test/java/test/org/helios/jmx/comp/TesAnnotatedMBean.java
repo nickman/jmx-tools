@@ -26,17 +26,17 @@ package test.org.helios.jmx.comp;
 
 import java.io.ObjectStreamException;
 import java.io.Serializable;
-import java.lang.management.ManagementFactory;
+import java.lang.ref.WeakReference;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import javax.management.Attribute;
 import javax.management.AttributeList;
 import javax.management.AttributeNotFoundException;
-import javax.management.Descriptor;
 import javax.management.InvalidAttributeValueException;
 import javax.management.JMX;
 import javax.management.ListenerNotFoundException;
@@ -66,16 +66,14 @@ import org.helios.jmx.annotation.ManagedOperation;
 import org.helios.jmx.annotation.ManagedOperationParameter;
 import org.helios.jmx.annotation.ManagedResource;
 import org.helios.jmx.annotation.Reflector;
-import org.helios.jmx.annotation.Reflector.MBeanInfoMerger;
 import org.helios.jmx.managed.ManagedObjectRepo;
-import org.helios.jmx.metrics.ewma.ConcurrentDirectEWMA;
-import org.helios.jmx.metrics.ewma.ConcurrentDirectEWMAMBean;
 import org.helios.jmx.metrics.ewma.DirectEWMA;
 import org.helios.jmx.metrics.ewma.DirectEWMAMBean;
 import org.helios.jmx.util.helpers.JMXHelper;
 import org.helios.jmx.util.helpers.StringHelper;
 import org.helios.jmx.util.helpers.SystemClock;
 import org.helios.jmx.util.helpers.SystemClock.ElapsedTime;
+import org.helios.jmx.util.phantom.ReferenceService;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -122,14 +120,21 @@ public class TesAnnotatedMBean extends BaseTest {
 	protected static final ObjectName DELEGATE = JMXHelper.objectName(MBeanServerDelegate.DELEGATE_NAME);
 	public static final MBeanNotificationInfo[] EMPTY_N_INFO = {};
 	
+	WeakReference<TestBean> weakRef = null;
+	
 	@Test
 	public void testAnnotatedMBean() throws Exception {
 		try {
 			String ons = "test.org.helios.jmx.comp:service=TestMBean,type=" + name.getMethodName();
-			ObjectName on = JMXHelper.objectName(ons);
+			final ObjectName on = JMXHelper.objectName(ons);
 			
-			TestBean tb = new TestBean(TestBeanMBean.class, false);
-			tb.register(on);
+
+			weakRef = ReferenceService.getInstance().newWeakReference(new TestBean(TestBeanMBean.class, false).register(on), new Runnable() {
+				public void run() {
+					log("MBean Weakly Reachable: [%s]. Unregistering....", on);
+					JMXHelper.unregisterMBean(on);
+				}
+			});
 			MBeanServerConnection conn = getRemoteMBeanServer();
 			Object obj = conn.getAttribute(on, "SystemDate");
 			log("SystemDate: [%s]", obj);
@@ -166,7 +171,11 @@ public class TesAnnotatedMBean extends BaseTest {
 			Thread t = new Thread("EWMAExcerciser") {
 				public void run() {
 					while(true) {
-						tbm.doRandomUUID();
+						try {
+							tbm.doRandomUUID();
+						} catch (Exception ex) {
+							break;
+						}
 						try { Thread.sleep(100); } catch (Exception x) {}
 					}							
 				}
@@ -177,17 +186,21 @@ public class TesAnnotatedMBean extends BaseTest {
 				public void run() {
 					while(true) {						
 						try { Thread.sleep(5000); } catch (Exception x) {}
-						tbm.reset();
+						try {
+							tbm.reset();
+						} catch (Exception ex) {
+							break;
+						}
 					}							
 				}
 			};
 			t2.setDaemon(true);
-			t2.start();
+//			t2.start();
 			Thread t3 = new Thread("RandomExcerciser") {
 				public void run() {
 					while(true) {						
 						try { Thread.sleep(4000); } catch (Exception x) {}
-						tbm.generateRandoms();
+						try { tbm.generateRandoms(); } catch (Exception x) { break; }
 					}							
 				}
 			};
@@ -196,30 +209,42 @@ public class TesAnnotatedMBean extends BaseTest {
 			
 			try { Thread.sleep(5000); } catch (Exception x) {}
 //			log(tbm.getUUIDElapsed().toString());
-			MBeanInfo mi = conn.getMBeanInfo(on);
-			StringBuilder b = new StringBuilder("\t");
-			for(MBeanAttributeInfo minfo: mi.getAttributes()) {
-				Object value = conn.getAttribute(on, minfo.getName());
-				log("[%s] type: [%s], value: [%s]", minfo.getName(), value.getClass().getName(), value);
-				b.append(minfo.getName()).append(":").append(conn.getAttribute(on, minfo.getName())).append(", ");
-			}
-			b.deleteCharAt(b.length()-1);
-			b.deleteCharAt(b.length()-1);
-			log(b.toString());
-			ObjectName OSON = JMXHelper.objectName(ManagementFactory.OPERATING_SYSTEM_MXBEAN_NAME);
-			MBeanInfo osInfo = conn.getMBeanInfo(OSON);
-			MBeanAttributeInfo minfo = null;
-			for(MBeanAttributeInfo m: osInfo.getAttributes()) {
-				if(m.getName().equals("SystemCpuLoad")) {
-					minfo = m;
+//			MBeanInfo mi = conn.getMBeanInfo(on);
+//			StringBuilder b = new StringBuilder("\t");
+//			for(MBeanAttributeInfo minfo: mi.getAttributes()) {
+//				Object value = conn.getAttribute(on, minfo.getName());
+//				log("[%s] type: [%s], value: [%s]", minfo.getName(), value.getClass().getName(), value);
+//				b.append(minfo.getName()).append(":").append(conn.getAttribute(on, minfo.getName())).append(", ");
+//			}
+//			b.deleteCharAt(b.length()-1);
+//			b.deleteCharAt(b.length()-1);
+//			log(b.toString());
+//			ObjectName OSON = JMXHelper.objectName(ManagementFactory.OPERATING_SYSTEM_MXBEAN_NAME);
+//			MBeanInfo osInfo = conn.getMBeanInfo(OSON);
+//			MBeanAttributeInfo minfo = null;
+//			for(MBeanAttributeInfo m: osInfo.getAttributes()) {
+//				if(m.getName().equals("SystemCpuLoad")) {
+//					minfo = m;
+//					break;
+//				}
+//			}
+//			Descriptor d = minfo.getDescriptor();
+//			for(String s: d.getFieldNames()) {
+//				Object value = d.getFieldValue(s);
+//				log("D Name: [%s], Type: [%s] Value: [%s]", s, value.getClass().getName(), value);
+//			}
+			while(true) {
+				log("WeakRef Enqueued:%s", weakRef.isEnqueued());
+				if(weakRef.isEnqueued()) {
+					SystemClock.sleep(3000);
 					break;
 				}
+				System.gc(); System.gc();
+				SystemClock.sleep(10000);
 			}
-			Descriptor d = minfo.getDescriptor();
-			for(String s: d.getFieldNames()) {
-				Object value = d.getFieldValue(s);
-				log("D Name: [%s], Type: [%s] Value: [%s]", s, value.getClass().getName(), value);
-			}
+			SystemClock.sleep(10000);
+			try { JMXHelper.unregisterMBean(on); } catch (Exception ex) {}
+			log("\n\t====================\n\tUNREGISTERED\n\t======================\n");
 			Thread.currentThread().join();
 		} catch (Exception ex) {
 			ex.printStackTrace(System.err);
@@ -303,6 +328,18 @@ public class TesAnnotatedMBean extends BaseTest {
 		)				
 		public int popAll();
 		
+		@ManagedOperation(name="URegReg", description="Unregisters the mbean and registers it again. (JConsole debugging tidbit)")
+		public void unregReg();
+
+		/**
+		 * Unpops all the poppable attributes that have not been popped
+		 * @return the number of objects popped
+		 */
+		@ManagedOperation(name="unPopAll", description="Unpops all the popable attributes", 
+				notifications={ @ManagedNotification(notificationTypes={"jmx.mbean.info.changed"}, name="MBeanInfoChanged", description="Notification emitted when the MBeanInfo is updated") }				
+		)				
+		public int unPopAll();
+		
 	}
 	
 	/**
@@ -333,6 +370,7 @@ public class TesAnnotatedMBean extends BaseTest {
 			broadcaster = new NotificationBroadcasterSupport(this.getMBeanInfo().getNotifications());
 		}		
 		final AtomicLong notifSerial = new AtomicLong(0L);
+		final AtomicBoolean shutdown = new AtomicBoolean(true);
 		
 		private final Random R = new Random(System.currentTimeMillis());
 		
@@ -362,7 +400,7 @@ public class TesAnnotatedMBean extends BaseTest {
 				}
 				cnt++;
 			}
-			
+			et = et.stopClock();
 			long elapsed = et.elapsedMs();
 			long rate = et.rateMs(cnt);
 			log("genRand Rate: %s/ms  (Loops: %s Elapsed: %s Alloy: %s)", rate, loops, elapsed, alloy);
@@ -410,9 +448,10 @@ public class TesAnnotatedMBean extends BaseTest {
 		 * @return
 		 */
 		public int popAll() {
-			MBeanInfo[] infos = managedObjects.popAll();
-			if(infos!=null && infos.length>0) {				
-				synchronized(managedObjects) {
+			MBeanInfo[] infos = null;
+			synchronized(managedObjects) {
+				infos = managedObjects.popAll();
+				if(infos!=null && infos.length>0) {				
 					MBeanInfo merged = Reflector.newMerger(getCachedMBeanInfo()).append(infos).merge();
 					cacheMBeanInfo(merged);
 					fireMBeanInfoChanged();					
@@ -421,7 +460,27 @@ public class TesAnnotatedMBean extends BaseTest {
 			return infos.length;
 		}
 		
+		public void unregReg() {
+			try { 
+				if(shutdown.compareAndSet(true, false)) {
+					JMXHelper.unregisterMBean(objectName);
+					JMXHelper.registerMBean(this, objectName);
+				}
+			} catch (Exception ex) {
+				throw new RuntimeException(ex);
+			} finally {
+				shutdown.compareAndSet(false, true);
+			}
+		}
 		
+		public int unPopAll() {
+			synchronized(managedObjects) {
+				int unpopped =  managedObjects.unPopAll();
+				cacheMBeanInfo(managedObjects.mergeAllMBeanInfos());
+				fireMBeanInfoChanged();										
+				return unpopped;
+			}
+		}
 		
 		public void reset() {			
 			sendNotification(new Notification("ewma.reset", this, notifSerial.incrementAndGet(), SystemClock.time(), "EWMA Resets: " + uuidElapsed.toString()));
@@ -480,10 +539,24 @@ public class TesAnnotatedMBean extends BaseTest {
 			register(null);
 		}
 		
-		protected void register(ObjectName on) {
+		protected TestBean register(ObjectName on) {
 			this.objectName = on;
 			if(on==null) on = JMXHelper.objectName(getCachedMBeanInfo().getDescriptor().getFieldValue("objectName"));
 			JMXHelper.registerMBean(this, on);
+			return this;
+		}
+		
+		@Override
+		public void postDeregister() {
+			if(shutdown.get()) {
+				clear();
+			}
+			super.postDeregister();
+		}
+		
+		private void clear() {
+			managedObjects.clear();
+			log("ManagedObjects cleared");
 		}
 		
 		private final Object[] EMPTY_ARGS = {};

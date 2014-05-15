@@ -32,7 +32,7 @@ import java.lang.ref.PhantomReference;
 import java.lang.reflect.Method;
 import java.util.concurrent.atomic.AtomicLong;
 
-import org.helios.jmx.util.phantom.PhantomReferenceService;
+import org.helios.jmx.util.phantom.ReferenceService;
 import org.helios.jmx.util.unsafe.DeAllocateMe;
 import org.helios.jmx.util.unsafe.UnsafeAdapter;
 
@@ -75,7 +75,7 @@ public class Snapshot implements DeAllocateMe, Runnable {
 	public Snapshot(Method method) {			
 		address[0][0] = UnsafeAdapter.allocateAlignedMemory(TOTAL_INITIAL_SIZE);
 		UnsafeAdapter.registerForDeAlloc(this);
-		this.method = PhantomReferenceService.getInstance().newPhantomReference(method, this);
+		this.method = ReferenceService.getInstance().newPhantomReference(method, this);
 		putLong(address() + ID, ID_FACTORY.incrementAndGet());
 		
 	}

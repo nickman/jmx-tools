@@ -50,7 +50,7 @@ public class SystemClock {
 	private static final long START_TIME = ManagementFactory.getRuntimeMXBean().getUptime();
 
 	/** The high res clock ticks per s */
-	private static final double TICK_FREQ_S = PERF.highResCounter();
+	private static final double TICK_FREQ_S = PERF.highResFrequency();
 	/** The high res clock ticks per s */
 	private static final double TICK_FREQ_MS = TICK_FREQ_S/1000D;
 	/** The high res clock ticks per us */
@@ -58,7 +58,7 @@ public class SystemClock {
 	/** The high res clock ticks per ns */
 	private static final double TICK_FREQ_NS = TICK_FREQ_US/1000D;
 
-	// VM Linux: 786828  Native Windows: 218969
+	// VM Linux: 786828  Native Windows: 218969  Linux: 1000000
 	public static void main(String[] args) {
 		System.out.println("High Rez Freq:" + TICK_FREQ_S);
 		System.out.println("High Rez Freq (ms):" + TICK_FREQ_MS);
@@ -71,7 +71,7 @@ public class SystemClock {
 	 * @return the elapsed time object on which elapsed times can be drawn
 	 */
 	public static ElapsedTime startClock() {
-		return new ElapsedTime();
+		return new ElapsedTime(System.nanoTime());
 	}
 	
 	/**
@@ -145,14 +145,60 @@ public class SystemClock {
 		/** The start time in ns. */
 		public final long startNs;
 		/** The last lap end time in ns. */
-		public long endNs;
+		private long endNs = -1L;
+		/** The closed elapsed time in ns. */
+		private long elapsedNs = -1L;
 	
 		/**
 		 * Creates a new ElapsedTime
+		 * @param start The start time in ns.
 		 */
-		private ElapsedTime(){
-			startNs = System.nanoTime();
+		private ElapsedTime(long start){
+			startNs = start;
 		}
+		
+		/**
+		 * Creates a new ElapsedTime
+		 * @param start The start time in ns.
+		 * @param end the end time in ns.
+		 */
+		private ElapsedTime(long start, long end){
+			startNs = start;
+			endNs = end;
+			elapsedNs = endNs - startNs;
+		}
+		
+		/**
+		 * Stops the clock and returns the completed elapsed time
+		 * @return the completed elapsed time
+		 */
+		public ElapsedTime stopClock() {
+			long now = System.nanoTime();
+			return new ElapsedTime(startNs, now);
+		}
+		
+		/**
+		 * Returns a lap clock which measures the time in between lap calls, 
+		 * or if it is the first call, the time between the clock start and the first lap 
+		 * @return a lap elapsed time
+		 */
+		public ElapsedTime lap() {
+			long now = System.nanoTime();
+			ElapsedTime lapTime = null;
+			if(endNs==-1L) {
+				// startClock --> first lap
+				endNs = now;
+				lapTime = new ElapsedTime(startNs, now);				
+			} else {
+				// nth lap --> n+1th lap
+				lapTime = new ElapsedTime(endNs, now);
+				endNs = now;
+			}
+			return lapTime;
+		}
+		
+		
+		
 		
 		/**
 		 * Returns the start time in ns.
@@ -243,8 +289,7 @@ public class SystemClock {
 		 * @param cnt The number of events
 		 * @return The average elapsed time in ns.
 		 */
-		public long avgNs(double cnt) {
-			long elapsedNs = System.nanoTime()-startNs;
+		public long avgNs(double cnt) {			
 			return _avg(elapsedNs, cnt);
 		}
 		
@@ -267,7 +312,7 @@ public class SystemClock {
 		 * @return elapsed ns.
 		 */
 		public long elapsed() {
-			return elapsed(TimeUnit.NANOSECONDS);
+			return elapsedNs;
 		}
 		
 		/**
@@ -277,6 +322,15 @@ public class SystemClock {
 		public long elapsedMs() {
 			return elapsed(TimeUnit.MILLISECONDS);
 		}
+		
+		/**
+		 * Returns the elapsed time since start in us.
+		 * @return elapsed us.
+		 */
+		public long elapsedUs() {
+			return elapsed(TimeUnit.MICROSECONDS);
+		}
+		
 		
 		/**
 		 * Returns the elapsed time since start in s.
@@ -292,7 +346,7 @@ public class SystemClock {
 		 * @return the elapsed time
 		 */
 		public long elapsed(TimeUnit unit) {
-			long elapsedNs = System.nanoTime()-startNs;
+			if(elapsedNs==-1L) throw new IllegalStateException("Unclosed clock");			
 			if(unit==null) unit = TimeUnit.NANOSECONDS;
 			return unit.convert(elapsedNs, TimeUnit.NANOSECONDS);
 		}
@@ -303,7 +357,6 @@ public class SystemClock {
 		 * @return the decorated elapsed time 
 		 */
 		public String elapsedStr(TimeUnit unit) {
-			long elapsedNs = System.nanoTime()-startNs;
 			if(unit==null) unit = TimeUnit.NANOSECONDS;
 			return new StringBuilder("[").append(unit.convert(elapsedNs, TimeUnit.NANOSECONDS)).append("] ").append(UNITS.get(unit)).toString();
 		}
@@ -322,6 +375,16 @@ public class SystemClock {
 		 */
 		public String elapsedStrMs() {			
 			return elapsedStr(TimeUnit.MILLISECONDS);
+		}
+		
+		/**
+		 * Prints the elapsed time in all units for seconds and below
+		 * @return the elapsed times in all units 
+		 */
+		public String printTime() {
+			return String.format("s: %s, ms: %s, \u00b5s: %s, ns: %s", 
+					elapsedS(), elapsedMs(), elapsedUs(), elapsed()
+					);
 		}
 
 		public String printAvg(String unitName, double cnt) {

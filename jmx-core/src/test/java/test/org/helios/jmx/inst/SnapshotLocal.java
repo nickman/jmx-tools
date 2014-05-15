@@ -29,7 +29,7 @@ import static org.helios.jmx.util.unsafe.UnsafeAdapter.putLong;
 
 import java.lang.ref.PhantomReference;
 
-import org.helios.jmx.util.phantom.PhantomReferenceService;
+import org.helios.jmx.util.phantom.ReferenceService;
 import org.helios.jmx.util.unsafe.DeAllocateMe;
 import org.helios.jmx.util.unsafe.UnsafeAdapter;
 
@@ -64,7 +64,7 @@ public class SnapshotLocal implements DeAllocateMe, Runnable {
 	public SnapshotLocal() {
 		address[0][0] = UnsafeAdapter.allocateAlignedMemory(TOTAL_INITIAL_SIZE);
 		UnsafeAdapter.registerForDeAlloc(this);
-		this.thread = PhantomReferenceService.getInstance().newPhantomReference(Thread.currentThread(), this);
+		this.thread = ReferenceService.getInstance().newPhantomReference(Thread.currentThread(), this);
 		putLong(address() + ID, Thread.currentThread().getId());
 	}
 	

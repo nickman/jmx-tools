@@ -28,6 +28,7 @@ import static org.helios.jmx.annotation.Reflector.from;
 import static org.helios.jmx.annotation.Reflector.nvl;
 
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
@@ -69,7 +70,23 @@ public class ManagedObjectRepo<T> {
 	
 	/** The id of the owning object */
 	final long ownerId;
-	
+
+	/**
+	 * Clears the repo 
+	 */
+	public void clear() {
+		Set<ManagedObject> tmp = new HashSet<ManagedObject>(objectsByTargetObject.values());
+		objectsByTargetObject.clear();
+		for(ManagedObject mo: tmp) {
+			mo.clear();
+		}
+		objectsByNameId.clear();
+		objectsByTargetObject.clear();
+		globalAttrInvokers.clear();
+		globalOpInvokers.clear();
+		globalTargetObjects.clear();
+	}
+
 	/**
 	 * Returns the id of the owning object
 	 * @return the ownerId
@@ -89,6 +106,7 @@ public class ManagedObjectRepo<T> {
 	public ManagedObjectRepo(long id) {
 		this.ownerId = id;
 	}
+	
 	
 	private long lhc(String name) {
 		if(name==null || name.trim().isEmpty()) return ownerId;
@@ -146,6 +164,18 @@ public class ManagedObjectRepo<T> {
 			}
 		}
 		return infos.toArray(new MBeanInfo[infos.size()]);		
+	}
+	
+	public int unPopAll() {
+		int unpopped = 0;
+		for(Invoker[] invokerPair: globalAttrInvokers.values()) {
+			if(invokerPair==null || invokerPair.length==0 || invokerPair[0]==null) continue;
+			boolean poppable = invokerPair[0].getClass().getAnnotation(Popable.class).value();
+			if(!poppable) continue;
+			String name = invokerPair[0].getName();
+			if(unpop(name)) unpopped++;
+		}		
+		return unpopped;
 	}
 	
 	/**
@@ -334,6 +364,14 @@ public class ManagedObjectRepo<T> {
 		final NonBlockingHashMapLong<Invoker[]> attrInvokers = new NonBlockingHashMapLong<Invoker[]>();
 		/** The extracted managed object's MBean operation method handles */
 		final NonBlockingHashMapLong<Invoker> opInvokers = new NonBlockingHashMapLong<Invoker>();
+		
+		private void clear() {
+			managedObject = null;
+			name = null;
+			info = null;
+			attrInvokers.clear();
+			opInvokers.clear();
+		}
 		
 		/**
 		 * Creates a new ManagedObject
