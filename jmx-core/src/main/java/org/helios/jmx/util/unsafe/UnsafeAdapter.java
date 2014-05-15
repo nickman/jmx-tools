@@ -138,8 +138,8 @@ public class UnsafeAdapter {
     protected static final AtomicLong refQueueSize = new AtomicLong(0L);
     /** A map of memory allocation references keyed by an internal counter */
     protected static final NonBlockingHashMapLong<MemoryAllocationReference> deAllocs = new NonBlockingHashMapLong<MemoryAllocationReference>(1024, false);
-    /** The reference queue for DeAllocateMe instances that have been enqueued */
-    private static final ReferenceQueue<DeAllocateMe> deallocations = new ReferenceQueue<DeAllocateMe>();
+//    /** The reference queue for DeAllocateMe instances that have been enqueued */
+//    private static final ReferenceQueue<DeAllocateMe> deallocations = new ReferenceQueue<DeAllocateMe>();
     /** Serial number factory for memory allocationreferences */
     private static final AtomicLong refIndexFactory = new AtomicLong(0L);
     
@@ -509,6 +509,8 @@ public class UnsafeAdapter {
 		 */
 		@Override
 		public void run() {
+			refQueueSize.decrementAndGet();
+			clear();    
 			if(runOnClear!=null) {
 				runOnClear.run();
 			}			
@@ -520,7 +522,7 @@ public class UnsafeAdapter {
 		 */
 		@Override
 		public Runnable getClearedRunnable() {
-			return runOnClear;
+			return this;
 		}
 		
     }
@@ -702,10 +704,11 @@ public class UnsafeAdapter {
      */
     public static String printUnsafeMemoryStats() {
     	if(!trackMem) return "";
-    	StringBuilder b = new StringBuilder();
+    	StringBuilder b = new StringBuilder("\n\t================================\n\tUnsafe Memory Stats\n\t================================");
     	for(Map.Entry<String, Long> entry: getUnsafeMemoryStats().entrySet()) {
-    		b.append(entry.getKey()).append(" : ").append(entry.getValue()).append(EOL);
+    		b.append("\n\t").append(entry.getKey()).append(" : ").append(entry.getValue());
     	}
+    	b.append("\n\t================================\n");
     	return b.toString();
     }
     

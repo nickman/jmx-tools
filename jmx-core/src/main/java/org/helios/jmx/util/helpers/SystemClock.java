@@ -382,8 +382,9 @@ public class SystemClock {
 		 * @return the elapsed times in all units 
 		 */
 		public String printTime() {
+			ElapsedTime et = stopClock();
 			return String.format("s: %s, ms: %s, \u00b5s: %s, ns: %s", 
-					elapsedS(), elapsedMs(), elapsedUs(), elapsed()
+					et.elapsedS(), et.elapsedMs(), et.elapsedUs(), et.elapsed()
 					);
 		}
 

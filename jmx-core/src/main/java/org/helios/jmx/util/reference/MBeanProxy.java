@@ -199,7 +199,7 @@ public class MBeanProxy implements InvocationHandler, MBeanRegistration, Referen
 			}
 			if(o instanceof MBeanRegistration) {
 				try {
-					method.invoke(this, args);
+					method.invoke(o, args);
 				} catch (InvocationTargetException e) {
 					if (e.getCause() != null) throw e.getCause();
 					throw e;

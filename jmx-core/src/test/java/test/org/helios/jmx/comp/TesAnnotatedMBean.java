@@ -131,10 +131,11 @@ public class TesAnnotatedMBean extends BaseTest {
 		try {
 			String ons = "test.org.helios.jmx.comp:service=TestMBean,type=" + name.getMethodName();
 			final ObjectName on = JMXHelper.objectName(ons);
-			TestBean tb = new TestBean(TestBeanMBean.class, false);
+			TestBean tb = new TestBean(TestBeanMBean.class, true);
 			MBeanProxy proxyMBeanX = MBeanProxy.proxyMBean(ReferenceType.WEAK, TestBeanMBean.class, tb, DynamicMBean.class, NotificationEmitter.class);
 			Reference<?> ref = proxyMBeanX.getReference();
 			JMXHelper.registerMBean(proxyMBeanX.getMBeanProxy(), on);
+			tb.mbeanProxy = proxyMBeanX.getMBeanProxy();
 			proxyMBeanX = null;
 //			weakRef = ReferenceService.getInstance().newWeakReference(new TestBean(TestBeanMBean.class, false).register(on), new Runnable() {
 //				public void run() {
@@ -242,29 +243,34 @@ public class TesAnnotatedMBean extends BaseTest {
 //				Object value = d.getFieldValue(s);
 //				log("D Name: [%s], Type: [%s] Value: [%s]", s, value.getClass().getName(), value);
 //			}
-			
-			try { JMXHelper.unregisterMBean(on); } catch (Exception ex) {}
-			ref = null; tb = null;
-			for(int i = 0; i < 30; i++) {
-				System.gc(); System.gc();
-				SystemClock.sleep(5000);
-				log(UnsafeAdapter.printUnsafeMemoryStats());
-
-			}
 			log(UnsafeAdapter.printUnsafeMemoryStats());
+//			log("\n\t====================\n\tHARD CORE\n\t====================\n");
+//			try { JMXHelper.unregisterMBean(on); } catch (Exception ex) {}
+//			ref = null; tb = null;
+//			for(int i = 0; i < 30; i++) {
+//				System.gc(); System.gc();
+//				SystemClock.sleep(5000);
+//				log(UnsafeAdapter.printUnsafeMemoryStats());
+//
+//			}
+//			log(UnsafeAdapter.printUnsafeMemoryStats());
 			SystemClock.sleep(5000);
-//			SystemClock.sleep(60000);
+			SystemClock.sleep(60000);
 			log("\n\t====================\n\tCLEARING REFERENCE\n\t====================\n");
-			tb = null;			
-			for(int i = 0; i < 5; i++) {
+			tb = null;	
+			
+			System.gc();
+			ElapsedTime clearTime = SystemClock.startClock();
+			for(int i = 0; i < 50000; i++) {
 				if(ref.get()==null) {
-					log("MBean unregistered.....");
+					log("MBean unregistered. Loop: %s, Elapsed: %s", i, clearTime.printTime());
 					break;
 				}
-				log("Enqueued:%s referent null:%s", ref.isEnqueued(), ref.get()==null);
-				System.gc(); System.gc();
-				SystemClock.sleep(3000);				
+//				log("Enqueued:%s referent null:%s", ref.isEnqueued(), ref.get()==null);
+//				System.gc(); System.gc();
+				SystemClock.sleep(10);				
 			}
+			SystemClock.sleep(600000);
 			if(JMXHelper.isRegistered(on)) {
 				try { JMXHelper.unregisterMBean(on); } catch (Exception ex) {}
 				log("\n\t====================\n\tUNREGISTERED\n\t====================\n");
@@ -407,6 +413,9 @@ public class TesAnnotatedMBean extends BaseTest {
 			cacheMBeanInfo(managedObjects.put(this));
 			broadcaster = new NotificationBroadcasterSupport(this.getMBeanInfo().getNotifications());
 		}		
+		
+		Object mbeanProxy = null;
+		
 		final AtomicLong notifSerial = new AtomicLong(0L);
 		final AtomicBoolean shutdown = new AtomicBoolean(true);
 		
@@ -499,10 +508,11 @@ public class TesAnnotatedMBean extends BaseTest {
 		}
 		
 		public void unregReg() {
+			if(mbeanProxy==null) throw new IllegalStateException("Cannot Unreg/Reg as MBeanProxy is null");
 			try { 
 				if(shutdown.compareAndSet(true, false)) {
 					JMXHelper.unregisterMBean(objectName);
-					JMXHelper.registerMBean(this, objectName);
+					JMXHelper.registerMBean(mbeanProxy, objectName);
 				}
 			} catch (Exception ex) {
 				throw new RuntimeException(ex);
@@ -590,10 +600,11 @@ public class TesAnnotatedMBean extends BaseTest {
 		 */
 		@Override
 		public void preDeregister() throws Exception {
-			if(shutdown.compareAndSet(true, false)) {
+			if(shutdown.compareAndSet(false, true)) {
 				clear();
+				super.preDeregister();
 			}			
-			super.preDeregister();
+			
 		}
 		
 		/**
@@ -602,10 +613,11 @@ public class TesAnnotatedMBean extends BaseTest {
 		 */
 		@Override
 		public void postDeregister() {
-			if(shutdown.compareAndSet(true, false)) {
+			if(shutdown.compareAndSet(false, true)) {
 				clear();
+				super.postDeregister();
 			}
-			super.postDeregister();
+			
 		}
 		
 		private void clear() {
@@ -697,7 +709,8 @@ public class TesAnnotatedMBean extends BaseTest {
 		@Override
 		public ObjectName preRegister(MBeanServer server, ObjectName name) throws Exception {
 			this.getCachedMBeanInfo().getDescriptor().setField("objectName", name.toString()); 
-			return super.preRegister(server, name);
+			if(objectName==null) objectName = name;
+			return name;
 		}
 
 		/**
