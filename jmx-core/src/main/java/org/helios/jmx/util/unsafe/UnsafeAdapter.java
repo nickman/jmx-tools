@@ -28,6 +28,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
 import org.helios.jmx.util.helpers.JMXHelper;
 import org.helios.jmx.util.helpers.StringHelper;
+import org.helios.jmx.util.reference.ReferenceRunnable;
+import org.helios.jmx.util.reference.ReferenceService;
 import org.helios.jmx.util.unsafe.Callbacks.BooleanCallable;
 import org.helios.jmx.util.unsafe.Callbacks.ByteCallable;
 import org.helios.jmx.util.unsafe.Callbacks.DoubleCallable;
@@ -450,7 +452,7 @@ public class UnsafeAdapter {
      * @author Whitehead (nwhitehead AT heliosdev DOT org)
      * <p><code>org.helios.jmx.util.unsafe.UnsafeAdapter.MemoryAllocationReference</code></p>
      */
-    public static class MemoryAllocationReference extends PhantomReference<DeAllocateMe> {
+    public static class MemoryAllocationReference extends PhantomReference<DeAllocateMe> implements ReferenceRunnable {
     	/** The index of this reference */
     	private final long index = refIndexFactory.incrementAndGet();
     	/** The memory addresses owned by this reference */
@@ -458,12 +460,14 @@ public class UnsafeAdapter {
     	/** Debug runnable */
     	private final Runnable runOnClear;
     	
+    	private static final ReferenceQueue<DeAllocateMe> refQueue = ReferenceService.getInstance().getReferenceQueue(DeAllocateMe.class);
+    	
 		/**
 		 * Creates a new MemoryAllocationReference
 		 * @param referent the memory address holder
 		 */
 		public MemoryAllocationReference(final DeAllocateMe referent) {
-			super(referent, deallocations);
+			super(referent, refQueue);
 			refQueueSize.incrementAndGet();
 			addresses = referent==null ? EMPTY_ADDRESSES : referent.getAddresses();
 			deAllocs.put(index, this);
@@ -498,6 +502,26 @@ public class UnsafeAdapter {
 			}
 			super.clear();
 		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see java.lang.Runnable#run()
+		 */
+		@Override
+		public void run() {
+			if(runOnClear!=null) {
+				runOnClear.run();
+			}			
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see org.helios.jmx.util.reference.ReferenceRunnable#getClearedRunnable()
+		 */
+		@Override
+		public Runnable getClearedRunnable() {
+			return runOnClear;
+		}
 		
     }
     
@@ -505,31 +529,31 @@ public class UnsafeAdapter {
     private static final Logger LOG = LoggerFactory.getLogger(UnsafeAdapter.class);
 
     
-    /** The memory allocation de-allocator task */
-    private static final Runnable deallocator = new Runnable() {
-    	public void run() {
-    		latch.countDown();
-    		LOG.info(StringHelper.banner("Started Unsafe Memory Manager Thread"));
-    		while(true) {
-    			try {
-    				MemoryAllocationReference phantom = (MemoryAllocationReference) deallocations.remove();
-    				refQueueSize.decrementAndGet();
-    				phantom.clear();    				
-    			} catch (Throwable t) {
-    				if(Thread.interrupted()) Thread.interrupted();
-    			}
-    		}
-    	}
-    };
+//    /** The memory allocation de-allocator task */
+//    private static final Runnable deallocator = new Runnable() {
+//    	public void run() {
+//    		latch.countDown();
+//    		LOG.info(StringHelper.banner("Started Unsafe Memory Manager Thread"));
+//    		while(true) {
+//    			try {
+//    				MemoryAllocationReference phantom = (MemoryAllocationReference) deallocations.remove();
+//    				refQueueSize.decrementAndGet();
+//    				phantom.clear();    				
+//    			} catch (Throwable t) {
+//    				if(Thread.interrupted()) Thread.interrupted();
+//    			}
+//    		}
+//    	}
+//    };
     
-    private static final CountDownLatch latch = new CountDownLatch(1);
+//    private static final CountDownLatch latch = new CountDownLatch(1);
     
     public static List<MemoryAllocationReference> registerForDeAlloc(DeAllocateMe...deallocators) {
-    	try {
-    		latch.await();
-    	} catch (Exception ex) {
-    		throw new RuntimeException(ex);
-    	}
+//    	try {
+//    		latch.await();
+//    	} catch (Exception ex) {
+//    		throw new RuntimeException(ex);
+//    	}
     	if(deallocators==null || deallocators.length==0) return EMPTY_ALLOC_LIST;
     	List<MemoryAllocationReference> refs = new ArrayList<MemoryAllocationReference>();
     	for(DeAllocateMe dame: deallocators) {
@@ -555,10 +579,10 @@ public class UnsafeAdapter {
     
 
     static {
-    	Thread t = new Thread(deallocator, "UnsafeAdapterDeallocatorThread");
-    	t.setPriority(Thread.MAX_PRIORITY);
-    	t.setDaemon(true);
-    	t.start();
+//    	Thread t = new Thread(deallocator, "UnsafeAdapterDeallocatorThread");
+//    	t.setPriority(Thread.MAX_PRIORITY);
+//    	t.setDaemon(true);
+//    	t.start();
 
         try {        	
             Field theUnsafe = Unsafe.class.getDeclaredField("theUnsafe");

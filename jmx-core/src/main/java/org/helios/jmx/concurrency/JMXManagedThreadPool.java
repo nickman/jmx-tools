@@ -324,6 +324,32 @@ public class JMXManagedThreadPool extends ThreadPoolExecutor implements ThreadFa
 	}
 	
 	/**
+	 * Executes a runnable task asynchronously, optionally executing the passed pre and post tasks before and after respectively.
+	 * @param task The main task to execute
+	 * @param preTask The optional pre-task to execute before the main task. Ignored if null.
+	 * @param postTask The optional post-task to execute after the main task. Ignored if null.
+	 * @param handler An optional uncaught exception handler, registered with the executing thread for this task. Ignored if null.
+	 * @return a Future representing pending completion of the task
+	 */
+	public Future<?> submit(final Runnable task, final Runnable preTask, final Runnable postTask, final UncaughtExceptionHandler handler) {
+		return submit(new Runnable(){
+			public void run() {
+				final UncaughtExceptionHandler currentHandler = Thread.currentThread().getUncaughtExceptionHandler();
+				try {
+					if(handler!=null) {
+						Thread.currentThread().setUncaughtExceptionHandler(handler);
+					}
+					if(preTask!=null) preTask.run();
+					task.run();
+					if(postTask!=null) postTask.run();
+				} finally {
+					Thread.currentThread().setUncaughtExceptionHandler(currentHandler);
+				}
+			}
+		});
+	}
+	
+	/**
 	 * {@inheritDoc}
 	 * @see java.util.concurrent.AbstractExecutorService#submit(java.lang.Runnable, java.lang.Object)
 	 */

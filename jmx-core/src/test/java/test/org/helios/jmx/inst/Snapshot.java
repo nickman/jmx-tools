@@ -32,7 +32,7 @@ import java.lang.ref.PhantomReference;
 import java.lang.reflect.Method;
 import java.util.concurrent.atomic.AtomicLong;
 
-import org.helios.jmx.util.phantom.ReferenceService;
+import org.helios.jmx.util.reference.ReferenceService;
 import org.helios.jmx.util.unsafe.DeAllocateMe;
 import org.helios.jmx.util.unsafe.UnsafeAdapter;
 

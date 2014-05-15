@@ -26,9 +26,10 @@ package test.org.helios.jmx.comp;
 
 import java.io.ObjectStreamException;
 import java.io.Serializable;
-import java.lang.ref.WeakReference;
+import java.lang.ref.Reference;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -37,6 +38,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import javax.management.Attribute;
 import javax.management.AttributeList;
 import javax.management.AttributeNotFoundException;
+import javax.management.DynamicMBean;
 import javax.management.InvalidAttributeValueException;
 import javax.management.JMX;
 import javax.management.ListenerNotFoundException;
@@ -73,7 +75,9 @@ import org.helios.jmx.util.helpers.JMXHelper;
 import org.helios.jmx.util.helpers.StringHelper;
 import org.helios.jmx.util.helpers.SystemClock;
 import org.helios.jmx.util.helpers.SystemClock.ElapsedTime;
-import org.helios.jmx.util.phantom.ReferenceService;
+import org.helios.jmx.util.reference.MBeanProxy;
+import org.helios.jmx.util.reference.ReferenceService.ReferenceType;
+import org.helios.jmx.util.unsafe.UnsafeAdapter;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -120,21 +124,26 @@ public class TesAnnotatedMBean extends BaseTest {
 	protected static final ObjectName DELEGATE = JMXHelper.objectName(MBeanServerDelegate.DELEGATE_NAME);
 	public static final MBeanNotificationInfo[] EMPTY_N_INFO = {};
 	
-	WeakReference<TestBean> weakRef = null;
+	
 	
 	@Test
 	public void testAnnotatedMBean() throws Exception {
 		try {
 			String ons = "test.org.helios.jmx.comp:service=TestMBean,type=" + name.getMethodName();
 			final ObjectName on = JMXHelper.objectName(ons);
-			
-
-			weakRef = ReferenceService.getInstance().newWeakReference(new TestBean(TestBeanMBean.class, false).register(on), new Runnable() {
-				public void run() {
-					log("MBean Weakly Reachable: [%s]. Unregistering....", on);
-					JMXHelper.unregisterMBean(on);
-				}
-			});
+			TestBean tb = new TestBean(TestBeanMBean.class, false);
+			MBeanProxy proxyMBeanX = MBeanProxy.proxyMBean(ReferenceType.WEAK, TestBeanMBean.class, tb, DynamicMBean.class, NotificationEmitter.class);
+			Reference<?> ref = proxyMBeanX.getReference();
+			JMXHelper.registerMBean(proxyMBeanX.getMBeanProxy(), on);
+			proxyMBeanX = null;
+//			weakRef = ReferenceService.getInstance().newWeakReference(new TestBean(TestBeanMBean.class, false).register(on), new Runnable() {
+//				public void run() {
+//					log("MBean Weakly Reachable: [%s]. Unregistering....", on);
+//					if(JMXHelper.isRegistered(on)) {
+//						JMXHelper.unregisterMBean(on);
+//					}
+//				}
+//			});
 			MBeanServerConnection conn = getRemoteMBeanServer();
 			Object obj = conn.getAttribute(on, "SystemDate");
 			log("SystemDate: [%s]", obj);
@@ -207,7 +216,7 @@ public class TesAnnotatedMBean extends BaseTest {
 			t3.setDaemon(true);
 			t3.start();
 			
-			try { Thread.sleep(5000); } catch (Exception x) {}
+			
 //			log(tbm.getUUIDElapsed().toString());
 //			MBeanInfo mi = conn.getMBeanInfo(on);
 //			StringBuilder b = new StringBuilder("\t");
@@ -233,19 +242,48 @@ public class TesAnnotatedMBean extends BaseTest {
 //				Object value = d.getFieldValue(s);
 //				log("D Name: [%s], Type: [%s] Value: [%s]", s, value.getClass().getName(), value);
 //			}
-			while(true) {
-				log("WeakRef Enqueued:%s", weakRef.isEnqueued());
-				if(weakRef.isEnqueued()) {
-					SystemClock.sleep(3000);
+			
+			try { JMXHelper.unregisterMBean(on); } catch (Exception ex) {}
+			ref = null; tb = null;
+			for(int i = 0; i < 30; i++) {
+				System.gc(); System.gc();
+				SystemClock.sleep(5000);
+				log(UnsafeAdapter.printUnsafeMemoryStats());
+
+			}
+			log(UnsafeAdapter.printUnsafeMemoryStats());
+			SystemClock.sleep(5000);
+//			SystemClock.sleep(60000);
+			log("\n\t====================\n\tCLEARING REFERENCE\n\t====================\n");
+			tb = null;			
+			for(int i = 0; i < 5; i++) {
+				if(ref.get()==null) {
+					log("MBean unregistered.....");
 					break;
 				}
+				log("Enqueued:%s referent null:%s", ref.isEnqueued(), ref.get()==null);
 				System.gc(); System.gc();
-				SystemClock.sleep(10000);
+				SystemClock.sleep(3000);				
 			}
-			SystemClock.sleep(10000);
-			try { JMXHelper.unregisterMBean(on); } catch (Exception ex) {}
-			log("\n\t====================\n\tUNREGISTERED\n\t======================\n");
-			Thread.currentThread().join();
+			if(JMXHelper.isRegistered(on)) {
+				try { JMXHelper.unregisterMBean(on); } catch (Exception ex) {}
+				log("\n\t====================\n\tUNREGISTERED\n\t====================\n");
+				
+				while(true) {
+					log("Enqueued:%s referent null:%s", ref.isEnqueued(), ref.get()==null);
+					log(UnsafeAdapter.printUnsafeMemoryStats());
+					System.gc(); System.gc();
+					SystemClock.sleep(5000);
+					if(!JMXHelper.isRegistered(on)) {
+						break;
+					}
+				}
+			} else {
+				System.gc(); System.gc();
+				SystemClock.sleep(5000);
+				log(UnsafeAdapter.printUnsafeMemoryStats());
+				
+			}
 		} catch (Exception ex) {
 			ex.printStackTrace(System.err);
 			throw ex;
@@ -546,9 +584,25 @@ public class TesAnnotatedMBean extends BaseTest {
 			return this;
 		}
 		
+		/**
+		 * {@inheritDoc}
+		 * @see javax.management.StandardMBean#preDeregister()
+		 */
+		@Override
+		public void preDeregister() throws Exception {
+			if(shutdown.compareAndSet(true, false)) {
+				clear();
+			}			
+			super.preDeregister();
+		}
+		
+		/**
+		 * {@inheritDoc}
+		 * @see javax.management.StandardMBean#postDeregister()
+		 */
 		@Override
 		public void postDeregister() {
-			if(shutdown.get()) {
+			if(shutdown.compareAndSet(true, false)) {
 				clear();
 			}
 			super.postDeregister();

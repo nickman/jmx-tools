@@ -29,7 +29,7 @@ import static org.helios.jmx.util.unsafe.UnsafeAdapter.putLong;
 
 import java.lang.ref.PhantomReference;
 
-import org.helios.jmx.util.phantom.ReferenceService;
+import org.helios.jmx.util.reference.ReferenceService;
 import org.helios.jmx.util.unsafe.DeAllocateMe;
 import org.helios.jmx.util.unsafe.UnsafeAdapter;
 
