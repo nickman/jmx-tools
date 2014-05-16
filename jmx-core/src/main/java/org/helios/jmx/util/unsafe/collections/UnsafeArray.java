@@ -3,6 +3,7 @@ package org.helios.jmx.util.unsafe.collections;
 
 import java.lang.reflect.Array;
 
+import org.helios.jmx.util.unsafe.DeAllocateMe;
 import org.helios.jmx.util.unsafe.UnsafeAdapter;
 
 /**
@@ -10,10 +11,10 @@ import org.helios.jmx.util.unsafe.UnsafeAdapter;
  * <p>Description: Base class for unsafe array implementations</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.apmrouter.collections.UnsafeArray</code></p>
+ * <p><code>org.helios.jmx.util.unsafe.collections.UnsafeArray</code></p>
  */
 
-public abstract class UnsafeArray {
+public abstract class UnsafeArray implements DeAllocateMe {
 	
 	/** The default number of slots that will be allocated when the array needs to be extended */
 	public static final int DEFAULT_ALLOC_INCR = 128;
@@ -44,7 +45,7 @@ public abstract class UnsafeArray {
 	
 
 	/** The native memory address of the array */
-	protected long address;	
+	protected final long address[][] = new long[1][1];	
 	/** The current capacity of the array */
 	protected int capacity;
 	/** The current size of the array */
@@ -52,8 +53,17 @@ public abstract class UnsafeArray {
 	
 	
 
-    
+	public long[][] getAddresses() {
+		return address;
+	}
 
+	protected long address() {
+		return address[0][0];
+	}
+	
+	protected void address(long addr) {
+		address[0][0] = addr;
+	}
     
     /**
      * Returns the bitshift factor for calculating the total number of bytes for this array's type.
@@ -109,8 +119,9 @@ public abstract class UnsafeArray {
 		this.clearedSlotsFree = clearedSlotsFree;
 		slotSize = getSlotSize();
 		capacity = initialCapacity;
-		address = allocateMemory(capacity << slotSize);
-		UnsafeAdapter.setMemory(null, address, capacity << slotSize, (byte)0);		
+		UnsafeAdapter.registerForDeAlloc(this);
+		address(allocateMemory(capacity << slotSize));
+		UnsafeAdapter.setMemory(null, address(), capacity << slotSize, (byte)0);		
 		size = 0;
 		
 	}
@@ -137,8 +148,9 @@ public abstract class UnsafeArray {
 		slotSize = getSlotSize();		
 		this.size = size;
 		this.capacity = capacity;
-		this.address = allocateMemory(capacity << slotSize);
-		UnsafeAdapter.copyMemory(address, this.address, size << slotSize);
+		UnsafeAdapter.registerForDeAlloc(this);
+		this.address(allocateMemory(capacity << slotSize));
+		UnsafeAdapter.copyMemory(address, this.address(), size << slotSize);
 		
 	}
 
@@ -167,7 +179,7 @@ public abstract class UnsafeArray {
 		if(length>maxCapacity) {
 			throw new ArrayOverflowException("Passed array of length [" + length + "] is too large for this UnsafeArray with a max capacity of [" + maxCapacity + "]", new Throwable());
 		}
-		UnsafeAdapter.copyMemory(data, offset, null, address, length << slotSize);
+		UnsafeAdapter.copyMemory(data, offset, null, address(), length << slotSize);
 	}
 	
 	/**
@@ -199,7 +211,7 @@ public abstract class UnsafeArray {
      * @return true if this UnsafeLongArray is still allocated, false otherwise
      */
     public boolean check() {
-    	return this.address !=0;
+    	return this.address() !=0;
     }
     
     
@@ -211,15 +223,6 @@ public abstract class UnsafeArray {
     	if(!check()) throw new IllegalStateException("This UnsafeLongArray has been deallocated", new Throwable());
     }
     
-    /**
-     * Deallocates this UnsafeLongArrray
-     */
-    public void destroy() {
-    	if(this.address!=0) {
-    		try { freeMemory(address); } catch (Throwable t) {}
-    		this.address=0;
-    	}
-    }
     
     /**
      * Checks that an index is within the populated slots of this array.
@@ -272,7 +275,7 @@ public abstract class UnsafeArray {
 	    	}    			
     		capacity += newAlloc;
     	}
-    	address = UnsafeAdapter.reallocateMemory(address, (capacity << slotSize) + (newAlloc << slotSize));
+    	address(UnsafeAdapter.reallocateMemory(address(), (capacity << slotSize) + (newAlloc << slotSize)));
     	return items;
     }
     
@@ -326,8 +329,8 @@ public abstract class UnsafeArray {
     	long destOffset = ((index+1) << slotSize);
     	long bytes = numberOfSlotsToMove << slotSize;
     	UnsafeAdapter.copyMemory(
-				(address + srcOffset),   	// src: the address of the first index we want to roll
-				(address + destOffset), 	// dest: the address of the slot after the one we want to roll
+				(address() + srcOffset),   	// src: the address of the first index we want to roll
+				(address() + destOffset), 	// dest: the address of the slot after the one we want to roll
 				bytes						// bytes: the number of bytes in the entries that need to be rolled
 		);		
 		if(incrSize) size++;
@@ -364,8 +367,8 @@ public abstract class UnsafeArray {
     	long destOffset = (index << slotSize);
     	long bytes = numberOfSlotsToMove << slotSize;
     	UnsafeAdapter.copyMemory(
-				(address + srcOffset),   	// src: the address of the first index we want to roll
-				(address + destOffset), 	// dest: the address of the slot after the one we want to roll
+				(address() + srcOffset),   	// src: the address of the first index we want to roll
+				(address() + destOffset), 	// dest: the address of the slot after the one we want to roll
 				bytes						// bytes: the number of bytes in the entries that need to be rolled
 		);
 		size--;
@@ -407,20 +410,11 @@ public abstract class UnsafeArray {
      */
     private void _shrink(int clear) {
     	capacity -= clear;
-    	address = UnsafeAdapter.reallocateMemory(address, capacity << slotSize);
+    	address(UnsafeAdapter.reallocateMemory(address(), capacity << slotSize));
     }
     
     
-    /**
-     * {@inheritDoc}
-     * @see java.lang.Object#finalize()
-     */
-    @Override
-	public void finalize() throws Throwable {
-    	if(this.address!=0) try { freeMemory(address); } catch (Throwable t) {}
-    	super.finalize();
-    }
-    
+
     
     
 	

@@ -107,6 +107,15 @@ public class ManagedObjectRepo<T> {
 		this.ownerId = id;
 	}
 	
+	/**
+	 * Determines if there is a registered attribute with the passed name
+	 * @param name The name to search for
+	 * @return true if the name was found, false otherwise
+	 */
+	public boolean hasNamedObject(String name) {
+		long hash = StringHelper.longHashCode(nvl(name, "Attribute Name"));
+		return globalAttrInvokers.containsKey(hash);
+	}
 	
 	private long lhc(String name) {
 		if(name==null || name.trim().isEmpty()) return ownerId;
@@ -125,7 +134,7 @@ public class ManagedObjectRepo<T> {
 	 * @return the generated MBeanInfo for the managed object
 	 */
 	public MBeanInfo put(T objectToAdd) {
-		return put(objectToAdd, null);
+		return put(objectToAdd, "" + ownerId);
 	}
 	
 
@@ -192,6 +201,28 @@ public class ManagedObjectRepo<T> {
 		return remove((T) target)!=null;
 	}
 	
+	/**
+	 * Indexes the passed object and returns the ManagedObject generated
+	 * @param objectToAdd The object to add
+	 * @param id The long hashed logical name of the object 
+	 * @return the generated MBeanInfo for the managed object
+	 */
+	public MBeanInfo put(T objectToAdd, long id) {
+		nvl(objectToAdd, "Managed Object");
+		ManagedObject<T> mo = objectsByTargetObject.get(objectToAdd);
+		if(mo==null) {
+			synchronized(objectsByTargetObject) {
+				mo = objectsByTargetObject.get(objectToAdd);
+				if(mo==null) {
+					mo = new ManagedObject<T>(objectToAdd, "" + id);
+					objectsByNameId.put(id, mo);
+					objectsByTargetObject.put(objectToAdd, mo);					
+					return mo.info;
+				}
+			}
+		}
+		return null;
+	}
 	
 	/**
 	 * Indexes the passed object and returns the ManagedObject generated
@@ -200,21 +231,7 @@ public class ManagedObjectRepo<T> {
 	 * @return the generated MBeanInfo for the managed object
 	 */
 	public MBeanInfo put(T objectToAdd, String name) {
-		final long id = lhc(name);
-		nvl(objectToAdd, "Managed Object");
-		ManagedObject<T> mo = objectsByTargetObject.get(objectToAdd);
-		if(mo==null) {
-			synchronized(objectsByTargetObject) {
-				mo = objectsByTargetObject.get(objectToAdd);
-				if(mo==null) {
-					mo = new ManagedObject<T>(objectToAdd, name);
-					objectsByNameId.put(id, mo);
-					objectsByTargetObject.put(objectToAdd, mo);					
-					return mo.info;
-				}
-			}
-		}
-		return null;
+		return put(objectToAdd, lhc(name));
 	}
 	
 	/**
@@ -288,6 +305,7 @@ public class ManagedObjectRepo<T> {
 	/**
 	 * Retrieves a managed object by the original added object
 	 * @param addedObject The original added object
+	 * @param type the type of the added object
 	 * @return the named managed object or null if one was not found
 	 */
 	public ManagedObject<T> get(T addedObject, Class<? extends T> type) {
@@ -300,14 +318,24 @@ public class ManagedObjectRepo<T> {
 	 * @return the removed managed object or null if one was not found
 	 */
 	public ManagedObject<T> remove(String name) {
-		ManagedObject<T> mo = objectsByNameId.remove(lhc(name));
+		return remove(lhc(name));
+	}
+	
+	/**
+	 * Removes a managed object by the long hashed logical name
+	 * @param id The long hash of the logical name of the managed object
+	 * @return the removed managed object or null if one was not found
+	 */
+	public ManagedObject<T> remove(long id) {
+		ManagedObject<T> mo = objectsByNameId.remove(id);
 		if(mo!=null) {
 			clearEntries(mo);
 			objectsByTargetObject.remove(mo.managedObject);
 			return mo;
 		}
-		return null;		
+		return null;				
 	}
+	
 	
 	/**
 	 * Clears all the entries for the passed managed object

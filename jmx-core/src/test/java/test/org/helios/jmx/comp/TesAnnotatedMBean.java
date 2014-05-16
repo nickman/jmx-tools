@@ -626,6 +626,7 @@ public class TesAnnotatedMBean extends BaseTest {
 		}
 		
 		private final Object[] EMPTY_ARGS = {};
+		private final AttributeList EMPTY_ATTR_LIST = new AttributeList(0); 
 		
 		/**
 		 * {@inheritDoc}
@@ -640,7 +641,7 @@ public class TesAnnotatedMBean extends BaseTest {
 			}
 		}
 		
-		private final AttributeList EMPTY_ATTR_LIST = new AttributeList(0); 
+		
 		
 		@Override
 		public AttributeList getAttributes(String[] attributes) {

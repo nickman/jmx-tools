@@ -40,6 +40,7 @@ import javax.management.ObjectName;
 
 import org.helios.jmx.concurrency.JMXManagedThreadPool;
 import org.helios.jmx.util.helpers.JMXHelper;
+import org.helios.jmx.util.helpers.SystemClock;
 
 import com.sun.jmx.remote.util.ClassLogger;
 
@@ -68,8 +69,8 @@ public class NotificationBroadcastService {
 	/** The ref service's thread pool JMX ObjectName */
 	public static final ObjectName THREAD_POOL_OBJECT_NAME = JMXHelper.objectName(new StringBuilder(OBJECT_NAME.toString()).append("ThreadPool"));
 
-    private static final ClassLogger logger =
-            new ClassLogger("javax.management", "NotificationBroadcastService");
+    /**  */
+    private static final ClassLogger logger = new ClassLogger("javax.management", "NotificationBroadcastService");
 
 	
 	/**
@@ -162,16 +163,73 @@ public class NotificationBroadcastService {
 		//		New Stuff
 		// ===============================================================================================
 		
-		public void sendNotificationAsync(String type, Object source, String message, Object userData) {
-			
+		/**
+		 * Builds a new notification and sends it asynchronously
+		 * @param type The notification type
+		 * @param source The source of the notification
+		 * @param message The notification message
+		 * @param userData The optional user data
+		 * @return The sent notification
+		 */
+		public Notification sendNotificationAsync(String type, Object source, String message, Object userData) {
+			return sendNotification(true, type, source, message, userData);
 		}
 		
-		public void sendNotificationSync(String type, Object source, String message, Object userData) {
-			
+		/**
+		 * Updates an existing notification with a new sequence number and timestamp and sends it asynchronously
+		 * @param notif The notification to resend
+		 * @return The sent notification
+		 */
+		public Notification resendNotifcationAsync(Notification notif) {
+			if(notif!=null) {
+				notif.setSequenceNumber(sequence.incrementAndGet());
+				notif.setTimeStamp(SystemClock.time());
+			}
+			sendNotification(notif, true);
+			return notif;
 		}
 		
-		protected void sendNotification(boolean async, String type, Object source, String message, Object userData) {
-			
+		/**
+		 * Builds a new notification and sends it synchronously
+		 * @param type The notification type
+		 * @param source The source of the notification
+		 * @param message The notification message
+		 * @param userData The optional user data
+		 * @return The sent notification
+		 */
+		public Notification sendNotificationSync(String type, Object source, String message, Object userData) {
+			return sendNotification(false, type, source, message, userData);
+		}
+		
+		/**
+		 * Updates an existing notification with a new sequence number and timestamp and sends it synchronously
+		 * @param notif The notification to resend
+		 * @return The sent notification
+		 */
+		public Notification resendNotifcationSync(Notification notif) {
+			if(notif!=null) {
+				notif.setSequenceNumber(sequence.incrementAndGet());
+				notif.setTimeStamp(SystemClock.time());
+			}
+			sendNotification(notif, false);
+			return notif;
+		}
+		
+		
+		/**
+		 * Builds a new notification and sends it 
+		 * @param async if true, notification is sent asynchronously, otherwise it is sent synchronously 
+		 * @param type The notification type
+		 * @param source The source of the notification
+		 * @param message The notification message
+		 * @param userData The optional user data
+		 * @return The sent notification
+		 */
+		public Notification sendNotification(boolean async, String type, Object source, String message, Object userData) {
+			Notification notif = new Notification(type, source, sequence.incrementAndGet(), SystemClock.time(), message);
+			if(userData!=null) notif.setUserData(userData);
+			sendNotification(notif, async);
+			return notif;
 		}
 		
 		/**

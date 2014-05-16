@@ -124,6 +124,12 @@ public class UnsafeAdapter {
     /** The JVM's end of line character */
     public static final String EOL = System.getProperty("line.separator", "\n");
     
+    
+    /** The baseline allocation count */
+    public static final int BASELINE_ALLOCS;
+    /** The baseline allocation size */
+    public static final long BASELINE_MEM;
+    
     //=========================================================================================================
     //			Memory Allocation Management
     //=========================================================================================================
@@ -134,12 +140,8 @@ public class UnsafeAdapter {
     private static final long[][] EMPTY_ADDRESSES = {{}};
     /** Empty MemoryAllocationReference list const */
     private static final List<MemoryAllocationReference> EMPTY_ALLOC_LIST = Collections.unmodifiableList(new ArrayList<MemoryAllocationReference>(0));
-    /** The current reference queue size */
-    protected static final AtomicLong refQueueSize = new AtomicLong(0L);
     /** A map of memory allocation references keyed by an internal counter */
     protected static final NonBlockingHashMapLong<MemoryAllocationReference> deAllocs = new NonBlockingHashMapLong<MemoryAllocationReference>(1024, false);
-//    /** The reference queue for DeAllocateMe instances that have been enqueued */
-//    private static final ReferenceQueue<DeAllocateMe> deallocations = new ReferenceQueue<DeAllocateMe>();
     /** Serial number factory for memory allocationreferences */
     private static final AtomicLong refIndexFactory = new AtomicLong(0L);
     
@@ -189,10 +191,20 @@ public class UnsafeAdapter {
     	public static final String ALLOC_MEMM = "MemoryMb";
     	/** The map key for the total number of current allocations */
     	public static final String ALLOC_COUNT = "Allocations";
-    	/** The map key for the reference queue size */
-    	public static final String REFQ_SIZE= "RefQSize";
     	/** The map key for the pending phantom references */
     	public static final String PENDING_COUNT = "Pending";
+    	
+    	/**
+    	 * Returns the size in bytes of a native pointer
+    	 * @return the size in bytes of a native pointer
+    	 */
+    	public int getAddressSize();
+    	
+    	/**
+    	 * Returns the size in bytes of a native memory page
+    	 * @return the size in bytes of a native memory page
+    	 */
+    	public int getPageSize();
     	
     	/**
     	 * Returns a map of unsafe memory stats keyed by the stat name
@@ -201,7 +213,7 @@ public class UnsafeAdapter {
     	public Map<String, Long> getState();
     	
     	/**
-    	 * Returns the total off-heap allocated memory in bytes
+    	 * Returns the total off-heap allocated memory in bytes, not including the base line defined in {@link UnsafeAdapter#BASELINE_MEM}
     	 * @return the total off-heap allocated memory
     	 */
     	public long getTotalAllocatedMemory();
@@ -226,17 +238,11 @@ public class UnsafeAdapter {
     	public long getTotalAllocatedMemoryMb();
 
     	/**
-    	 * Returns the total number of existing allocations
+    	 * Returns the total number of existing allocations, not including the base line defined in {@link UnsafeAdapter#BASELINE_ALLOCS}
     	 * @return the total number of existing allocations
     	 */
     	public int getTotalAllocationCount();
     	    	
-    	/**
-    	 * Returns the size of the memory allocation cleaner reference queue
-    	 * @return the size of the memory allocation cleaner reference queue
-    	 */
-    	public long getRefQueueSize();
-    	
     	/**
     	 * Returns the number of retained phantom references to memory allocations
     	 * @return the number of retained phantom references to memory allocations
@@ -308,14 +314,6 @@ public class UnsafeAdapter {
 			return -1;
 		}
 
-    	/**
-    	 * Returns the size of the memory allocation cleaner reference queue
-    	 * @return the size of the memory allocation cleaner reference queue
-    	 */
-		@Override
-		public long getRefQueueSize() {
-			return -1L;
-		}
 
     	/**
     	 * Returns the number of retained phantom references to memory allocations
@@ -324,6 +322,24 @@ public class UnsafeAdapter {
 		@Override
 		public int getPendingRefs() {			
 			return -1;
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see org.helios.jmx.util.unsafe.UnsafeAdapter.UnsafeMemoryMBean#getAddressSize()
+		 */
+		@Override
+		public int getAddressSize() {
+			return addressSize();
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see org.helios.jmx.util.unsafe.UnsafeAdapter.UnsafeMemoryMBean#getPageSize()
+		 */
+		@Override
+		public int getPageSize() {
+			return pageSize();
 		}
     	
     }
@@ -365,10 +381,28 @@ public class UnsafeAdapter {
     		map.put(ALLOC_MEMK, getTotalAllocatedMemoryKb());
     		map.put(ALLOC_MEMM, getTotalAllocatedMemoryMb());
     		map.put(ALLOC_COUNT, (long)getTotalAllocationCount());
-    		map.put(REFQ_SIZE, getRefQueueSize());
     		map.put(PENDING_COUNT, (long)getPendingRefs());    		
     		return map;
     	}
+    	
+		/**
+		 * {@inheritDoc}
+		 * @see org.helios.jmx.util.unsafe.UnsafeAdapter.UnsafeMemoryMBean#getAddressSize()
+		 */
+		@Override
+		public int getAddressSize() {
+			return addressSize();
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see org.helios.jmx.util.unsafe.UnsafeAdapter.UnsafeMemoryMBean#getPageSize()
+		 */
+		@Override
+		public int getPageSize() {
+			return pageSize();
+		}
+    	
     	
 
 		/**
@@ -378,7 +412,7 @@ public class UnsafeAdapter {
 		@Override
 		public long getTotalAllocatedMemory() {
 			if(!trackMem) return -1L;
-			return totalMemoryAllocated.get();
+			return totalMemoryAllocated.get()-BASELINE_MEM;
 		}
 		
 		/**
@@ -397,7 +431,7 @@ public class UnsafeAdapter {
 		@Override
 		public int getTotalAllocationCount() {
 			if(!trackMem) return -1;
-			return memoryAllocations.size();
+			return memoryAllocations.size()-BASELINE_ALLOCS;
 		}
 
 		/**
@@ -423,15 +457,6 @@ public class UnsafeAdapter {
 			if(t<1) return 0L;
 			return t/1024/1024;
 		}
-		
-    	/**
-    	 * {@inheritDoc}
-    	 * @see org.helios.jmx.util.unsafe.UnsafeAdapter.UnsafeMemoryMBean#getRefQueueSize()
-    	 */
-		@Override
-    	public long getRefQueueSize() {
-    		return refQueueSize.get();
-    	}
 		
     	/**
     	 * Returns the number of retained phantom references to memory allocations
@@ -468,7 +493,6 @@ public class UnsafeAdapter {
 		 */
 		public MemoryAllocationReference(final DeAllocateMe referent) {
 			super(referent, refQueue);
-			refQueueSize.incrementAndGet();
 			addresses = referent==null ? EMPTY_ADDRESSES : referent.getAddresses();
 			deAllocs.put(index, this);
 			
@@ -495,6 +519,7 @@ public class UnsafeAdapter {
 			for(long[] address: addresses) {
 				if(address[0]>0) {
 					freeMemory(address[0]);
+					address[0] = 0L;
 					if(runOnClear!=null) runOnClear.run();
 				}
 				deAllocs.remove(index);
@@ -508,8 +533,7 @@ public class UnsafeAdapter {
 		 * @see java.lang.Runnable#run()
 		 */
 		@Override
-		public void run() {
-			refQueueSize.decrementAndGet();
+		public void run() {			
 			clear();    
 			if(runOnClear!=null) {
 				runOnClear.run();
@@ -627,8 +651,18 @@ public class UnsafeAdapter {
         		totalAlignmentOverhead = null;
         		unsafeMemoryStats = new InactiveUnsafeMemory();
         	}
+        	ReferenceService.getInstance();
+        	if(trackMem) {
+        		BASELINE_ALLOCS = unsafeMemoryStats.getTotalAllocationCount();
+        		BASELINE_MEM = unsafeMemoryStats.getTotalAllocatedMemory();
+        	} else {
+        		BASELINE_ALLOCS = -1;
+        		BASELINE_MEM = -1L;        		
+        	}
+        	
         } catch (Exception e) {
             throw new AssertionError(e);
+        } finally {
         }
     }
     

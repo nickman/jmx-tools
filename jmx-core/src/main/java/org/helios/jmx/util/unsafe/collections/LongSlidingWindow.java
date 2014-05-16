@@ -17,12 +17,6 @@ public class LongSlidingWindow  implements ILongSlidingWindow {
 	/** The underlying UnsafeLongArray */
 	protected final UnsafeLongArray array;
 	
-	/**
-     * Deallocates this UnsafeLongArrray
-     */
-    public void destroy() {
-    	array.destroy();
-    }
 	
 	/**
 	 * Creates a new and empty LongSlidingWindow
