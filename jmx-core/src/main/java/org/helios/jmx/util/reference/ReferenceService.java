@@ -31,6 +31,8 @@ import java.lang.ref.ReferenceQueue;
 import java.lang.ref.SoftReference;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Field;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 import javax.management.ObjectName;
@@ -94,16 +96,22 @@ public class ReferenceService implements Runnable, ReferenceServiceMXBean, Uncau
 	
 	/** The length field in the ref queue class */
 	private static final Field refQueueLengthField;
+	/** The referent field in the reference base class */
+	private static final Field referentField;
 	
 	static {
 		Field f = null;
+		Field r = null;
 		try {
 			f = ReferenceQueue.class.getDeclaredField("queueLength");
 			f.setAccessible(true);
+			r = Reference.class.getDeclaredField("referent");
+			r.setAccessible(true);
 		} catch (Exception ex) {
 			f = null;
 		}
 		refQueueLengthField = f;
+		referentField = r;
 		try {
 			REF_TYPE_COUNT = new CompositeType("ReferenceServiceByTypeCount", "Defines a count of cleared references for a specific type", new String[]{"Type", "Count"}, new String[]{"The type name of tyhe reference", "The number of cleared references"}, new OpenType[]{SimpleType.STRING, SimpleType.LONG});
 			TABULAR_REF_TYPE_COUNT = new TabularType("ReferenceServiceTypeCountSummary", "Defines a count of cleared references for a all cleared types", REF_TYPE_COUNT, new String[]{"Type"});
@@ -318,6 +326,10 @@ public class ReferenceService implements Runnable, ReferenceServiceMXBean, Uncau
 		return countsByType.values().toArray(new ReferenceTypeCountMBean[0]);
 	}
 	
+	public Map<String, ReferenceTypeCountMBean> getCountTT() {
+		return new HashMap<String, ReferenceTypeCountMBean>(countsByType);
+	}
+	
 	
 	/**
 	 * Returns the reference queue
@@ -374,9 +386,58 @@ public class ReferenceService implements Runnable, ReferenceServiceMXBean, Uncau
 		return (SoftReference<T>) new SoftReferenceWrapper(referent, onEnqueueTask);
 	}
 	
-	
-	
-
+//	public static final ThreadLocal<SwapableReferentWeakReference<?>> swap = new ThreadLocal<SwapableReferentWeakReference<?>>(); 
+//	private static Object tempReferent = new Object();
+//	public static final <T> SwapableReferentWeakReference<T> getLastAllocated() {
+//		SwapableReferentWeakReference<T> swapRef = null;
+//		try {
+//			swapRef = (SwapableReferentWeakReference<T>) swap.get();
+//			swap.remove();			
+//		} catch (Exception ex) {
+//			ex.printStackTrace(System.err);
+//		}
+//		return swapRef;
+//	}
+//	
+//	public <T> SwapableReferentWeakReference<T> newSwapableReferentWeakReference() {
+//		return new SwapableReferentWeakReference<T>();
+//	}
+//	
+//	public class SwapableReferentWeakReference<T> extends WeakReference<T> implements ReferenceRunnable {
+//		private Runnable onClearTask = null;
+//		
+//		public SwapableReferentWeakReference() {
+//			super((T) tempReferent, refQueue);
+//			swap.set(this);
+//			this.onClearTask = onClearTask;
+//		}
+//		
+//		public void swap(T referent) {
+//			try {
+//				referentField.set(this, referent);
+//			} catch (Exception ex) {
+//				throw new RuntimeException(ex);
+//			}
+//		}
+//		
+//		public void setRunnable(Runnable onClearTask) {
+//			this.onClearTask = onClearTask;
+//		}
+//
+//		@Override
+//		public void run() {
+//			if(onClearTask!=null) {
+//				onClearTask.run();
+//			}
+//			
+//		}
+//
+//		@Override
+//		public Runnable getClearedRunnable() {
+//			return onClearTask;
+//		}
+//		
+//	}
 
 	
 	

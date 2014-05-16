@@ -135,7 +135,7 @@ public class TesAnnotatedMBean extends BaseTest {
 			MBeanProxy proxyMBeanX = MBeanProxy.proxyMBean(ReferenceType.WEAK, TestBeanMBean.class, tb, DynamicMBean.class, NotificationEmitter.class);
 			Reference<?> ref = proxyMBeanX.getReference();
 			JMXHelper.registerMBean(proxyMBeanX.getMBeanProxy(), on);
-			tb.mbeanProxy = proxyMBeanX.getMBeanProxy();
+			tb.mbeanProxy = proxyMBeanX;
 			proxyMBeanX = null;
 //			weakRef = ReferenceService.getInstance().newWeakReference(new TestBean(TestBeanMBean.class, false).register(on), new Runnable() {
 //				public void run() {
@@ -177,7 +177,7 @@ public class TesAnnotatedMBean extends BaseTest {
 			Assert.assertEquals("UUID was unexpected", uuid, obj);
 			final TestBeanMBean tbm = JMX.newMBeanProxy(conn, on, TestBeanMBean.class);
 //			tbm.pop("UUIDElapsed");
-			tbm.popAll();
+//			tbm.popAll();
 			Thread t = new Thread("EWMAExcerciser") {
 				public void run() {
 					while(true) {
@@ -414,7 +414,7 @@ public class TesAnnotatedMBean extends BaseTest {
 			broadcaster = new NotificationBroadcasterSupport(this.getMBeanInfo().getNotifications());
 		}		
 		
-		Object mbeanProxy = null;
+		MBeanProxy mbeanProxy = null;
 		
 		final AtomicLong notifSerial = new AtomicLong(0L);
 		final AtomicBoolean shutdown = new AtomicBoolean(true);
@@ -512,7 +512,7 @@ public class TesAnnotatedMBean extends BaseTest {
 			try { 
 				if(shutdown.compareAndSet(true, false)) {
 					JMXHelper.unregisterMBean(objectName);
-					JMXHelper.registerMBean(mbeanProxy, objectName);
+					JMXHelper.registerMBean(mbeanProxy.getMBeanProxy(), objectName);
 				}
 			} catch (Exception ex) {
 				throw new RuntimeException(ex);
@@ -600,7 +600,7 @@ public class TesAnnotatedMBean extends BaseTest {
 		 */
 		@Override
 		public void preDeregister() throws Exception {
-			if(shutdown.compareAndSet(false, true)) {
+			if(shutdown.compareAndSet(true, false)) {
 				clear();
 				super.preDeregister();
 			}			
@@ -613,7 +613,7 @@ public class TesAnnotatedMBean extends BaseTest {
 		 */
 		@Override
 		public void postDeregister() {
-			if(shutdown.compareAndSet(false, true)) {
+			if(shutdown.compareAndSet(true, false)) {
 				clear();
 				super.postDeregister();
 			}

@@ -24,8 +24,7 @@
  */
 package org.helios.jmx.util.reference;
 
-import java.util.ArrayList;
-import java.util.Collection;
+import java.util.Map;
 
 /**
  * <p>Title: ReferenceServiceMXBean</p>
@@ -95,4 +94,5 @@ public interface ReferenceServiceMXBean {
 	 */
 	public ReferenceTypeCountMBean[] getCountsByTypes();
 	
+	public Map<String, ReferenceTypeCountMBean> getCountTT();
 }
