@@ -378,6 +378,15 @@ public class SystemClock {
 		}
 		
 		/**
+		 * {@inheritDoc}
+		 * @see java.lang.Object#toString()
+		 */
+		@Override
+		public String toString() {
+			return printTime();
+		}
+		
+		/**
 		 * Prints the elapsed time in all units for seconds and below
 		 * @return the elapsed times in all units 
 		 */

@@ -113,6 +113,11 @@ public class UnsafeAdapter {
 	/** The total native memory allocation overhead for alignment */
 	private static final AtomicLong totalAlignmentOverhead;
 	
+	/** The system prop indicating that allocations should be tracked */
+	public static final String TRACK_ALLOCS_PROP = "unsafe.allocations.track";
+	/** The system prop indicating that allocations should be alligned */
+	public static final String ALIGN_ALLOCS_PROP = "unsafe.allocations.align";
+	
 	/** The debug agent library */
 	public static final String AGENT_LIB = "-agentlib:";
 	
@@ -637,8 +642,8 @@ public class UnsafeAdapter {
             }
             FIVE_COPY = copyMemCount>1;
             FOUR_SET = setMemCount>1;
-        	trackMem = System.getProperties().containsKey("unsafe.allocations.track") || isDebugAgentLoaded();   
-        	alignMem = System.getProperties().containsKey("unsafe.allocations.align");
+        	trackMem = System.getProperties().containsKey(TRACK_ALLOCS_PROP) || isDebugAgentLoaded();   
+        	alignMem = System.getProperties().containsKey(ALIGN_ALLOCS_PROP);
         	if(trackMem) {
         		unsafeMemoryStats = new UnsafeMemory();
         		memoryAllocations = new NonBlockingHashMapLong<long[]>(1024, true);
@@ -845,6 +850,18 @@ public class UnsafeAdapter {
 	 * @see sun.misc.Unsafe#allocateMemory(long)
 	 */
 	public static long allocateMemory(long size) {
+		return _allocateMemory(size, 0);
+	}
+	
+	/**
+	 * Allocates a chunk of memory and returns its address
+	 * @param size The number of bytes to allocate
+	 * @param dealloc The deallocatable to register for deallocation when it becomes phantom reachable
+	 * @return The address of the allocated memory
+	 * @see sun.misc.Unsafe#allocateMemory(long)
+	 */
+	public static long allocateMemory(long size, DeAllocateMe dealloc) {
+		registerForDeAlloc(dealloc);
 		return _allocateMemory(size, 0);
 	}
 	

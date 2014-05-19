@@ -45,7 +45,7 @@ public class LongSlidingWindowTest extends BaseUnsafeCollectonTest {
 		log("POST Size: %s, Count: %s", unsafeMemoryStats.getTotalAllocatedMemory(), unsafeMemoryStats.getTotalAllocationCount());
 		lsw = null;
 		System.gc();
-		SystemClock.sleep(1000000);
+		SystemClock.sleep(1000);
 		log("POST GC Size: %s, Count: %s", unsafeMemoryStats.getTotalAllocatedMemory(), unsafeMemoryStats.getTotalAllocationCount());
 	}
 
