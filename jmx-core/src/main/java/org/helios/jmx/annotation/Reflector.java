@@ -900,6 +900,28 @@ public class Reflector {
 		ManagedMetricImpl mmi = new ManagedMetricImpl(targetMethod, mm);
 		return mmi.getDisplayName();		
 	}
+	
+	/**
+	 * Extracts an array of ManagedMetric definitions for the passed container object
+	 * @param container The metric container object to extract from
+	 * @param metricType The metric type to find
+	 * @return an array of matching managed metric impls.
+	 */
+	public static ManagedMetricImpl[] getMetricAccessors(Object container, MetricType metricType) {
+		if(container==null) throw new IllegalArgumentException("The passed container was null");
+		if(metricType==null) throw new IllegalArgumentException("The passed MetricType was null");
+		List<ManagedMetricImpl> metricImpls = new ArrayList<ManagedMetricImpl>();
+		Map<Class<? extends Annotation>, Set<Method>> methodMap = getAnnotatedMethods(container.getClass(), ManagedMetric.class);
+		Set<Method> methods = methodMap.get(ManagedMetric.class);
+		if(methods!=null) {
+			for(Method m: methods) {
+				ManagedMetric mm = m.getAnnotation(ManagedMetric.class);
+				if(mm==null || mm.metricType() != metricType) continue;
+				metricImpls.add(new ManagedMetricImpl(m, mm));								
+			}
+		}
+		return metricImpls.toArray(new ManagedMetricImpl[0]);
+	}
 
 	private Reflector() {}
 

@@ -26,7 +26,7 @@ package org.helios.jmx.mbean;
 
 /**
  * <p>Title: MBeanBuilder</p>
- * <p>Description: </p> 
+ * <p>Description: Fluent style MBean builder</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
  * <p><code>org.helios.jmx.mbean.MBeanBuilder</code></p>
@@ -34,19 +34,20 @@ package org.helios.jmx.mbean;
 
 public class MBeanBuilder {
 
-	/**
-	 * Creates a new MBeanBuilder
-	 */
-	public MBeanBuilder() {
-		// TODO Auto-generated constructor stub
-	}
+
+	
+	
+	private MBeanBuilder() {}
 
 	/*
 	 * Options:
 	 *  - proxy / direct
-	 *  - NotificationEmitter (examine notification annotations or force to true/false)
 	 *  - MXBean (true/false/inspect)
 	 *  - Managed SubObjects (true/false)
+	 *  - Embedded / Extended
+	 *  
+	 *  Initing:
+	 *  - Common metric getter - initialize in mbean creator
 	 */
 	
 }

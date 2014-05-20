@@ -64,4 +64,14 @@ public @interface ManagedResource {
 	 */
 	ManagedNotification[] notifications() default {};
 
+	/**
+	 * Annotates a type with a name so that it can be auto-managed by a managed object mbean.
+	 * Typically ignored except for adding managed ojects at runtime
+	 */
+	String name() default "";
+	
+	/**
+	 * Indicates if a named managed object is popable
+	 */
+	boolean popable() default false;
 }

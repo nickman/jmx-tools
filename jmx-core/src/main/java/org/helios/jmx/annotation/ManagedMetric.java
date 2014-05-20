@@ -83,6 +83,16 @@ public @interface ManagedMetric {
 	 * and can be enhanced to surface the type's fields as first class mbean attributes 
 	 */
 	boolean popable() default false;
+	
+	/**
+	 * The window size for GAUGE type metrics
+	 */
+	int windowSize() default 0;
+	
+	/**
+	 * The initial value for COUNTER type metrics
+	 */
+	long initialValue() default -1L;
 
 
 }

@@ -43,6 +43,11 @@ public class ManagedResourceImpl {
 	protected final ObjectName objectName;
 	/** The MBean description */
 	protected final String description;
+	/** A name assigned to instances of this object so they can be auto-managed by a managed object mbean */
+	protected final String name;
+	/** Indicates if a named managed object is popable */
+	protected final boolean popable;
+	
 	/** An array of managed notifications emitted from the annotated type */
 	protected final ManagedNotificationImpl[] notifications;
 	
@@ -72,6 +77,8 @@ public class ManagedResourceImpl {
 		objectName = nws(mr.objectName())==null ? null : JMXHelper.objectName(mr.objectName().trim());
 		description = nws(mr.description())==null ? "JMX Managed Resource" : mr.description().trim();
 		notifications = ManagedNotificationImpl.from(mr.notifications()); 
+		name = nws(mr.name());
+		popable = mr.popable();
 	}
 	
 	/**
@@ -84,6 +91,8 @@ public class ManagedResourceImpl {
 		this.objectName = objectName==null ? null : JMXHelper.objectName(objectName);
 		this.description = nws(description);
 		this.notifications = ManagedNotificationImpl.from(notifications);
+		name = null;
+		popable = false;
 	}
 	
 	/**
@@ -96,6 +105,8 @@ public class ManagedResourceImpl {
 		this.objectName = objectName==null ? null : objectName;
 		this.description = nws(description);
 		this.notifications = ManagedNotificationImpl.from(notifications);
+		name = null;
+		popable = false;		
 	}
 	
 	/**
@@ -108,6 +119,8 @@ public class ManagedResourceImpl {
 		this.objectName = objectName==null ? null : JMXHelper.objectName(objectName);
 		this.description = nws(description);
 		this.notifications = notifications;
+		name = null;
+		popable = false;
 	}
 	
 	/**
@@ -120,6 +133,8 @@ public class ManagedResourceImpl {
 		this.objectName = objectName==null ? null : objectName;
 		this.description = nws(description);
 		this.notifications = notifications;
+		name = null;
+		popable = false;
 	}
 	
 	
@@ -130,7 +145,7 @@ public class ManagedResourceImpl {
 	 * @see java.lang.Object#toString()
 	 */
 	public String toString() {
-		return String.format("ManagedResourceImpl [objectName:%s, description:%s]", objectName==null ? "none" : objectName.toString(), description==null ? "none" : description);
+		return String.format("ManagedResourceImpl [objectName:%s, description:%s, name=%s, popable:%s]", objectName==null ? "none" : objectName.toString(), description==null ? "none" : description, name==null ? "null" : name, popable);
 	}
 	
 	/**
@@ -154,6 +169,24 @@ public class ManagedResourceImpl {
 	 */
 	public ManagedNotificationImpl[] getNotifications() {
 		return notifications;
+	}
+
+	
+	/**
+	 * The name assigned to instances of this object so they can be auto-managed by a managed object mbean
+	 * @return the managed object name
+	 */
+	public String getName() {
+		return name;
+	}
+
+
+	/**
+	 * Indicates if this managed object is popable
+	 * @return true if popable, false otherwise
+	 */
+	public boolean isPopable() {
+		return popable;
 	}
 
 }

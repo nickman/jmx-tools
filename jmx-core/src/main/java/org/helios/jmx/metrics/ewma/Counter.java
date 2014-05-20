@@ -34,19 +34,22 @@ import java.util.concurrent.atomic.AtomicLong;
  * <p><code>org.helios.jmx.metrics.ewma.Counter</code></p>
  */
 
-public class Counter extends AtomicLong implements IMetricSetter {
+public class Counter extends AtomicLong implements IMetricSetter, CounterMBean {
 
 	/**  */
 	private static final long serialVersionUID = -6511119248010799524L;
+	
+	/** The initial value the counter starts with and resets to */
+	protected final long intialValue;
 	
 	/** The error counter */
 	private final AtomicLong errors = new AtomicLong(0L);
 	
 	/**
-	 * Creates a new Counter
+	 * Creates a new Counter with an initial value of 0.
 	 */
 	public Counter() {
-		super();
+		this(0L);
 	}
 
 	/**
@@ -55,11 +58,12 @@ public class Counter extends AtomicLong implements IMetricSetter {
 	 */
 	public Counter(long initialValue) {
 		super(initialValue);
+		this.intialValue = initialValue;
 	}
 
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.jmx.metrics.ewma.IMetricSetter#incr()
+	 * @see org.helios.jmx.metrics.ewma.CounterMBean#incr()
 	 */
 	@Override
 	public void incr() {
@@ -68,7 +72,7 @@ public class Counter extends AtomicLong implements IMetricSetter {
 
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.jmx.metrics.ewma.IMetricSetter#err()
+	 * @see org.helios.jmx.metrics.ewma.CounterMBean#err()
 	 */
 	@Override
 	public void err() {
@@ -77,7 +81,7 @@ public class Counter extends AtomicLong implements IMetricSetter {
 
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.jmx.metrics.ewma.IMetricSetter#append(double)
+	 * @see org.helios.jmx.metrics.ewma.CounterMBean#append(double)
 	 */
 	@Override
 	public void append(double value) {
@@ -86,7 +90,7 @@ public class Counter extends AtomicLong implements IMetricSetter {
 
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.jmx.metrics.ewma.IMetricSetter#append(long)
+	 * @see org.helios.jmx.metrics.ewma.CounterMBean#append(long)
 	 */
 	@Override
 	public void append(long value) {
@@ -95,25 +99,40 @@ public class Counter extends AtomicLong implements IMetricSetter {
 
 	/**
 	 * {@inheritDoc}
-	 * @see org.helios.jmx.metrics.ewma.IMetricSetter#append(int)
+	 * @see org.helios.jmx.metrics.ewma.CounterMBean#append(int)
 	 */
 	@Override
 	public void append(int value) {
 		set(value);		
 	}
 
+	
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.metrics.ewma.CounterMBean#reset()
+	 */
 	@Override
 	public void reset() {
-		set(0L);
+		set(intialValue);
 		errors.set(0L);		
 	}
 	
 	/**
-	 * Returns the error count
-	 * @return the error count
-	 */
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.metrics.ewma.CounterMBean#getErrors()
+	 */	
+	@Override
 	public long getErrors() {
 		return errors.get();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.metrics.ewma.CounterMBean#getValue()
+	 */
+	@Override
+	public long getValue() {
+		return get();
 	}
 
 }

@@ -41,6 +41,8 @@ import javax.management.MBeanOperationInfo;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong.IteratorLong;
+import org.helios.jmx.annotation.ManagedResource;
+import org.helios.jmx.annotation.ManagedResourceImpl;
 import org.helios.jmx.annotation.Popable;
 import org.helios.jmx.annotation.Reflector;
 import org.helios.jmx.annotation.Reflector.MBeanInfoMerger;
@@ -59,6 +61,8 @@ public class ManagedObjectRepo<T> {
 	final NonBlockingHashMapLong<ManagedObject<T>> objectsByNameId = new NonBlockingHashMapLong<ManagedObject<T>>();
 	/** The index of managed objects, keyed by the managed object */
 	final NonBlockingHashMap<Object, ManagedObject<T>> objectsByTargetObject = new NonBlockingHashMap<Object, ManagedObject<T>>();
+	/** A map of managed objects passivated as a result of being popped */
+	final NonBlockingHashMap<String, ManagedObject<T>> poppedManagedObjects = new NonBlockingHashMap<String, ManagedObject<T>>();
 	
 	/** All of the extracted managed object's MBean attribute method handles */
 	final NonBlockingHashMapLong<Invoker[]> globalAttrInvokers = new NonBlockingHashMapLong<Invoker[]>();
@@ -70,6 +74,7 @@ public class ManagedObjectRepo<T> {
 	
 	/** The id of the owning object */
 	final long ownerId;
+	final Object owner;
 
 	/**
 	 * Clears the repo 
@@ -101,10 +106,12 @@ public class ManagedObjectRepo<T> {
 	
 	/**
 	 * Creates a new ManagedObjectRepo
-	 * @param id The id of the owning object
+	 * @param owner The owning object
 	 */
-	public ManagedObjectRepo(long id) {
-		this.ownerId = id;
+	public ManagedObjectRepo(T owner) {
+		this.owner = owner;
+		this.ownerId = System.identityHashCode(owner);
+		put(owner, ownerId);
 	}
 	
 	/**
@@ -129,12 +136,24 @@ public class ManagedObjectRepo<T> {
 
 	
 	/**
-	 * Indexes the owner object and returns the ManagedObject generated
+	 * Indexes the passed managed object and returns the MBeanInfo generated.
+	 * Currently only supports {@link ManagedResource} annotated classes with a supplied name.
 	 * @param objectToAdd The object to add
 	 * @return the generated MBeanInfo for the managed object
 	 */
 	public MBeanInfo put(T objectToAdd) {
-		return put(objectToAdd, "" + ownerId);
+		if(objectToAdd==null) throw new IllegalArgumentException("The passed object was null");
+		Class<?> clazz = objectToAdd.getClass();
+		ManagedResource mr = clazz.getAnnotation(ManagedResource.class);
+		if(mr==null) throw new IllegalArgumentException("The type of the passed object was not annotated with @ManagedResource");
+		ManagedResourceImpl mri = new ManagedResourceImpl(mr);
+		if(mri.getName()==null) throw new IllegalArgumentException("The type of the passed object was annotated with @ManagedResource but did not define a name");
+		String name = mri.getName();
+		long id = lhc(name);
+		if(globalTargetObjects.containsKey(id)) {
+			throw new IllegalArgumentException("A managed object named [" + name + "] is already registered");
+		}
+		return put(objectToAdd, name);
 	}
 	
 
@@ -152,7 +171,18 @@ public class ManagedObjectRepo<T> {
 			return null;
 		}
 		Object target = invokerPair[0].invoke();
-		return put((T) target, name);
+		MBeanInfo info = put((T) target, name);
+		if(info!=null) {
+			//  popped managed object:  remove from: objectsByNameId, objectsByTargetObject,  add to: poppedManagedObjects
+			//  unpopped managed object:  add to: objectsByNameId, objectsByTargetObject,  remove from: poppedManagedObjects
+			ManagedObject<T> popBase = objectsByNameId.get(hash);
+			if(popBase!=null) {
+				poppedManagedObjects.put(name, popBase);
+				objectsByNameId.remove(hash);
+				objectsByTargetObject.remove(hash);
+			}
+		}
+		return info;
 	}
 	
 	/**

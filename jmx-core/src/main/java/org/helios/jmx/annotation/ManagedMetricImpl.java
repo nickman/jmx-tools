@@ -62,6 +62,11 @@ public class ManagedMetricImpl {
 	protected final String displayName;
 	/** The type of the metric */
 	protected final MetricType metricType;
+	/** The window size for GAUGE type metrics */
+	protected final int windowSize;
+	/** The initial value for COUNTER type metrics */
+	protected final long initialValue;
+	
 	/** The optional unit of the metric */
 	protected final String unit;
 	/** An array of managed notifications that may be emitted by the annotated managed attribute */
@@ -141,17 +146,21 @@ public class ManagedMetricImpl {
 	 * @param description A description of the metric
 	 * @param displayName The name of the metric as exposed in the MBeanAttributeInfo
 	 * @param metricType The type of the metric
+	 * @param windowSize The window size for GAUGE type metrics
+	 * @param initialValue The initial value for COUNTER type metrics
 	 * @param category The metric category describing the class or package that the metric is grouped into.
 	 * @param unit The optional unit of the metric
 	 * @param descriptor An optional arbitrary content descriptor for this metric which could be JSON, XML or CSV etc.
 	 * @param notifications An array of managed notifications that may be emitted by the annotated managed attribute
 	 * @param subkeys The metric subkeys
 	 */
-	ManagedMetricImpl(boolean popable, String description, String displayName, MetricType metricType, String category, String unit, String descriptor, ManagedNotificationImpl[] notifications, String...subkeys) {
+	ManagedMetricImpl(boolean popable, String description, String displayName, MetricType metricType, int windowSize, long initialValue, String category, String unit, String descriptor, ManagedNotificationImpl[] notifications, String...subkeys) {
 		this.description = nvl(description, "description");
 		this.displayName = nvl(displayName, "displayName");
 		this.metricType = nvl(metricType, "metricType");
 		this.category = nvl(category, "category");
+		this.windowSize = windowSize;
+		this.initialValue = initialValue;
 		this.unit = unit;		
 		this.descriptor = descriptor;
 		this.subkeys = subkeys;
@@ -166,14 +175,16 @@ public class ManagedMetricImpl {
 	 * @param description A description of the metric
 	 * @param displayName The name of the metric as exposed in the MBeanAttributeInfo
 	 * @param metricType The type of the metric
+	 * @param windowSize The window size for GAUGE type metrics
+	 * @param initialValue The initial value for COUNTER type metrics
 	 * @param category The metric category describing the class or package that the metric is grouped into.
 	 * @param unit The optional unit of the metric
 	 * @param descriptor An optional arbitrary content descriptor for this metric which could be JSON, XML or CSV etc.
 	 * @param notifications An array of managed notifications that may be emitted by the annotated managed attribute
 	 * @param subkeys The metric subkeys
 	 */
-	ManagedMetricImpl(boolean popable, String description, String displayName, MetricType metricType, String category, String unit, String descriptor, ManagedNotification[] notifications, String...subkeys) {
-		this(popable, description, displayName, metricType, category, unit, descriptor,ManagedNotificationImpl.from(notifications),  subkeys);
+	ManagedMetricImpl(boolean popable, String description, String displayName, MetricType metricType, int windowSize, long initialValue, String category, String unit, String descriptor, ManagedNotification[] notifications, String...subkeys) {
+		this(popable, description, displayName, metricType, windowSize, initialValue, category, unit, descriptor,ManagedNotificationImpl.from(notifications),  subkeys);
 	}
 	
 	/**
@@ -185,7 +196,9 @@ public class ManagedMetricImpl {
 		if(managedMetric==null) throw new IllegalArgumentException("The passed managed metric was null");
 		MetricGroup mg = method.getDeclaringClass().getAnnotation(MetricGroup.class);
 		displayName = managedMetric.displayName();
-		metricType = managedMetric.metricType();			
+		metricType = managedMetric.metricType();	
+		windowSize = managedMetric.windowSize();
+		initialValue = managedMetric.initialValue();
 		descriptor = managedMetric.descriptor().isEmpty() ? null : managedMetric.descriptor();
 		unit = managedMetric.unit().isEmpty() ? null : managedMetric.unit();		
 		notifications = ManagedNotificationImpl.from(managedMetric.notifications());
@@ -295,6 +308,23 @@ public class ManagedMetricImpl {
 	public ManagedNotificationImpl[] getNotifications() {
 		return notifications;
 	}
+	
+	/**
+	 * Returns the window size for GAUGE type metrics
+	 * @return the windowSize
+	 */
+	public int getWindowSize() {
+		return windowSize;
+	}
+	
+	/**
+	 * Returns the initial value for COUNTER type metrics
+	 * @return the initialValue
+	 */
+	public long getInitialValue() {
+		return initialValue;
+	}
+	
 	
 	/**
 	 * Returns an MBeanAttributeInfo rendered form this ManagedMetricImpl.
@@ -428,6 +458,14 @@ public class ManagedMetricImpl {
 			builder.append(", unit:");
 			builder.append(unit);			
 		}
+		if(windowSize > 0) {
+			builder.append(", windowSize:");
+			builder.append(windowSize);						
+		}
+		if(initialValue > -1L) {
+			builder.append(", initialValue:");
+			builder.append(initialValue);						
+		}		
 		if(descriptor!=null) {
 			builder.append(", descriptor:");
 			builder.append(descriptor);
@@ -436,5 +474,8 @@ public class ManagedMetricImpl {
 		builder.append(" ]");
 		return builder.toString();
 	}
+
+
+
 
 }

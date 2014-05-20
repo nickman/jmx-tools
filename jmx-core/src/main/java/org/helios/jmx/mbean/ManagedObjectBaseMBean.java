@@ -79,7 +79,7 @@ public class ManagedObjectBaseMBean extends BaseMBean implements PopOperationsMB
 	/**
 	 * Creates a new ManagedObjectBaseMBean
 	 * @param mbeanInterface The default MBean interface that this bean will expose
-	 * @throws NotCompliantMBeanException
+	 * @throws NotCompliantMBeanException thrown if this object is not a compliant mbean
 	 */
 	public ManagedObjectBaseMBean(Class<?> mbeanInterface) throws NotCompliantMBeanException {
 		super(mbeanInterface);		
@@ -89,7 +89,7 @@ public class ManagedObjectBaseMBean extends BaseMBean implements PopOperationsMB
 	 * Creates a new ManagedObjectBaseMBean
 	 * @param implementation The implementation of the mbean interface wrapped under this mbean
 	 * @param mbeanInterface The default MBean interface that this bean will expose
-	 * @throws NotCompliantMBeanException
+	 * @throws NotCompliantMBeanException thrown if this object is not a compliant mbean
 	 */
 	public <T> ManagedObjectBaseMBean(T implementation, Class<T> mbeanInterface) throws NotCompliantMBeanException {
 		super(implementation, mbeanInterface);
@@ -110,7 +110,7 @@ public class ManagedObjectBaseMBean extends BaseMBean implements PopOperationsMB
 	 */
 	@Override
 	protected MBeanInfo initialize() {
-		cacheMBeanInfo(managedObjects.put(this));
+		cacheMBeanInfo(managedObjects.mergeAllMBeanInfos());
 		fireMBeanInfoChanged();
 		return getMBeanInfo();
 	}

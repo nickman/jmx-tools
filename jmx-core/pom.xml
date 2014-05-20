@@ -24,6 +24,20 @@
 			<groupId>junit</groupId>
 			<artifactId>junit</artifactId>
 		</dependency>
+		<dependency>
+		  <groupId>com.google.caliper</groupId>
+		  <artifactId>caliper</artifactId>
+		  <version>1.0-beta-1</version>
+		  <scope>test</scope>
+		</dependency>
+		<dependency>
+		  <groupId>com.google.caliper</groupId>
+		  <artifactId>caliper</artifactId>
+		  <version>1.0-beta-1</version>
+		  <classifier>all</classifier>
+		  <scope>test</scope>
+		</dependency>
+		
 		<!-- Runtime -->
 			<dependency>
 			  <groupId>com.sun.jdmk</groupId>
