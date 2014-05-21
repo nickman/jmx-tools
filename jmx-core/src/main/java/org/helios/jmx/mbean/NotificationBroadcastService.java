@@ -82,6 +82,8 @@ public class NotificationBroadcastService {
 			synchronized(lock) {
 				if(instance==null) {
 					instance = new NotificationBroadcastService();
+//					JMXHelper.registerMBean(instance, OBJECT_NAME);
+					JMXHelper.registerMBean(instance.threadPool, THREAD_POOL_OBJECT_NAME);							
 				}
 			}
 		}
@@ -94,8 +96,6 @@ public class NotificationBroadcastService {
 	private NotificationBroadcastService() {
 		threadPool = new JMXManagedThreadPool(THREAD_POOL_OBJECT_NAME, "NotificationBroadcastService", 2, 10, 5000, 60000, 100, 99, false);
 		threadPool.setRejectedExecutionHandler(new JMXManagedThreadPool.CallerRunsPolicy());					
-		JMXHelper.registerMBean(instance, OBJECT_NAME);
-		JMXHelper.registerMBean(instance.threadPool, THREAD_POOL_OBJECT_NAME);		
 	}
 	
 	/**

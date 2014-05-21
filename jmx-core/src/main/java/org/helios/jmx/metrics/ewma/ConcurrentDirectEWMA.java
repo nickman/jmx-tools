@@ -84,14 +84,11 @@ public class ConcurrentDirectEWMA extends DirectEWMA implements ConcurrentDirect
 	/**
 	 * Replaces this objects with a serializable {@link ReadOnlyEWMA} when it is written to a serialization stream
 	 * @return a {@link ReadOnlyEWMA} representing a snapshot of this ewma.
-	 * @throws ObjectStreamException
+	 * @throws ObjectStreamException thrown on error writing to the object output stream
 	 */
 	Object writeReplace() throws ObjectStreamException {
 		return new ReadOnlyEWMA(this);
 	}	
-	
-	
-	
 
 	/**
 	 * Creates a new ConcurrentDirectEWMA
@@ -124,6 +121,18 @@ public class ConcurrentDirectEWMA extends DirectEWMA implements ConcurrentDirect
 		}
 	}
 	
+	/**
+	 * Returns the most recently appended value.
+	 * @return the most recently appended value 
+	 */
+	public double getLastValue() {
+		lock.xlock();
+		try {
+			return UnsafeAdapter.getDouble(address[0] + LAST_VALUE);
+		} finally {
+			lock.xunlock();
+		}
+	}
 
 	/**
 	 * {@inheritDoc}
@@ -263,15 +272,12 @@ public class ConcurrentDirectEWMA extends DirectEWMA implements ConcurrentDirect
 	 */
 	@Override
 	public String toString() {
-		final StringBuilder b = new StringBuilder("EWMA [");
 		lock.xlock();
 		try {
-			b.append("ts:").append(new Date(UnsafeAdapter.getLong(address[0] + LAST_SAMPLE)));
-			b.append(", avg:").append(UnsafeAdapter.getDouble(address[0] + AVERAGE));				
+			return super.toString();
 		} finally {
 			lock.xunlock();
 		}
-		return b.append("]").toString();
 	}
 	
 	/**

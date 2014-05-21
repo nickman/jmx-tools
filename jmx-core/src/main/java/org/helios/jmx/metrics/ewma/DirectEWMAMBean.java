@@ -50,8 +50,15 @@ public interface DirectEWMAMBean extends EWMAAppenderMBean, CompositeData, Compo
 	 * Returns the timestamp of the last sample as a long UTC.
 	 * @return the timestamp of the last sample 
 	 */
-	@ManagedAttribute(description="Returns the timestamp of the last sample as a long UTC")
+	@ManagedAttribute(description="The timestamp of the last sample as a long UTC")
 	public long getLastSample();
+	
+	/**
+	 * Returns the most recently appended value
+	 * @return the most recently appended value
+	 */
+	@ManagedAttribute(description="The most recently appended value")
+	public double getLastValue();
 
 	/**
 	 * Returns the last computed average.

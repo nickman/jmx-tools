@@ -111,7 +111,7 @@ public class ManagedObjectRepo<T> {
 	public ManagedObjectRepo(T owner) {
 		this.owner = owner;
 		this.ownerId = System.identityHashCode(owner);
-		put(owner, ownerId);
+		put(owner, "");
 	}
 	
 	/**
@@ -234,18 +234,19 @@ public class ManagedObjectRepo<T> {
 	/**
 	 * Indexes the passed object and returns the ManagedObject generated
 	 * @param objectToAdd The object to add
-	 * @param id The long hashed logical name of the object 
+	 * @param name The logical name of the object 
 	 * @return the generated MBeanInfo for the managed object
 	 */
-	public MBeanInfo put(T objectToAdd, long id) {
+	public MBeanInfo put(T objectToAdd, String name) {
 		nvl(objectToAdd, "Managed Object");
+		final long hash = name==null ? System.identityHashCode(objectToAdd) : lhc(name);
 		ManagedObject<T> mo = objectsByTargetObject.get(objectToAdd);
 		if(mo==null) {
 			synchronized(objectsByTargetObject) {
 				mo = objectsByTargetObject.get(objectToAdd);
 				if(mo==null) {
-					mo = new ManagedObject<T>(objectToAdd, "" + id);
-					objectsByNameId.put(id, mo);
+					mo = new ManagedObject<T>(objectToAdd, name);
+					objectsByNameId.put(hash, mo);
 					objectsByTargetObject.put(objectToAdd, mo);					
 					return mo.info;
 				}
@@ -254,15 +255,7 @@ public class ManagedObjectRepo<T> {
 		return null;
 	}
 	
-	/**
-	 * Indexes the passed object and returns the ManagedObject generated
-	 * @param objectToAdd The object to add
-	 * @param name The logical name of the object 
-	 * @return the generated MBeanInfo for the managed object
-	 */
-	public MBeanInfo put(T objectToAdd, String name) {
-		return put(objectToAdd, lhc(name));
-	}
+
 	
 	/**
 	 * Returns the getter method handle for the passed attribute name

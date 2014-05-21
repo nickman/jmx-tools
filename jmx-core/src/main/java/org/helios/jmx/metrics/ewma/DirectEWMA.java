@@ -41,6 +41,7 @@ import javax.management.openmbean.CompositeDataView;
 import javax.management.openmbean.CompositeType;
 import javax.management.openmbean.OpenDataException;
 
+import org.helios.jmx.annotation.ManagedAttribute;
 import org.helios.jmx.annotation.Reflector;
 import org.helios.jmx.managed.Invoker;
 import org.helios.jmx.util.helpers.JMXHelper;
@@ -66,10 +67,12 @@ public class DirectEWMA implements DeAllocateMe, DirectEWMAMBean, IMetricSetter 
 	public final static byte WINDOW = 0;							
 	/** The offset of the last sample timestamp in ms. */
 	public final static byte LAST_SAMPLE = WINDOW + UnsafeAdapter.LONG_SIZE;
+	/** The most recently appended value */
+	public final static byte LAST_VALUE = LAST_SAMPLE + UnsafeAdapter.LONG_SIZE;
 	/** The offset of the rolling average */
-	public final static byte AVERAGE = LAST_SAMPLE + UnsafeAdapter.LONG_SIZE;
+	public final static byte AVERAGE = LAST_VALUE + UnsafeAdapter.DOUBLE_SIZE;
 	/** The offset of the minimum value */
-	public final static byte MINIMUM = LAST_SAMPLE + UnsafeAdapter.DOUBLE_SIZE;
+	public final static byte MINIMUM = AVERAGE + UnsafeAdapter.DOUBLE_SIZE;
 	/** The offset of the maximum value */
 	public final static byte MAXIMUM = MINIMUM + UnsafeAdapter.DOUBLE_SIZE;
 	/** The offset of the mean value */
@@ -132,7 +135,7 @@ public class DirectEWMA implements DeAllocateMe, DirectEWMAMBean, IMetricSetter 
 	/**
 	 * Replaces this objects with a serializable {@link ReadOnlyEWMA} when it is written to a serialization stream
 	 * @return a {@link ReadOnlyEWMA} representing a snapshot of this ewma.
-	 * @throws ObjectStreamException
+	 * @throws ObjectStreamException thrown on error writing to the object output stream
 	 */
 	Object writeReplace() throws ObjectStreamException {
 		return new ReadOnlyEWMA(this);
@@ -190,6 +193,7 @@ public class DirectEWMA implements DeAllocateMe, DirectEWMAMBean, IMetricSetter 
 	@Override
 	public void reset() {
 //		UnsafeAdapter.putLong(address[0] + LAST_SAMPLE, 0L);
+		UnsafeAdapter.putDouble(address[0] + LAST_VALUE, 0D);
 		UnsafeAdapter.putDouble(address[0] + AVERAGE, 0D);
 		UnsafeAdapter.putDouble(address[0] + MINIMUM, 0D);
 		UnsafeAdapter.putDouble(address[0] + MAXIMUM, 0D);
@@ -208,6 +212,14 @@ public class DirectEWMA implements DeAllocateMe, DirectEWMAMBean, IMetricSetter 
 	@Override
 	public long getLastSample() {
 		return UnsafeAdapter.getLong(address[0] + LAST_SAMPLE);
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.metrics.ewma.DirectEWMAMBean#getLastValue()
+	 */
+	public double getLastValue() {
+		return UnsafeAdapter.getDouble(address[0] + LAST_VALUE);
 	}
 	
 
@@ -279,6 +291,7 @@ public class DirectEWMA implements DeAllocateMe, DirectEWMAMBean, IMetricSetter 
 	public void append(double sample) {
 		final long now = System.currentTimeMillis();
 		final long lastSample = getLastSample(); 
+		UnsafeAdapter.putDouble(address[0] + LAST_VALUE, sample);
 		if(lastSample == 0L) {
 			UnsafeAdapter.putDouble(address[0] + AVERAGE, sample);
 			UnsafeAdapter.putLong(address[0] + LAST_SAMPLE, now);
@@ -343,8 +356,16 @@ public class DirectEWMA implements DeAllocateMe, DirectEWMAMBean, IMetricSetter 
 	@Override
 	public String toString() {
 		StringBuilder b = new StringBuilder("EWMA [");
-		b.append("ts:").append(new Date(getLastSample()));
+		final long count = getCount();
+		if(count>0) {
+			b.append("ts:").append(new Date(getLastSample()));
+		}
+		b.append(", min:").append(getMinimum());
+		b.append(", max:").append(getMaximum());
+		b.append(", count:").append(getCount());
+		b.append(", mean:").append(getMean());
 		b.append(", avg:").append(getAverage());
+		b.append(", last:").append(getLastValue());
 		b.append("]");		
 		return b.append("]").toString();
 	}

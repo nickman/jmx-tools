@@ -53,7 +53,7 @@ public class ReadOnlyEWMA implements DirectEWMAMBean {
 	/**  */
 	private static final long serialVersionUID = -9209212906780703253L;
 	private long lastSample = -1, count = -1, errors = -1, window = -1;
-	private double min = -1D, max = -1D, avg = -1D, mean = -1D;
+	private double min = -1D, max = -1D, avg = -1D, mean = -1D, last = -1D;
 	
 	/** The composite type for this class */
 	private static final CompositeType openType;
@@ -96,6 +96,7 @@ public class ReadOnlyEWMA implements DirectEWMAMBean {
 		max = ewma.getMaximum();
 		avg = ewma.getAverage();
 		mean = ewma.getMean();
+		last = ewma.getLastValue();
 	}
 	
 
@@ -242,6 +243,9 @@ public class ReadOnlyEWMA implements DirectEWMAMBean {
 		builder.append(avg);
 		builder.append(", mean=");
 		builder.append(mean);
+		builder.append(", last=");
+		builder.append(last);
+		
 		builder.append("]");
 		return builder.toString();
 	}
@@ -318,7 +322,7 @@ public class ReadOnlyEWMA implements DirectEWMAMBean {
 	/**
 	 * Replaces this read only ewma witha composite data representation when it is serialized 
 	 * @return a composite data instance
-	 * @throws ObjectStreamException
+	 * @throws ObjectStreamException thrown on error writing to the output stream
 	 */
 	Object writeReplace() throws ObjectStreamException {
 		return toCompositeData(openType);
@@ -335,6 +339,15 @@ public class ReadOnlyEWMA implements DirectEWMAMBean {
 		} catch (OpenDataException ex) {
 			throw new RuntimeException(ex);
 		}		
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.metrics.ewma.DirectEWMAMBean#getLastValue()
+	 */
+	@Override
+	public double getLastValue() {
+		return last;
 	}
 
 }

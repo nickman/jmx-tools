@@ -137,7 +137,10 @@ public class BaseMBean extends StandardMBean implements NotificationEmitter, Ser
 	 * Broadcasts an MBeanInfo changed notification 
 	 */
 	protected void fireMBeanInfoChanged() {
-		emitter.sendNotificationAsync("jmx.mbean.info.changed", this, "MBeanInfo Udate", getCachedMBeanInfo());
+		MBeanInfo info = getCachedMBeanInfo();
+		if(info!=null) {
+			emitter.sendNotificationAsync("jmx.mbean.info.changed", this, "MBeanInfo Udate", info);
+		}
 	}
 
 	/**
@@ -164,7 +167,11 @@ public class BaseMBean extends StandardMBean implements NotificationEmitter, Ser
 	 */
 	@Override
 	public MBeanNotificationInfo[] getNotificationInfo() {
-		return getCachedMBeanInfo().getNotifications();
+		MBeanInfo info = getCachedMBeanInfo();
+		if(info==null) {
+			return Reflector.EMPTY_NOTIF_INFO;
+		}
+		return info.getNotifications();
 	}
 
 	/**

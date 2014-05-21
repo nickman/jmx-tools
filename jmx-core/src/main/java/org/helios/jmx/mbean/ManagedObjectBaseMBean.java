@@ -53,7 +53,7 @@ import org.helios.jmx.util.helpers.JMXHelper;
 @ManagedResource
 public class ManagedObjectBaseMBean extends BaseMBean implements PopOperationsMBean {
 	/** The managed object repository for managing the dynamic invocation and meta-data aspects of this instance */
-	protected final ManagedObjectRepo<Object> managedObjects = new ManagedObjectRepo<Object>(System.identityHashCode(this));
+	protected ManagedObjectRepo<Object> managedObjects;
 	
 	/** Flag indicating if resources have been released on unregister */
 	protected final AtomicBoolean resourcesReleased = new AtomicBoolean(true);
@@ -110,8 +110,10 @@ public class ManagedObjectBaseMBean extends BaseMBean implements PopOperationsMB
 	 */
 	@Override
 	protected MBeanInfo initialize() {
-		cacheMBeanInfo(managedObjects.mergeAllMBeanInfos());
-		fireMBeanInfoChanged();
+		managedObjects = new ManagedObjectRepo<Object>(this);
+		MBeanInfo info = managedObjects.mergeAllMBeanInfos(); 
+		cacheMBeanInfo(info==null ? Reflector.EMPTY_MBEAN_INFO : info);
+//		fireMBeanInfoChanged();
 		return getMBeanInfo();
 	}
 	
@@ -208,7 +210,7 @@ public class ManagedObjectBaseMBean extends BaseMBean implements PopOperationsMB
 	 */
 	public long addManagedObject(Object managedObject) {
 		final long id = addedObjectSerial.incrementAndGet();
-		managedObjects.put(managedObject, id);
+		managedObjects.put(managedObject, null);
 		return id;
 	}
 	

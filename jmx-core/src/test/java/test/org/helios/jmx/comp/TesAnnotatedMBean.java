@@ -132,11 +132,12 @@ public class TesAnnotatedMBean extends BaseTest {
 			String ons = "test.org.helios.jmx.comp:service=TestMBean,type=" + name.getMethodName();
 			final ObjectName on = JMXHelper.objectName(ons);
 			TestBean tb = new TestBean(TestBeanMBean.class, true);
-			MBeanProxy proxyMBeanX = MBeanProxy.proxyMBean(ReferenceType.WEAK, TestBeanMBean.class, tb, DynamicMBean.class, NotificationEmitter.class);
-			Reference<?> ref = proxyMBeanX.getReference();
-			JMXHelper.registerMBean(proxyMBeanX.getMBeanProxy(), on);
-			tb.mbeanProxy = proxyMBeanX;
-			proxyMBeanX = null;
+			JMXHelper.registerMBean(tb, on);
+			//MBeanProxy proxyMBeanX = MBeanProxy.proxyMBean(ReferenceType.WEAK, TestBeanMBean.class, tb, DynamicMBean.class, NotificationEmitter.class);
+			//Reference<?> ref = proxyMBeanX.getReference();
+			//JMXHelper.registerMBean(proxyMBeanX.getMBeanProxy(), on);
+			//tb.mbeanProxy = proxyMBeanX;
+//			proxyMBeanX = null;
 //			weakRef = ReferenceService.getInstance().newWeakReference(new TestBean(TestBeanMBean.class, false).register(on), new Runnable() {
 //				public void run() {
 //					log("MBean Weakly Reachable: [%s]. Unregistering....", on);
@@ -261,22 +262,22 @@ public class TesAnnotatedMBean extends BaseTest {
 			
 			System.gc();
 			ElapsedTime clearTime = SystemClock.startClock();
-			for(int i = 0; i < 50000; i++) {
-				if(ref.get()==null) {
-					log("MBean unregistered. Loop: %s, Elapsed: %s", i, clearTime.printTime());
-					break;
-				}
-//				log("Enqueued:%s referent null:%s", ref.isEnqueued(), ref.get()==null);
-//				System.gc(); System.gc();
-				SystemClock.sleep(10);				
-			}
+//			for(int i = 0; i < 50000; i++) {
+//				if(ref.get()==null) {
+//					log("MBean unregistered. Loop: %s, Elapsed: %s", i, clearTime.printTime());
+//					break;
+//				}
+////				log("Enqueued:%s referent null:%s", ref.isEnqueued(), ref.get()==null);
+////				System.gc(); System.gc();
+//				SystemClock.sleep(10);				
+//			}
 			SystemClock.sleep(600000);
 			if(JMXHelper.isRegistered(on)) {
 				try { JMXHelper.unregisterMBean(on); } catch (Exception ex) {}
 				log("\n\t====================\n\tUNREGISTERED\n\t====================\n");
 				
 				while(true) {
-					log("Enqueued:%s referent null:%s", ref.isEnqueued(), ref.get()==null);
+//					log("Enqueued:%s referent null:%s", ref.isEnqueued(), ref.get()==null);
 					log(UnsafeAdapter.printUnsafeMemoryStats());
 					System.gc(); System.gc();
 					SystemClock.sleep(5000);
