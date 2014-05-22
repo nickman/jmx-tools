@@ -369,6 +369,7 @@ public class DirectEWMA implements DeAllocateMe, DirectEWMAMBean, IMetricSetter 
 		b.append("]");		
 		return b.append("]").toString();
 	}
+	
 
 
 	/**
