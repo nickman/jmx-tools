@@ -109,9 +109,9 @@ public enum SSHOption {
 	
 	static {
 		SSHOption[] options = SSHOption.values();
-		Map<String, SSHOption> tmpByCode = new HashMap<>(options.length);
-		Map<String, SSHOption> tmpByProp = new HashMap<>(options.length);
-		Map<Integer, SSHOption> tmpByOrd = new HashMap<>(options.length);
+		Map<String, SSHOption> tmpByCode = new HashMap<String, SSHOption>(options.length);
+		Map<String, SSHOption> tmpByProp = new HashMap<String, SSHOption>(options.length);
+		Map<Integer, SSHOption> tmpByOrd = new HashMap<Integer, SSHOption>(options.length);
 		for(SSHOption opt: options) {
 			tmpByCode.put(opt.shortCode, opt);
 			tmpByProp.put(opt.propertyName, opt);

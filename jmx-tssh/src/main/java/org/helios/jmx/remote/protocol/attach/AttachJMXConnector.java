@@ -76,6 +76,7 @@ public class AttachJMXConnector implements JMXConnector {
 		if(isNumber(urlPath)) {
 			jvmId = urlPath;
 		} else {
+			if(urlPath.startsWith("/")) urlPath = new StringBuilder(urlPath).deleteCharAt(0).toString(); 
 			if(urlPath.startsWith("[") && urlPath.endsWith("]")) {
 				StringBuilder b = new StringBuilder(urlPath);
 				b.deleteCharAt(0);
@@ -87,6 +88,18 @@ public class AttachJMXConnector implements JMXConnector {
 		}		
 	}
 	
+	
+	/**
+	 * Returns a list of JVMs that can be attached to
+	 * @return a list of JVMs that can be attached to
+	 */
+	protected String getAvailableJVMs() {
+		StringBuilder b = new StringBuilder("\n");
+		for(VirtualMachineDescriptor vmd :VirtualMachineDescriptor.getVirtualMachineDescriptors()) {
+			b.append("\n\t").append(vmd.id()).append(" : ").append(vmd.displayName());
+		}
+		return b.toString();
+	}
 	/**
 	 * Connects to the target virtual machine
 	 */
@@ -111,7 +124,7 @@ public class AttachJMXConnector implements JMXConnector {
 				}
 			}
 		}
-		throw new RuntimeException("Failed to find any matching JVMs for [" + urlPath + "]");
+		throw new RuntimeException("Failed to find any matching JVMs for [" + urlPath + "]. Available JVMs to connect to are:" + getAvailableJVMs());
 	}
 	
 	
