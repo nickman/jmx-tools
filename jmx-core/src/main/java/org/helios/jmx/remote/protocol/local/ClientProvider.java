@@ -29,12 +29,9 @@ import java.net.MalformedURLException;
 import java.util.Map;
 
 import javax.management.remote.JMXConnector;
-import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXConnectorProvider;
 import javax.management.remote.JMXServiceURL;
 
-import org.helios.jmx.remote.tunnel.SSHTunnelConnector;
-import org.helios.jmx.remote.tunnel.TunnelHandle;
 
 /**
  * <p>Title: ClientProvider</p>
@@ -43,7 +40,6 @@ import org.helios.jmx.remote.tunnel.TunnelHandle;
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
  * <p><code>org.helios.jmx.remote.protocol.local.ClientProvider</code></p>
  */
-
 public class ClientProvider implements JMXConnectorProvider {
 	/** The protocol name */
 	public static final String PROTOCOL_NAME = "local";

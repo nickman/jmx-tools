@@ -1,3 +1,1 @@
 org.helios.jmx.remote.protocol.tunnel.ClientProvider
-org.helios.jmx.remote.protocol.local.ClientProvider
-org.helios.jmx.remote.protocol.attach.ClientProvider
