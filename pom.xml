@@ -24,7 +24,7 @@
 		<junit.version>4.8.2</junit.version>
 		<javassist.version>3.16.1-GA</javassist.version>
 		<snmp4j.version>1.9.1f</snmp4j.version>
-		<netty.version>3.5.8.Final</netty.version>
+		<netty.version>3.9.1.Final</netty.version>
 		<nash.version>1.0-SNAPSHOT</nash.version>
 		<sigar.version>1.6.4</sigar.version>
 		<rrd4j.version>2.2-SNAPSHOT</rrd4j.version>

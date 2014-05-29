@@ -25,6 +25,7 @@
 package org.helios.jmx.remote.protocol.attach;
 
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -66,6 +67,9 @@ public class AttachJMXConnector implements JMXConnector {
 	protected Properties vmSystemProperties = null;
 	/** The attached VM's agent properties */
 	protected Properties vmAgentProperties = null;
+	
+	/** The PID of this JVM */
+	public static final String PID = ManagementFactory.getRuntimeMXBean().getName().split("@")[0];
 	/**
 	 * Creates a new AttachJMXConnector
 	 * @param jvmIdentifier The target JVM identifier or display name match expression
@@ -73,10 +77,10 @@ public class AttachJMXConnector implements JMXConnector {
 	public AttachJMXConnector(String jvmIdentifier) {
 		if(jvmIdentifier==null || jvmIdentifier.trim().isEmpty()) throw new IllegalArgumentException("The passed JVM identifier was null or empty");
 		urlPath = jvmIdentifier.trim();
+		if(urlPath.startsWith("/")) urlPath = new StringBuilder(urlPath).deleteCharAt(0).toString();
 		if(isNumber(urlPath)) {
 			jvmId = urlPath;
-		} else {
-			if(urlPath.startsWith("/")) urlPath = new StringBuilder(urlPath).deleteCharAt(0).toString(); 
+		} else {			 
 			if(urlPath.startsWith("[") && urlPath.endsWith("]")) {
 				StringBuilder b = new StringBuilder(urlPath);
 				b.deleteCharAt(0);
@@ -110,15 +114,21 @@ public class AttachJMXConnector implements JMXConnector {
 		}
 		List<VirtualMachineDescriptor> machines = VirtualMachine.list();
 		for(VirtualMachineDescriptor vmd: machines) {
+			if(PID.equals(vmd.id())) {
+				System.err.println("Skipped PID:" + vmd.id() + " with display [" + vmd.displayName() + "]");
+				continue;  // this avoids connecting to self
+			}
 			String displayName = vmd.displayName();
 			if(jvmDisplayName!=null) {
 				if(jvmDisplayName.equals(displayName)) {
+					System.err.println("Exact Match: Attaching to JVM:" + vmd.id() + " with display [" + vmd.displayName() + "]");
 					vm = VirtualMachine.attach(vmd.id());
 					return;
 				}
 			} else {
 				Matcher m = displayNamePattern.matcher(displayName);
 				if(m.matches()) {
+					System.err.println("Pattern Match: Attaching to JVM:" + vmd.id() + " with display [" + vmd.displayName() + "]");
 					vm = VirtualMachine.attach(vmd.id());
 					return;
 				}
