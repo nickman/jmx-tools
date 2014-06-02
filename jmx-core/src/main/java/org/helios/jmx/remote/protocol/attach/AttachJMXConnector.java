@@ -37,6 +37,7 @@ import javax.management.MBeanServerConnection;
 import javax.management.NotificationFilter;
 import javax.management.NotificationListener;
 import javax.management.remote.JMXConnector;
+import javax.management.remote.JMXServiceURL;
 import javax.security.auth.Subject;
 
 import org.helios.vm.attach.VirtualMachine;
@@ -44,7 +45,14 @@ import org.helios.vm.attach.VirtualMachineDescriptor;
 
 /**
  * <p>Title: AttachJMXConnector</p>
- * <p>Description: Attach API JMXConnector implementation</p> 
+ * <p>Description: JMXConnector provider for acquiring an MBeanServer connection 
+ * through the <a href="http://docs.oracle.com/javase/7/docs/technotes/guides/attach/index.html">Java Attach API</a>.</p>
+ * <p>The {@link JMXServiceURL} syntax is one of the following:<ul>
+ * 	<li><b><code>service:jmx:attach://&lt;PID&gt;</code></b> where the PID is the Java virtual machine ID or usually, the OS process ID.</li>
+ *  <li><b><code>service:jmx:attach:///&lt;DISPLAY NAME&gt;</code></b> where the DISPLAY NAME is an expression matching the Java virtual machine's display name. or a single display name matching regex.</li>
+ *  <li><b><code>service:jmx:attach:///&lt;[REGEX]&gt;</code></b> where the REGEX is a regular expression that will match one and only one JVM's display name</li>
+ * </ul></p>
+ * <p><b>NOTE:</b> Note that the second two examples above have <b>3</b> slashes after the <b>attach</b>.</p>
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
  * <p><code>org.helios.jmx.remote.protocol.attach.AttachJMXConnector</code></p>

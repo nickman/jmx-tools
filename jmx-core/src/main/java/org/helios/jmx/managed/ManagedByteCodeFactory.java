@@ -115,41 +115,6 @@ public class ManagedByteCodeFactory {
 		return new ClassPool(classPool);
 	}
 	
-	public static void main(String[] args) {
-		log("Test Invoker");
-		try {			
-			Foo foo = new Foo();
-			 Invoker invoker = getInstance().newInvoker(Foo.class.getDeclaredMethod("generateRandoms"), null);
-			 Invoker invoker2 =  getInstance().newInvoker(Foo.class.getDeclaredMethod("generateRandoms", int.class), foo);
-			 Invoker invoker3 =  getInstance().newInvoker(Foo.class.getDeclaredMethod("getPID"));
-			 Invoker invoker4 =  getInstance().newInvoker(Foo.class.getDeclaredMethod("generateRandomsVoid"), foo);
-			 Invoker invoker5 =  getInstance().newInvoker(Foo.class.getDeclaredMethod("generateRandomsVoidStatic"));
-			 
-			 //generateRandomsVoid, generateRandomsVoidStatic
-			 
-			 Method meth = null;
-			 for(Method m: invoker2.getClass().getDeclaredMethods()) {
-				 log(m.toGenericString() + "    vargs:" + m.isVarArgs() +  "   Abstract:" + Modifier.isAbstract(m.getModifiers())) ;
-				 
-				 meth = m;
-			 }
-			 log("Invoker: [" + invoker.bindTo(foo).invoke() + "]");
-			 log("Invoker2: [" + invoker2.invoke(43) + "]");
-			 Object o = invoker3.invoke();
-			 
-			 log("Invoker3: [" + o + "]");
-			 int pidplus = 73 + (int)invoker3.invoke();
-			 log("pidplus:" + pidplus);
-			 log("Invoker3: [" + (invoker3.invoke().toString()) + "]");
-			 log("Invoker3: [" + invoker3.invoke() + "]");
-			 log("Invoker4: [" + invoker4.invoke() + "]");
-			 log("Invoker5: [" + invoker5.invoke() + "]");
-//			 log("Invoker2 Reflected: [" + meth.invoke(invoker2, 43) + "]");
-			 log("Done");
-		} catch (Exception ex) {
-			ex.printStackTrace(System.err);
-		}
-	}
 	
 	public static class Foo {
 		Random random = new Random(System.currentTimeMillis());

@@ -28,6 +28,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.logging.LogManager;
+import java.util.logging.Logger;
 
 import javax.management.ListenerNotFoundException;
 import javax.management.MBeanInfo;
@@ -70,7 +72,9 @@ public class NotificationBroadcastService {
 	public static final ObjectName THREAD_POOL_OBJECT_NAME = JMXHelper.objectName(new StringBuilder(OBJECT_NAME.toString()).append("ThreadPool"));
 
     /**  */
-    private static final ClassLogger logger = new ClassLogger("javax.management", "NotificationBroadcastService");
+    
+	private static final Logger logger = LogManager.getLogManager().getLogger(NotificationBroadcastService.class.getName()); 
+			
 
 	
 	/**
@@ -270,9 +274,9 @@ public class NotificationBroadcastService {
 	                enabled = li.filter == null ||
 	                    li.filter.isNotificationEnabled(notification);
 	            } catch (Exception e) {
-	                if (logger.debugOn()) {
-	                    logger.debug("sendNotification", e);
-	                }
+//	                if (logger.debugOn()) {
+//	                    logger.debug("sendNotification", e);
+//	                }
 	                continue;
 	            }
 	            
@@ -402,9 +406,9 @@ public class NotificationBroadcastService {
 	                handleNotification(listenerInfo.listener,
 	                                   notif, listenerInfo.handback);
 	            } catch (Exception e) {
-	                if (logger.debugOn()) {
-	                    logger.debug("SendNotifJob-run", e);
-	                }
+//	                if (logger.debugOn()) {
+//	                    logger.debug("SendNotifJob-run", e);
+//	                }
 	            }
 	        }
 

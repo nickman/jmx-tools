@@ -64,6 +64,13 @@ import javax.management.remote.JMXServiceURL;
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
  * <p><code>org.helios.apmrouter.jmx.JMXHelper</code></p>
  */
+/**
+ * <p>Title: JMXHelper</p>
+ * <p>Description: </p> 
+ * <p>Company: Helios Development Group LLC</p>
+ * @author Whitehead (nwhitehead AT heliosdev DOT org)
+ * <p><code>org.helios.jmx.util.helpers.JMXHelper</code></p>
+ */
 public class JMXHelper {
 	/** The property name where the jmx default domain is referenced */
 	public static final String JMX_DOMAIN_PROPERTY = "org.helios.jmx.domain";
@@ -386,6 +393,21 @@ public class JMXHelper {
 		}
 	}
 	
+	
+	/**
+	 * Determines if the passed stringy is a valid object name
+	 * @param on The object name stringy to evaluate
+	 * @return true if valid, false otherwise
+	 */
+	public static boolean isValidObjectName(CharSequence on) {
+		if(on==null) return false;
+		try {
+			new ObjectName(on.toString());
+			return true;
+		} catch (Exception ex) {
+			return false;
+		}
+	}
 	
 	/**
 	 * Creates a new JMX object name.
