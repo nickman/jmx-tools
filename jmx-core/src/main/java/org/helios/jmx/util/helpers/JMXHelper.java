@@ -291,6 +291,53 @@ public class JMXHelper {
 	}
 	
 	/**
+	 * Determines if the object registered under the passed object name is an instance of the named class 
+	 * @param conn The MBeanServer to check in
+	 * @param on The ObjectName of the object to check
+	 * @param className The class name to test for
+	 * @return true if the object is of the specified inherritance, false otherwise
+	 */
+	public static boolean isInstanceOf(MBeanServerConnection conn, ObjectName on, String className) {
+		try {
+			return conn.isInstanceOf(on, className);
+		} catch (Exception ex) {
+			throw new RuntimeException("Failed to determine inherritance of [" + on + "] for [" + className + "]", ex);
+		}
+	}
+	
+	/**
+	 * Determines if the object registered under the passed object name is an instance of the named class 
+	 * @param conn The MBeanServer to check in
+	 * @param on The ObjectName of the object to check
+	 * @param className The class name to test for
+	 * @return true if the object is of the specified inherritance, false otherwise
+	 */
+	public static boolean isInstanceOf(MBeanServerConnection conn, CharSequence on, String className) {
+		return isInstanceOf(conn, objectName(on), className);
+	}
+	
+	/**
+	 * Determines if the object registered under the passed object name in the default MBeanServer is an instance of the named class 
+	 * @param on The ObjectName of the object to check
+	 * @param className The class name to test for
+	 * @return true if the object is of the specified inherritance, false otherwise
+	 */
+	public static boolean isInstanceOf(ObjectName on, String className) {
+		return isInstanceOf(getHeliosMBeanServer(), on, className);
+	}
+	
+	/**
+	 * Determines if the object registered under the passed object name in the default MBeanServer is an instance of the named class 
+	 * @param on The ObjectName of the object to check
+	 * @param className The class name to test for
+	 * @return true if the object is of the specified inherritance, false otherwise
+	 */
+	public static boolean isInstanceOf(CharSequence on, String className) {
+		return isInstanceOf(getHeliosMBeanServer(), objectName(on), className);
+	}
+	
+	
+	/**
 	 * Determines if the passed ObjectName is registered in the default MBeanServer
 	 * @param on The ObjectName to test for
 	 * @return true if registered, false otherwise
