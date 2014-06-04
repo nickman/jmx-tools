@@ -84,6 +84,8 @@ public class OpenTypeEnabledURLClassLoader extends URLClassLoader implements Ser
 		}
 	}
 	
+	
+	
 	/**
 	 * Initializes the composite type value map 
 	 * @param urls The URLs the classloader was initialized with
@@ -134,7 +136,7 @@ public class OpenTypeEnabledURLClassLoader extends URLClassLoader implements Ser
 	 * @see java.net.URLClassLoader#addURL(java.net.URL)
 	 */
 	@Override
-	protected void addURL(URL url) {		
+	public void addURL(URL url) {		
 		super.addURL(url);
 		strUrls.add(url.toString());
 	}
