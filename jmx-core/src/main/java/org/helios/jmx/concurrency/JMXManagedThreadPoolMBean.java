@@ -133,6 +133,12 @@ public interface JMXManagedThreadPoolMBean {
 //	public String getMetricsTable();
 	
 	/**
+	 * Returns this instance
+	 * @return this instance
+	 */
+	public JMXManagedThreadPool getInstance();
+	
+	/**
 	 * Returns the approximate number of threads that are actively executing tasks.
 	 * @return the approximate number of threads that are actively executing tasks
 	 */

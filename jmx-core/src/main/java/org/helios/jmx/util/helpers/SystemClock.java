@@ -346,9 +346,10 @@ public class SystemClock {
 		 * @return the elapsed time
 		 */
 		public long elapsed(TimeUnit unit) {
-			if(elapsedNs==-1L) throw new IllegalStateException("Unclosed clock");			
+			ElapsedTime et = stopClock();
+			if(et.elapsedNs==-1L) throw new IllegalStateException("Unclosed clock");			
 			if(unit==null) unit = TimeUnit.NANOSECONDS;
-			return unit.convert(elapsedNs, TimeUnit.NANOSECONDS);
+			return unit.convert(et.elapsedNs, TimeUnit.NANOSECONDS);
 		}
 		
 		/**

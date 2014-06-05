@@ -945,13 +945,24 @@ public class JMXHelper {
 	 * @param name the name of the attribute
 	 * @return the value of the attribute
 	 */
-	public static Object getAttribute(ObjectName on, String name) {
+	public static <T> T getAttribute(ObjectName on, String name) {
 		try {
-			return getHeliosMBeanServer().getAttribute(on,name);
+			return (T)getHeliosMBeanServer().getAttribute(on,name);
 		} catch (Exception e) {
 			throw new RuntimeException("Failed to get attribute", e);
 		}
-	}	
+	}
+	
+	/**
+	 * Gets an attribute value from an mbean in the Helios MBeanServer
+	 * @param on on the object name
+	 * @param name the name of the attribute
+	 * @return the value of the attribute
+	 */
+	public static <T> T getAttribute(CharSequence on, String name) {
+		return getAttribute(objectName(on), name);
+	}
+	
 	
 	/**
 	 * Invokes an operation on the mbean.

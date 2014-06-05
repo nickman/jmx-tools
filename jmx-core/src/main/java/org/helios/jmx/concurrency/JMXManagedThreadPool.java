@@ -160,6 +160,14 @@ public class JMXManagedThreadPool extends ThreadPoolExecutor implements ThreadFa
 			log.info("Created JMX Managed Thread Pool [" + poolName + "]");
 		}
 	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.concurrency.JMXManagedThreadPoolMBean#getInstance()
+	 */
+	public JMXManagedThreadPool getInstance() {
+		return this;
+	}
 
 	/**
 	 * {@inheritDoc}
