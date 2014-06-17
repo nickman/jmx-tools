@@ -966,6 +966,36 @@ public class UnsafeAdapter {
 	public static final boolean compareAndSwapInt(Object object, long offset, int expect, int value) {
 		return UNSAFE.compareAndSwapInt(object, offset, expect, value);
 	}
+	
+	/**
+	 * Atomically increments the int at the passed address and returns the incremented value
+	 * @param offset The address of the int to increment and return
+	 * @return the incremented value
+	 */
+	public static final int incrementIntAndGet(long offset) {
+		for (;;) {
+            int current = getInt(offset);
+            int next = current + 1;
+            if (compareAndSwapInt(null, offset, current, next))
+                return next;
+        }		
+	}
+	
+	/**
+	 * Atomically decrements the int at the passed address and returns the decremented value
+	 * @param offset The address of the int to decrement and return
+	 * @return the decremented value
+	 */
+	public final int decrementIntAndGet(long offset) {
+        for (;;) {
+            int current = getInt(offset);
+            int next = current - 1;
+            if (compareAndSwapInt(null, offset, current, next))
+                return next;
+        }
+	}	
+
+	
 
 	/**
 	 * Atomically update Java variable or address to x if it is currently holding expected.
