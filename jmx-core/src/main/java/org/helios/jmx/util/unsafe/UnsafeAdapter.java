@@ -66,6 +66,9 @@ public class UnsafeAdapter {
     public static final boolean FOUR_SET;
     /** The size of a <b><code>byte</code></b>  */
     public final static int BYTE_SIZE = 1;
+    /** The size of a <b><code>boolean</code></b>  */
+    public final static int BOOLEAN_SIZE = 1;
+    
     /** The size of a <b><code>char</code></b>  */
     public final static int CHAR_SIZE = 2;
 
@@ -868,10 +871,14 @@ public class UnsafeAdapter {
 	/**
 	 * Allocates a chunk of aligned (if enabled) memory and returns its address
 	 * @param size The number of bytes to allocate
+	 * @param dealloc The optional deallocatable to register for deallocation when it becomes phantom reachable
 	 * @return The address of the allocated memory
 	 * @see sun.misc.Unsafe#allocateMemory(long)
 	 */
-	public static long allocateAlignedMemory(long size) {
+	public static long allocateAlignedMemory(long size, DeAllocateMe dealloc) {
+		if(dealloc!=null) {
+			registerForDeAlloc(dealloc);
+		}
 		if(alignMem && size <= MAX_ALIGNED_MEM) {
 			int actual = findNextPositivePowerOfTwo((int)size);
 			return _allocateMemory(actual, actual-size);
@@ -879,11 +886,21 @@ public class UnsafeAdapter {
 		return _allocateMemory(size, 0);
 	}
 	
+	/**
+	 * Allocates a chunk of aligned (if enabled) memory and returns its address
+	 * @param size The number of bytes to allocate
+	 * @return The address of the allocated memory
+	 * @see sun.misc.Unsafe#allocateMemory(long)
+	 */
+	public static long allocateAlignedMemory(long size) {
+		return allocateAlignedMemory(size, null);
+	}
+	
 	
 	/**
 	 * Resizes a new block of native memory, to the given size in bytes. 
 	 * @param The address of the existing allocation
-	 * @param bytes The size of the new allocation i n bytes
+	 * @param bytes The size of the new allocation in bytes
 	 * @return The address of the new allocation
 	 * @see sun.misc.Unsafe#reallocateMemory(long, long)
 	 */
@@ -1151,6 +1168,15 @@ public class UnsafeAdapter {
 	public static boolean getBoolean(Object object, int offset) {
 		return UNSAFE.getBoolean(object, offset);
 	}
+	
+	/**
+	 * Reads and returns a boolean from the specified address
+	 * @param address The address where the boolean will be read from
+	 * @return the read boolean value
+	 */
+	public static boolean getBoolean(long address) {
+		return UNSAFE.getBoolean(null, address);
+	}	
 
 	/**
 	 * Reads a boolean from an object at the specified offset.
@@ -1637,24 +1663,39 @@ public class UnsafeAdapter {
 	}
 
 	/**
-	 * @param arg0
-	 * @param arg1
-	 * @param arg2
+	 * Writes a boolean value to the offset address of the passed object, or if the object is null, 
+	 * to the passed absolute address
+	 * @param object The optional object to write to
+	 * @param offset The offset off the address of the object to write to, 
+	 * or an absolute address if the object is null
+	 * @param bool The value to write
 	 * @deprecated
-	 * @see sun.misc.Unsafe#putBoolean(java.lang.Object, int, boolean)
 	 */
-	public static void putBoolean(Object arg0, int arg1, boolean arg2) {
-		UNSAFE.putBoolean(arg0, arg1, arg2);
+	public static void putBoolean(Object object, int offset, boolean bool) {
+		UNSAFE.putBoolean(object, offset, bool);
 	}
 
+	
 	/**
-	 * @param arg0
-	 * @param arg1
-	 * @param arg2
-	 * @see sun.misc.Unsafe#putBoolean(java.lang.Object, long, boolean)
+	 * Writes a boolean value to the offset address of the passed object, or if the object is null, 
+	 * to the passed absolute address
+	 * @param object The optional object to write to
+	 * @param offset The offset off the address of the object to write to, 
+	 * or an absolute address if the object is null
+	 * @param bool The value to write
 	 */
-	public static void putBoolean(Object arg0, long arg1, boolean arg2) {
-		UNSAFE.putBoolean(arg0, arg1, arg2);
+	public static void putBoolean(Object object, long offset, boolean bool) {
+		UNSAFE.putBoolean(object, offset, bool);
+	}
+	
+	/**
+	 * Writes a boolean to the passed address
+	 * @param address The address to write to
+	 * @param bool The boolean value to write
+	 */
+	public static void putBoolean(long address, boolean bool) {
+		UNSAFE.putBoolean(null, address, bool);
+		
 	}
 
 	/**
@@ -2760,6 +2801,9 @@ public class UnsafeAdapter {
       }
       return true;    
     }
+
+
+
 
     
 //    public static char[] copyStringChars(String string) {
