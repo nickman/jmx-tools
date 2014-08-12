@@ -1,1 +1,2 @@
 org.helios.jmx.remote.protocol.tunnel.ClientProvider
+com.sun.jmx.remote.protocol.jmxmp.ClientProvider

@@ -19,15 +19,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
 import org.helios.jmx.util.helpers.JMXHelper;
-import org.helios.jmx.util.helpers.StringHelper;
 import org.helios.jmx.util.reference.ReferenceRunnable;
 import org.helios.jmx.util.reference.ReferenceService;
 import org.helios.jmx.util.unsafe.Callbacks.BooleanCallable;
@@ -117,7 +116,7 @@ public class UnsafeAdapter {
 	private static final AtomicLong totalAlignmentOverhead;
 	
 	/** The system prop indicating that allocations should be tracked */
-	public static final String TRACK_ALLOCS_PROP = "unsafe.allocations.track";
+	public static final String TRACK_ALLOCS_PROP = "unsafe.allocations.track"; 
 	/** The system prop indicating that allocations should be alligned */
 	public static final String ALIGN_ALLOCS_PROP = "unsafe.allocations.align";
 	
@@ -137,6 +136,11 @@ public class UnsafeAdapter {
     public static final int BASELINE_ALLOCS;
     /** The baseline allocation size */
     public static final long BASELINE_MEM;
+    /** The baseline pending size */
+    public static final int BASELINE_PENDING;
+    /** The baseline alignment overhead */
+    public static final long BASELINE_AO;
+    
     
     //=========================================================================================================
     //			Memory Allocation Management
@@ -383,13 +387,18 @@ public class UnsafeAdapter {
     	 */
     	@Override
     	public Map<String, Long> getState() {
-    		Map<String, Long> map = new HashMap<String, Long>(6);
+    		Map<String, Long> map = new LinkedHashMap<String, Long>(10);
     		map.put(ALLOC_MEM, getTotalAllocatedMemory());
     		map.put(ALLOC_OVER, getAlignedMemoryOverhead());
     		map.put(ALLOC_MEMK, getTotalAllocatedMemoryKb());
     		map.put(ALLOC_MEMM, getTotalAllocatedMemoryMb());
     		map.put(ALLOC_COUNT, (long)getTotalAllocationCount());
     		map.put(PENDING_COUNT, (long)getPendingRefs());    		
+    		map.put("BaselineMemory", BASELINE_MEM);
+    		map.put("BaselineAllocations", (long)BASELINE_ALLOCS);
+    		map.put("BaselinePending", (long)BASELINE_PENDING);
+    		map.put("BaselineOverhead", BASELINE_AO);
+    		
     		return map;
     	}
     	
@@ -429,7 +438,7 @@ public class UnsafeAdapter {
 		 */
 		public long getAlignedMemoryOverhead() {
 			if(!trackMem) return -1L;
-			return totalAlignmentOverhead.get();
+			return totalAlignmentOverhead.get()-BASELINE_AO;
 		}
 
 		/**
@@ -471,7 +480,7 @@ public class UnsafeAdapter {
     	 * @return the number of retained phantom references to memory allocations
     	 */
     	public int getPendingRefs() {
-    		return deAllocs.size();
+    		return deAllocs.size() - BASELINE_PENDING;
     	}
 		
 		
@@ -645,7 +654,7 @@ public class UnsafeAdapter {
             }
             FIVE_COPY = copyMemCount>1;
             FOUR_SET = setMemCount>1;
-        	trackMem = System.getProperties().containsKey(TRACK_ALLOCS_PROP) || isDebugAgentLoaded();   
+        	trackMem = System.getProperties().containsKey(TRACK_ALLOCS_PROP) || ("false".equalsIgnoreCase(System.getProperty(TRACK_ALLOCS_PROP)) && isDebugAgentLoaded() );   
         	alignMem = System.getProperties().containsKey(ALIGN_ALLOCS_PROP);
         	if(trackMem) {
         		unsafeMemoryStats = new UnsafeMemory();
@@ -663,9 +672,14 @@ public class UnsafeAdapter {
         	if(trackMem) {
         		BASELINE_ALLOCS = unsafeMemoryStats.getTotalAllocationCount();
         		BASELINE_MEM = unsafeMemoryStats.getTotalAllocatedMemory();
+        	    BASELINE_PENDING = unsafeMemoryStats.getPendingRefs();
+        	    BASELINE_AO = unsafeMemoryStats.getAlignedMemoryOverhead();
         	} else {
         		BASELINE_ALLOCS = -1;
-        		BASELINE_MEM = -1L;        		
+        		BASELINE_MEM = -1L;
+        		BASELINE_PENDING = -1;
+        		BASELINE_AO = -1;
+        		
         	}
         	
         } catch (Exception e) {

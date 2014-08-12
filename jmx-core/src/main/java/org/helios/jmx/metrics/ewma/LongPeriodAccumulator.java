@@ -25,12 +25,12 @@
 package org.helios.jmx.metrics.ewma;
 
 import java.util.Date;
+import java.util.Random;
 
+import org.helios.jmx.util.helpers.SystemClock;
 import org.helios.jmx.util.unsafe.DeAllocateMe;
 import org.helios.jmx.util.unsafe.UnsafeAdapter;
 import org.helios.jmx.util.unsafe.UnsafeAdapter.SpinLock;
-
-import com.sun.org.apache.bcel.internal.generic.AllocationInstruction;
 
 /**
  * <p>Title: LongPeriodAccumulator</p>
@@ -58,14 +58,14 @@ public class LongPeriodAccumulator implements DeAllocateMe {
 	/** The offset of the append overrun counter */
 	public final static byte OVERRUNS = RESET + UnsafeAdapter.BOOLEAN_SIZE;
 	
-	/** The total size of the header and the starting address of the capacity */
+	/** The total size of the header and the starting address[0][0] of the capacity */
 	public final static byte TOTAL = OVERRUNS + UnsafeAdapter.INT_SIZE;
 	
 	/** A zero byte const */
 	public static final byte ZERO_BYTE = 0;
 
-	/** The address of the current allocation */
-	protected long address;
+	/** The address[0][0] of the current allocation */
+	protected long[][] address = {{-1L}};
 	
 	/** The spin lock to prevent concurrent access */
 	protected SpinLock lock = UnsafeAdapter.allocateSpinLock();
@@ -80,12 +80,12 @@ public class LongPeriodAccumulator implements DeAllocateMe {
 	public LongPeriodAccumulator(int initialSize, int extendSize, int maxSize, boolean resetOnClear) {
 		validate(initialSize, extendSize, maxSize);
 		final long bodySize = initialSize << 3;
-		address = UnsafeAdapter.allocateAlignedMemory((bodySize) + TOTAL, this);
+		address[0][0] = UnsafeAdapter.allocateAlignedMemory((bodySize) + TOTAL, this);
 		// final values, only set in ctor
-		UnsafeAdapter.putInt(address + CAPACITY, initialSize);	// not really final	
-		UnsafeAdapter.putInt(address + INITIAL_SIZE, initialSize);
-		UnsafeAdapter.putInt(address + EXTEND_SIZE, extendSize);		
-		UnsafeAdapter.putBoolean(address + RESET, resetOnClear);
+		UnsafeAdapter.putInt(address[0][0] + CAPACITY, initialSize);	// not really final	
+		UnsafeAdapter.putInt(address[0][0] + INITIAL_SIZE, initialSize);
+		UnsafeAdapter.putInt(address[0][0] + EXTEND_SIZE, extendSize);		
+		UnsafeAdapter.putBoolean(address[0][0] + RESET, resetOnClear);
 		// dynamic values init
 		init();
 	}
@@ -94,10 +94,10 @@ public class LongPeriodAccumulator implements DeAllocateMe {
 	 * Initializes the memory spaces at init and reset
 	 */
 	protected void init() {
-		UnsafeAdapter.putInt(address + ALLOCATED, 0);		
-		UnsafeAdapter.putInt(address + OVERRUNS, 0);
-		UnsafeAdapter.setMemory(address + TOTAL, getCapacity() << 3, ZERO_BYTE);		
-		UnsafeAdapter.putLong(address + LAST_RESET, System.currentTimeMillis());
+		UnsafeAdapter.putInt(address[0][0] + ALLOCATED, 0);		
+		UnsafeAdapter.putInt(address[0][0] + OVERRUNS, 0);
+		UnsafeAdapter.setMemory(address[0][0] + TOTAL, getCapacity() << 3, ZERO_BYTE);		
+		UnsafeAdapter.putLong(address[0][0] + LAST_RESET, System.currentTimeMillis());
 	}
 
 	/**
@@ -105,7 +105,7 @@ public class LongPeriodAccumulator implements DeAllocateMe {
 	 * @return the initial size of the accumulator
 	 */
 	public int getInitialSize() {
-		return UnsafeAdapter.getInt(address + INITIAL_SIZE);
+		return UnsafeAdapter.getInt(address[0][0] + INITIAL_SIZE);
 	}
 	
 	/**
@@ -113,7 +113,7 @@ public class LongPeriodAccumulator implements DeAllocateMe {
 	 * @return the max size of the accumulator
 	 */
 	public int getMaximumSize() {
-		return UnsafeAdapter.getInt(address + MAX_SIZE);
+		return UnsafeAdapter.getInt(address[0][0] + MAX_SIZE);
 	}
 	
 	/**
@@ -121,7 +121,7 @@ public class LongPeriodAccumulator implements DeAllocateMe {
 	 * @return the size of the extension of the bufer when the accumulator is extended
 	 */
 	public int getExtendSize() {
-		return UnsafeAdapter.getInt(address + EXTEND_SIZE);
+		return UnsafeAdapter.getInt(address[0][0] + EXTEND_SIZE);
 	}
 	
 	/**
@@ -129,7 +129,7 @@ public class LongPeriodAccumulator implements DeAllocateMe {
 	 * @return true if reset occurs, false otherwise
 	 */
 	public boolean isResetOnClear() {
-		return UnsafeAdapter.getBoolean(address + RESET);
+		return UnsafeAdapter.getBoolean(address[0][0] + RESET);
 	}
 	
 	/**
@@ -138,7 +138,7 @@ public class LongPeriodAccumulator implements DeAllocateMe {
 	 * @return the number of overruns 
 	 */
 	public int getOverruns() {
-		return UnsafeAdapter.getInt(address + OVERRUNS);
+		return UnsafeAdapter.getInt(address[0][0] + OVERRUNS);
 	}
 	
 	/**
@@ -146,7 +146,7 @@ public class LongPeriodAccumulator implements DeAllocateMe {
 	 * @return the timestamp of the last reset
 	 */
 	public long getLastReset() {
-		return UnsafeAdapter.getLong(address + LAST_RESET);
+		return UnsafeAdapter.getLong(address[0][0] + LAST_RESET);
 	}
 	
 	/**
@@ -162,7 +162,7 @@ public class LongPeriodAccumulator implements DeAllocateMe {
 	 * @return the current total capacity of the accumulator
 	 */
 	public int getCapacity() {
-		return UnsafeAdapter.getInt(address + CAPACITY);
+		return UnsafeAdapter.getInt(address[0][0] + CAPACITY);
 	}
 	
 	/**
@@ -170,7 +170,7 @@ public class LongPeriodAccumulator implements DeAllocateMe {
 	 * @return the current number of values in the accumulator
 	 */
 	public int getSize() {
-		return UnsafeAdapter.getInt(address + ALLOCATED);
+		return UnsafeAdapter.getInt(address[0][0] + ALLOCATED);
 	}
 	
 	/**
@@ -200,8 +200,8 @@ public class LongPeriodAccumulator implements DeAllocateMe {
 				}
 				extend();
 			}
-			UnsafeAdapter.putInt(address + ALLOCATED, currentSize + 1);
-			UnsafeAdapter.putLong(address + TOTAL + ((currentSize + 1) << 3), value);			
+			UnsafeAdapter.putInt(address[0][0] + ALLOCATED, currentSize + 1);
+			UnsafeAdapter.putLong(address[0][0] + TOTAL + ((currentSize + 1) << 3), value);			
 			return currentSize; // -- the index of the just appended value
 		} finally {
 			lock.xunlock();
@@ -218,12 +218,15 @@ public class LongPeriodAccumulator implements DeAllocateMe {
 	 * since this method should only be called as part of a clear where
 	 * the size would have already been set to zero. 
 	 */
-	protected void shrinkToInitial() {		
-		UnsafeAdapter.putInt(address + CAPACITY, getInitialSize());
+	protected void shrinkToInitial() {	
+		log("Shrinking from [%s] back to [%s]", getCapacity(), getInitialSize());
+		UnsafeAdapter.putInt(address[0][0] + CAPACITY, getInitialSize());
 		if(getSize() > getInitialSize()) {
-			UnsafeAdapter.putInt(address + ALLOCATED, getInitialSize());
+			UnsafeAdapter.putInt(address[0][0] + ALLOCATED, getInitialSize());
 		}
-		address = UnsafeAdapter.reallocateAlignedMemory(address, TOTAL + (getInitialSize() << 3));
+		address[0][0] = UnsafeAdapter.reallocateAlignedMemory(address[0][0], TOTAL + (getInitialSize() << 3));
+		log("Shrunk");
+		
 	}
 	
 	/**
@@ -231,15 +234,16 @@ public class LongPeriodAccumulator implements DeAllocateMe {
 	 * initializes the new chunk of memory to all zero bytes
 	 * and sets the new capacity of the buffer.
 	 */
-	protected void extend() {
+	protected void extend() {		
 		final int currentCapacity = getCapacity();
-		final int extend = getCapacity();
+		final int extend = getExtendSize();
 		final long newChunkOffset =  currentCapacity << 3;
 		final long newChunkSize = extend << 3;
-		UnsafeAdapter.putInt(address + CAPACITY, currentCapacity + extend);
-		address = UnsafeAdapter.reallocateAlignedMemory(address, TOTAL + newChunkOffset + newChunkSize);
-		UnsafeAdapter.setMemory(address + newChunkOffset, newChunkSize, ZERO_BYTE);
-		
+		log("Extending [%s] by [%s] to [%s]", currentCapacity, extend, currentCapacity + extend);
+		UnsafeAdapter.putInt(address[0][0] + CAPACITY, currentCapacity + extend);
+		address[0][0] = UnsafeAdapter.reallocateAlignedMemory(address[0][0], TOTAL + newChunkOffset + newChunkSize);
+		UnsafeAdapter.setMemory(address[0][0] + newChunkOffset, newChunkSize, ZERO_BYTE);
+		log("Extended");
 	}
 	
 	public void clear() {
@@ -273,8 +277,8 @@ public class LongPeriodAccumulator implements DeAllocateMe {
 	 * @return the new value
 	 */
 	protected int increment(long offset, int incrementBy) {
-		int newValue = UnsafeAdapter.getInt(address + offset) + incrementBy;
-		UnsafeAdapter.putInt(address + offset, newValue);
+		int newValue = UnsafeAdapter.getInt(address[0][0] + offset) + incrementBy;
+		UnsafeAdapter.putInt(address[0][0] + offset, newValue);
 		return newValue;
 	}
 	
@@ -306,7 +310,55 @@ public class LongPeriodAccumulator implements DeAllocateMe {
 	 */
 	@Override
 	public long[][] getAddresses() {
-		return new long[][] {{address}};
+		return address;
 	}
+	
+	public static void main(String args[]) {
+		log("Accumulator Test. Total: %s bytes", TOTAL);
+		System.setProperty(UnsafeAdapter.TRACK_ALLOCS_PROP, "true");
+		System.setProperty(UnsafeAdapter.ALIGN_ALLOCS_PROP, "true");
+		log("INITIAL: \n%s", UnsafeAdapter.printUnsafeMemoryStats());
+		
+		LongPeriodAccumulator lpa = new LongPeriodAccumulator(10, 2, 50, true);
+		log("CREATED: Size:%s\n%s", lpa.getSize(), UnsafeAdapter.printUnsafeMemoryStats());
+		Random r = new Random(System.currentTimeMillis());
+		for(int i = 0; i < 60; i++) {
+			lpa.append(r.nextLong());
+		}
+		log("TEST COMPLETE: Size:%s, Overruns:%s\n%s", lpa.getSize(), lpa.getOverruns(), UnsafeAdapter.printUnsafeMemoryStats());
+		lpa.clear();
+		System.gc();
+		SystemClock.sleep(1000);
+		log("CLEARED:\n%s", UnsafeAdapter.printUnsafeMemoryStats());
+		lpa = null;
+		System.gc();
+		SystemClock.sleep(1000);
+		log("DEALLOC:\n%s", UnsafeAdapter.printUnsafeMemoryStats());
+		
+		
+	}
+	
+	/**
+	 * Low maintenance out logger
+	 * @param fmt The format of the message
+	 * @param args The message token values
+	 */
+	public static void log(Object fmt, Object...args) {
+		System.out.println(String.format(fmt.toString(), args));
+	}
+	
+	/**
+	 * Low maintenance err logger
+	 * @param fmt The format of the message
+	 * @param args The message token values
+	 */
+	public static void loge(Object fmt, Object...args) {
+		System.err.println(String.format(fmt.toString(), args));
+		if(args!=null && args.length>0 && args[args.length-1] instanceof Throwable) {
+			System.err.println("Stack trace follows....");
+			((Throwable)args[args.length-1]).printStackTrace(System.err);			
+		}
+	}
+	
 
 }
