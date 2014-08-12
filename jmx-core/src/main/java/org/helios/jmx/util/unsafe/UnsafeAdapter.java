@@ -19,15 +19,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
 import org.helios.jmx.util.helpers.JMXHelper;
-import org.helios.jmx.util.helpers.StringHelper;
 import org.helios.jmx.util.reference.ReferenceRunnable;
 import org.helios.jmx.util.reference.ReferenceService;
 import org.helios.jmx.util.unsafe.Callbacks.BooleanCallable;
@@ -66,6 +65,9 @@ public class UnsafeAdapter {
     public static final boolean FOUR_SET;
     /** The size of a <b><code>byte</code></b>  */
     public final static int BYTE_SIZE = 1;
+    /** The size of a <b><code>boolean</code></b>  */
+    public final static int BOOLEAN_SIZE = 1;
+    
     /** The size of a <b><code>char</code></b>  */
     public final static int CHAR_SIZE = 2;
 
@@ -114,7 +116,7 @@ public class UnsafeAdapter {
 	private static final AtomicLong totalAlignmentOverhead;
 	
 	/** The system prop indicating that allocations should be tracked */
-	public static final String TRACK_ALLOCS_PROP = "unsafe.allocations.track";
+	public static final String TRACK_ALLOCS_PROP = "unsafe.allocations.track"; 
 	/** The system prop indicating that allocations should be alligned */
 	public static final String ALIGN_ALLOCS_PROP = "unsafe.allocations.align";
 	
@@ -134,6 +136,11 @@ public class UnsafeAdapter {
     public static final int BASELINE_ALLOCS;
     /** The baseline allocation size */
     public static final long BASELINE_MEM;
+    /** The baseline pending size */
+    public static final int BASELINE_PENDING;
+    /** The baseline alignment overhead */
+    public static final long BASELINE_AO;
+    
     
     //=========================================================================================================
     //			Memory Allocation Management
@@ -380,13 +387,18 @@ public class UnsafeAdapter {
     	 */
     	@Override
     	public Map<String, Long> getState() {
-    		Map<String, Long> map = new HashMap<String, Long>(6);
+    		Map<String, Long> map = new LinkedHashMap<String, Long>(10);
     		map.put(ALLOC_MEM, getTotalAllocatedMemory());
     		map.put(ALLOC_OVER, getAlignedMemoryOverhead());
     		map.put(ALLOC_MEMK, getTotalAllocatedMemoryKb());
     		map.put(ALLOC_MEMM, getTotalAllocatedMemoryMb());
     		map.put(ALLOC_COUNT, (long)getTotalAllocationCount());
     		map.put(PENDING_COUNT, (long)getPendingRefs());    		
+    		map.put("BaselineMemory", BASELINE_MEM);
+    		map.put("BaselineAllocations", (long)BASELINE_ALLOCS);
+    		map.put("BaselinePending", (long)BASELINE_PENDING);
+    		map.put("BaselineOverhead", BASELINE_AO);
+    		
     		return map;
     	}
     	
@@ -426,7 +438,7 @@ public class UnsafeAdapter {
 		 */
 		public long getAlignedMemoryOverhead() {
 			if(!trackMem) return -1L;
-			return totalAlignmentOverhead.get();
+			return totalAlignmentOverhead.get()-BASELINE_AO;
 		}
 
 		/**
@@ -468,7 +480,7 @@ public class UnsafeAdapter {
     	 * @return the number of retained phantom references to memory allocations
     	 */
     	public int getPendingRefs() {
-    		return deAllocs.size();
+    		return deAllocs.size() - BASELINE_PENDING;
     	}
 		
 		
@@ -642,7 +654,7 @@ public class UnsafeAdapter {
             }
             FIVE_COPY = copyMemCount>1;
             FOUR_SET = setMemCount>1;
-        	trackMem = System.getProperties().containsKey(TRACK_ALLOCS_PROP) || isDebugAgentLoaded();   
+        	trackMem = System.getProperties().containsKey(TRACK_ALLOCS_PROP) || ("false".equalsIgnoreCase(System.getProperty(TRACK_ALLOCS_PROP)) && isDebugAgentLoaded() );   
         	alignMem = System.getProperties().containsKey(ALIGN_ALLOCS_PROP);
         	if(trackMem) {
         		unsafeMemoryStats = new UnsafeMemory();
@@ -660,9 +672,14 @@ public class UnsafeAdapter {
         	if(trackMem) {
         		BASELINE_ALLOCS = unsafeMemoryStats.getTotalAllocationCount();
         		BASELINE_MEM = unsafeMemoryStats.getTotalAllocatedMemory();
+        	    BASELINE_PENDING = unsafeMemoryStats.getPendingRefs();
+        	    BASELINE_AO = unsafeMemoryStats.getAlignedMemoryOverhead();
         	} else {
         		BASELINE_ALLOCS = -1;
-        		BASELINE_MEM = -1L;        		
+        		BASELINE_MEM = -1L;
+        		BASELINE_PENDING = -1;
+        		BASELINE_AO = -1;
+        		
         	}
         	
         } catch (Exception e) {
@@ -868,10 +885,14 @@ public class UnsafeAdapter {
 	/**
 	 * Allocates a chunk of aligned (if enabled) memory and returns its address
 	 * @param size The number of bytes to allocate
+	 * @param dealloc The optional deallocatable to register for deallocation when it becomes phantom reachable
 	 * @return The address of the allocated memory
 	 * @see sun.misc.Unsafe#allocateMemory(long)
 	 */
-	public static long allocateAlignedMemory(long size) {
+	public static long allocateAlignedMemory(long size, DeAllocateMe dealloc) {
+		if(dealloc!=null) {
+			registerForDeAlloc(dealloc);
+		}
 		if(alignMem && size <= MAX_ALIGNED_MEM) {
 			int actual = findNextPositivePowerOfTwo((int)size);
 			return _allocateMemory(actual, actual-size);
@@ -879,11 +900,21 @@ public class UnsafeAdapter {
 		return _allocateMemory(size, 0);
 	}
 	
+	/**
+	 * Allocates a chunk of aligned (if enabled) memory and returns its address
+	 * @param size The number of bytes to allocate
+	 * @return The address of the allocated memory
+	 * @see sun.misc.Unsafe#allocateMemory(long)
+	 */
+	public static long allocateAlignedMemory(long size) {
+		return allocateAlignedMemory(size, null);
+	}
+	
 	
 	/**
 	 * Resizes a new block of native memory, to the given size in bytes. 
 	 * @param The address of the existing allocation
-	 * @param bytes The size of the new allocation i n bytes
+	 * @param bytes The size of the new allocation in bytes
 	 * @return The address of the new allocation
 	 * @see sun.misc.Unsafe#reallocateMemory(long, long)
 	 */
@@ -1151,6 +1182,15 @@ public class UnsafeAdapter {
 	public static boolean getBoolean(Object object, int offset) {
 		return UNSAFE.getBoolean(object, offset);
 	}
+	
+	/**
+	 * Reads and returns a boolean from the specified address
+	 * @param address The address where the boolean will be read from
+	 * @return the read boolean value
+	 */
+	public static boolean getBoolean(long address) {
+		return UNSAFE.getBoolean(null, address);
+	}	
 
 	/**
 	 * Reads a boolean from an object at the specified offset.
@@ -1637,24 +1677,39 @@ public class UnsafeAdapter {
 	}
 
 	/**
-	 * @param arg0
-	 * @param arg1
-	 * @param arg2
+	 * Writes a boolean value to the offset address of the passed object, or if the object is null, 
+	 * to the passed absolute address
+	 * @param object The optional object to write to
+	 * @param offset The offset off the address of the object to write to, 
+	 * or an absolute address if the object is null
+	 * @param bool The value to write
 	 * @deprecated
-	 * @see sun.misc.Unsafe#putBoolean(java.lang.Object, int, boolean)
 	 */
-	public static void putBoolean(Object arg0, int arg1, boolean arg2) {
-		UNSAFE.putBoolean(arg0, arg1, arg2);
+	public static void putBoolean(Object object, int offset, boolean bool) {
+		UNSAFE.putBoolean(object, offset, bool);
 	}
 
+	
 	/**
-	 * @param arg0
-	 * @param arg1
-	 * @param arg2
-	 * @see sun.misc.Unsafe#putBoolean(java.lang.Object, long, boolean)
+	 * Writes a boolean value to the offset address of the passed object, or if the object is null, 
+	 * to the passed absolute address
+	 * @param object The optional object to write to
+	 * @param offset The offset off the address of the object to write to, 
+	 * or an absolute address if the object is null
+	 * @param bool The value to write
 	 */
-	public static void putBoolean(Object arg0, long arg1, boolean arg2) {
-		UNSAFE.putBoolean(arg0, arg1, arg2);
+	public static void putBoolean(Object object, long offset, boolean bool) {
+		UNSAFE.putBoolean(object, offset, bool);
+	}
+	
+	/**
+	 * Writes a boolean to the passed address
+	 * @param address The address to write to
+	 * @param bool The boolean value to write
+	 */
+	public static void putBoolean(long address, boolean bool) {
+		UNSAFE.putBoolean(null, address, bool);
+		
 	}
 
 	/**
@@ -2760,6 +2815,9 @@ public class UnsafeAdapter {
       }
       return true;    
     }
+
+
+
 
     
 //    public static char[] copyStringChars(String string) {

@@ -14,6 +14,7 @@
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+		<shade.version>2.1</shade.version>
 	</properties>
 	
 	
@@ -94,6 +95,10 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-shade-plugin</artifactId>
+<<<<<<< HEAD
+=======
+          <version>${shade.version}</version>
+>>>>>>> b91ea8cdde1c5574221b1e25ed60f8798c892819
             <executions>
                 <execution>
                   <phase>package</phase>
@@ -103,8 +108,11 @@
                   <configuration>
                     <artifactSet>
                       <excludes>
+<<<<<<< HEAD
                       	<exclude>log4j:log4j:jar:</exclude>
                       	<exclude>org.javassist:javassist:jar:</exclude>
+=======
+>>>>>>> b91ea8cdde1c5574221b1e25ed60f8798c892819
                       </excludes>
                       <includes>
                         

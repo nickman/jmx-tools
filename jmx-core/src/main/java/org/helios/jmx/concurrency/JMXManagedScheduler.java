@@ -26,20 +26,12 @@ package org.helios.jmx.concurrency;
 
 import java.lang.Thread.UncaughtExceptionHandler;
 import java.util.concurrent.RejectedExecutionHandler;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.logging.Level;
-import java.util.logging.LogManager;
-import java.util.logging.Logger;
-
-
-
-
-
-
 
 import javax.management.ObjectName;
 
@@ -136,7 +128,8 @@ public class JMXManagedScheduler extends ScheduledThreadPoolExecutor implements 
 		);
 	}
 	
-	
+
+
 	
 	
 
