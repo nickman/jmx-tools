@@ -62,13 +62,6 @@ import javax.management.remote.JMXServiceURL;
  * <p>Description: Static JMX Utility methods</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.apmrouter.jmx.JMXHelper</code></p>
- */
-/**
- * <p>Title: JMXHelper</p>
- * <p>Description: </p> 
- * <p>Company: Helios Development Group LLC</p>
- * @author Whitehead (nwhitehead AT heliosdev DOT org)
  * <p><code>org.helios.jmx.util.helpers.JMXHelper</code></p>
  */
 public class JMXHelper {

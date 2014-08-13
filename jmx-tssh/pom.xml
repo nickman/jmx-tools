@@ -95,10 +95,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-shade-plugin</artifactId>
-<<<<<<< HEAD
-=======
           <version>${shade.version}</version>
->>>>>>> b91ea8cdde1c5574221b1e25ed60f8798c892819
             <executions>
                 <execution>
                   <phase>package</phase>
@@ -108,11 +105,8 @@
                   <configuration>
                     <artifactSet>
                       <excludes>
-<<<<<<< HEAD
                       	<exclude>log4j:log4j:jar:</exclude>
                       	<exclude>org.javassist:javassist:jar:</exclude>
-=======
->>>>>>> b91ea8cdde1c5574221b1e25ed60f8798c892819
                       </excludes>
                       <includes>
                         
