@@ -114,8 +114,7 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 	
 	
 	/** The message returned by the PEMDecoder if the pk is encrypted but we supplied no passphrase */
-	public static final String NO_PASSPHRASE_MESSAGE = "PEM is encrypted, but no password was specified";
-	
+	public static final String NO_PASSPHRASE_MESSAGE = "PEM is encrypted, but no password was specified";	
 	/** The default DSA Private Key location and file name */
 	public static final String DEFAULT_DSA = String.format("%s%s.ssh%sid_dsa", System.getProperty("user.home"), File.separator, File.separator);
 	/** The default RSA Private Key location and file name */

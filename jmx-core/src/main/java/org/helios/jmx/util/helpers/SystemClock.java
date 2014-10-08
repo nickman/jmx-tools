@@ -78,7 +78,8 @@ public class SystemClock {
 	 * Sleeps for the specified number of ms.
 	 * @param ms The number of ms. to sleep
 	 */
-	public static void sleep(long ms) {
+	public static void sleep(final long ms) {
+		if(ms<1L) return;
 		try {
 			Thread.currentThread().join(ms);
 		} catch (Exception ex) {
