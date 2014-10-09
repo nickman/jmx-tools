@@ -25,12 +25,11 @@
 package org.helios.opentsdb;
 
 import java.io.File;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
+import java.io.IOException;
 import java.util.Properties;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+
+import ch.ethz.ssh2.KnownHosts;
 
 /**
  * <p>Title: SSHConnectionConfiguration</p>
@@ -60,11 +59,16 @@ public class SSHConnectionConfiguration {
 	public static final String SSH_KH = "ssh.knownhosts";
 	/** The const name for the boolean indicating if a real host verifier should be used */
 	public static final String SSH_VH = "ssh.verifyhosts";
+	/** The const name for the SSH connection timeout */
+	public static final String SSH_CT = "ssh.connectiontimeout";
+	/** The const name for the SSH key exchange timeout */
+	public static final String SSH_KT = "ssh.kextimeout";
 	
-	public static final Set<String> MANDATORY = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(
-			SSH_HOST, SSH_USER
-	)));
-
+	/** The default connection timeout in ms. */
+	public static final int DEFAULT_CONNECT_TIMEOUT = 5000;
+	/** The default key exchange timeout in ms. */
+	public static final int DEFAULT_KEX_TIMEOUT = 5000;
+	
 	/** A cache of SSHConnectionConfiguration keyed by <b><code>IP ADDRESS:PORT</code></b> */
 	private static final ConcurrentHashMap<String, SSHConnectionConfiguration> configs = new ConcurrentHashMap<String, SSHConnectionConfiguration>(); 
 	
@@ -89,7 +93,13 @@ public class SSHConnectionConfiguration {
 	final File knownHostsFile;
 	/** Indicates if host keys should be verified */
 	final boolean verifyHosts;
-
+	/** The connect timeout in ms. */
+	final int connectTimeout;
+	/** The key exchange timeout in ms. */
+	final int kexTimeout;
+	
+	/** The known hosts instance */
+	final KnownHosts knownHosts;
 	/**
 	 * Returns the SSHConnectionConfiguration for the passed SSH target ip address and port
 	 * @param ipAddress The ip address of the target SSH server
@@ -100,9 +110,28 @@ public class SSHConnectionConfiguration {
 		return configs.get(ipAddress + ":" + port);
 	}
 	
+	
+	
+	/**
+	 * Returns the SSHConnectionConfiguration for the passed properties
+	 * @param sshConfig Properties containing the ssh config properties
+	 * @return the SSHConnectionConfiguration
+	 */
 	public static SSHConnectionConfiguration getInstance(final Properties sshConfig) {
-		
+		final String key = tm.resolveToAddress(trim(sshConfig.getProperty(SSH_HOST, "localhost"))) 
+				+ ":" + toint(sshConfig.getProperty(SSH_PORT), 22);
+		SSHConnectionConfiguration sshc = configs.get(key);
+		if(sshc==null) {
+			synchronized(sshc) {
+				sshc = configs.get(key);
+				if(sshc==null) {
+					sshc = new SSHConnectionConfiguration(sshConfig);
+				}
+			}
+		}
+		return sshc;				
 	}
+	
 	
 	/**
 	 * Creates a new SSHConnectionConfiguration
@@ -110,14 +139,17 @@ public class SSHConnectionConfiguration {
 	 */
 	private SSHConnectionConfiguration(final Properties sshConfig) {
 		host = tm.resolveToAddress(trim(sshConfig.getProperty(SSH_HOST, "localhost")));
-		userName = trim(sshConfig.getProperty(SSH_USER, System.getProperty("user.name")));		
 		port = toint(sshConfig.getProperty(SSH_PORT), 22);
+		userName = trim(sshConfig.getProperty(SSH_USER, System.getProperty("user.name")));		
 		userPassword = trim(sshConfig.getProperty(SSH_PW));		
 		privateKey = chars(sshConfig.getProperty(SSH_PK));	
 		privateKeyFile = file(sshConfig.getProperty(SSH_PKF));
 		passPhrase = trim(sshConfig.getProperty(SSH_PP));		
 		knownHostsFile = file(sshConfig.getProperty(SSH_KH));	
-		verifyHosts = bool(sshConfig.getProperty(SSH_VH)); 
+		verifyHosts = bool(sshConfig.getProperty(SSH_VH));
+		connectTimeout = toint(sshConfig.getProperty(SSH_CT), DEFAULT_CONNECT_TIMEOUT);
+		kexTimeout = toint(sshConfig.getProperty(SSH_KT), DEFAULT_KEX_TIMEOUT);
+		knownHosts = knowHosts();
 	}
 	
 	
@@ -135,8 +167,34 @@ public class SSHConnectionConfiguration {
 		passPhrase = builder.passPhrase;
 		knownHostsFile = builder.knownHostsFile;
 		verifyHosts = builder.verifyHosts;
+		connectTimeout = builder.connectTimeout;
+		kexTimeout = builder.kexTimeout;
+		knownHosts = knowHosts();
 	}
 	
+	/**
+	 * Creates the known hosts file
+	 * @return the known hosts file or null if a file was not configured
+	 */
+	KnownHosts knowHosts() {
+		if(knownHostsFile!=null && knownHostsFile.canRead()) {
+			try {
+				return new KnownHosts(knownHostsFile);
+			} catch (IOException e) {
+				throw new RuntimeException("Failed to read KnownHosts file [" + knownHostsFile + "]", e);
+			}
+		}
+		return null;
+	}
+	
+	/**
+	 * Returns the SSH connection cache key
+	 * @return the SSH connection cache key
+	 */
+	public String key() {
+		return tm.hostNameToAddress(host) + ":" + port;
+	}
+
 	
 	/**
 	 * Creates a new builder
@@ -175,6 +233,10 @@ public class SSHConnectionConfiguration {
 		File knownHostsFile = null;
 		/** Indicates if host keys should be verified */
 		boolean verifyHosts = true;
+		/** The connect timeout in ms. */
+		int connectTimeout = DEFAULT_CONNECT_TIMEOUT;
+		/** The key exchange timeout in ms. */
+		int kexTimeout = DEFAULT_KEX_TIMEOUT;
 		
 		
 		
@@ -189,12 +251,51 @@ public class SSHConnectionConfiguration {
 		}
 		
 		/**
+		 * Returns the SSH connection cache key
+		 * @return the SSH connection cache key
+		 */
+		String key() {
+			return tm.hostNameToAddress(host) + ":" + port;
+		}
+		
+		/**
 		 * Builds and returns a new SSHConnectionConfiguration
 		 * @return the new SSHConnectionConfiguration
 		 */
 		public SSHConnectionConfiguration build() {
-			return new SSHConnectionConfiguration(this);
+			final String key = key();
+			SSHConnectionConfiguration sshc = configs.get(key);
+			if(sshc==null) {
+				synchronized(sshc) {
+					sshc = configs.get(key);
+					if(sshc==null) {
+						sshc = new SSHConnectionConfiguration(this);
+					}
+				}
+			}
+			return sshc;
 		}
+		
+		/**
+		 * Sets the connection timeout in ms,
+		 * @param timeout the connection timeout in ms,
+		 * @return this builder
+		 */
+		public final Builder setConnectTimeout(final int timeout) {
+			connectTimeout = timeout;
+			return this;
+		}
+		
+		/**
+		 * Sets the key exchange timeout in ms,
+		 * @param timeout the key exchange timeout in ms,
+		 * @return this builder
+		 */
+		public final Builder setKeyExchangeTimeout(final int timeout) {
+			kexTimeout = timeout;
+			return this;
+		}
+		
 		
 		/**
 		 * Sets the SSH port
@@ -318,6 +419,82 @@ public class SSHConnectionConfiguration {
 	private static boolean bool(final String cfg) {
 		if(cfg==null || cfg.trim().isEmpty()) return true;
 		return !cfg.trim().toLowerCase().equals("false");
+	}
+
+
+
+	/**
+	 * {@inheritDoc}
+	 * @see java.lang.Object#hashCode()
+	 */
+	@Override
+	public int hashCode() {
+		final int prime = 31;
+		int result = 1;
+		result = prime * result + ((host == null) ? 0 : host.hashCode());
+		result = prime * result + port;
+		result = prime * result
+				+ ((userName == null) ? 0 : userName.hashCode());
+		return result;
+	}
+
+
+
+	/**
+	 * {@inheritDoc}
+	 * @see java.lang.Object#equals(java.lang.Object)
+	 */
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj)
+			return true;
+		if (obj == null)
+			return false;
+		if (getClass() != obj.getClass())
+			return false;
+		SSHConnectionConfiguration other = (SSHConnectionConfiguration) obj;
+		if (host == null) {
+			if (other.host != null)
+				return false;
+		} else if (!host.equals(other.host))
+			return false;
+		if (port != other.port)
+			return false;
+		if (userName == null) {
+			if (other.userName != null)
+				return false;
+		} else if (!userName.equals(other.userName))
+			return false;
+		return true;
+	}
+
+
+
+	/**
+	 * {@inheritDoc}
+	 * @see java.lang.Object#toString()
+	 */
+	@Override
+	public String toString() {
+		StringBuilder builder2 = new StringBuilder();
+		builder2.append("SSHConnectionConfiguration [host=");
+		builder2.append(host);
+		builder2.append(", port=");
+		builder2.append(port);
+		builder2.append(", userName=");
+		builder2.append(userName);
+		builder2.append(", privateKeyFile=");
+		builder2.append(privateKeyFile);
+		builder2.append(", knownHostsFile=");
+		builder2.append(knownHostsFile);
+		builder2.append(", verifyHosts=");
+		builder2.append(verifyHosts);
+		builder2.append(", connectTimeout=");
+		builder2.append(connectTimeout);
+		builder2.append(", kexTimeout=");
+		builder2.append(kexTimeout);		
+		builder2.append("]");
+		return builder2.toString();
 	}
 
 	

@@ -27,7 +27,7 @@ package org.helios.opentsdb;
 import java.io.File;
 import java.io.FileReader;
 import java.net.InetAddress;
-import java.nio.CharBuffer;
+import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -80,7 +80,7 @@ public class TunnelManager {
 	private static final Logger log = Logger.getLogger(TunnelManager.class);
 	
 	/** A map of SSH connections keyed by the <b><code>IP-ADDRESS:PORT</code></b> */
-	private final NonBlockingHashMap<String, Connection> connections = new NonBlockingHashMap<String, Connection>(); 
+	private final NonBlockingHashMap<String, ExtendedConnection> connections = new NonBlockingHashMap<String, ExtendedConnection>(); 
 	
 	/** A map of ip addresses keyed by their host names */
 	private final NonBlockingHashMap<String, String> hostNameToIpAddress = new NonBlockingHashMap<String, String>();  
@@ -133,6 +133,64 @@ public class TunnelManager {
 		log.info("TunnelManager Test");
 		TunnelManager.getInstance();
 	}
+	
+	/**
+	 * Returns the connection for the passed SSH host and port
+	 * @param host The target host
+	 * @param port The target port
+	 * @return the matching connection or null if one was not found
+	 */
+	public Connection getConnection(final String host, final int port) {
+		return connections.get(hostNameToAddress(host) + ":" + port);
+	}
+	
+	/**
+	 * Returns the connection for the passed SSH host and port 22
+	 * @param host The target host
+	 * @return the matching connection or null if one was not found
+	 */
+	public Connection getConnection(final String host) {
+		return getConnection(host, 22);
+	}
+	
+	
+	/**
+	 * Returns a connection for the passed config.
+	 * If an existing connection for the same host/port exists, that will be returned.
+	 * @param sshConfig The connection SSH configuration
+	 * @return an SSH connection
+	 */
+	public Connection getConnection(final SSHConnectionConfiguration sshConfig) {
+		ExtendedConnection conn = connections.get(sshConfig.key());
+		if(conn==null) {
+			synchronized(connections) {
+				conn = connections.get(sshConfig.key());
+				if(conn==null) {
+					conn = connect(sshConfig);
+					connections.put(sshConfig.key(), conn);
+				}
+			}
+		}
+		return conn;
+	}
+
+	/**
+	 * Returns a connection for the passed config.
+	 * If an existing connection for the same host/port exists, that will be returned.
+	 * @param sshConfig The connection SSH configuration
+	 * @return an SSH connection
+	 */
+	public Connection getConnection(final Properties sshConfig) {
+		return getConnection(SSHConnectionConfiguration.getInstance(sshConfig));
+	}
+	
+	ExtendedConnection connect(final SSHConnectionConfiguration sshConfig) {
+		final ExtendedConnection conn = new ExtendedConnection(sshConfig);
+		
+		return conn;
+	}
+	
+	
 	
 	/**
 	 * Returns an SSH KnownHosts file for the passed file
