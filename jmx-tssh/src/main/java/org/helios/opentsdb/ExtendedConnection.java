@@ -35,7 +35,7 @@ import ch.ethz.ssh2.ServerHostKeyVerifier;
  * <p><code>org.helios.opentsdb.ExtendedConnection</code></p>
  */
 
-public class ExtendedConnection extends Connection implements ServerHostKeyVerifier {
+public class ExtendedConnection extends Connection {
 	/** The SSH connection configuration */
 	final SSHConnectionConfiguration sshConfig;
 	
@@ -50,10 +50,11 @@ public class ExtendedConnection extends Connection implements ServerHostKeyVerif
 	
 	boolean doConnect() {
 		try {
-			connect(this, sshConfig.connectTimeout, sshConfig.kexTimeout);
+			sshConfig.connect(this);
 			authenticateWithNone(sshConfig.userName);
+			if(isAuthenticationComplete()) return true;
 			if(isAuthMethodAvailable(sshConfig.userName, "publickey")) {
-				//authenticateWithAgent(user, proxy)
+				
 				
 			}
 			return true;
@@ -63,18 +64,6 @@ public class ExtendedConnection extends Connection implements ServerHostKeyVerif
 		}
 	}
 
-	/**
-	 * {@inheritDoc}
-	 * @see ch.ethz.ssh2.ServerHostKeyVerifier#verifyServerHostKey(java.lang.String, int, java.lang.String, byte[])
-	 */
-	@Override
-	public boolean verifyServerHostKey(final String hostname, final int port, final String serverHostKeyAlgorithm, final byte[] serverHostKey) throws Exception {
-		if(!sshConfig.verifyHosts) return true;
-		if(sshConfig.knownHosts!=null) {
-			sshConfig.knownHosts.verifyHostkey(hostname, serverHostKeyAlgorithm, serverHostKey);
-		}
-		return false;
-	}
 
 
 }

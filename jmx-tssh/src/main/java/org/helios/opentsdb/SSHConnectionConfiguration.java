@@ -26,10 +26,19 @@ package org.helios.opentsdb;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.apache.log4j.Logger;
+
+import ch.ethz.ssh2.Connection;
+import ch.ethz.ssh2.InteractiveCallback;
 import ch.ethz.ssh2.KnownHosts;
+import ch.ethz.ssh2.ServerHostKeyVerifier;
 
 /**
  * <p>Title: SSHConnectionConfiguration</p>
@@ -39,7 +48,7 @@ import ch.ethz.ssh2.KnownHosts;
  * <p><code>org.helios.opentsdb.SSHConnectionConfiguration</code></p>
  */
 
-public class SSHConnectionConfiguration {
+public class SSHConnectionConfiguration implements InteractiveCallback, ServerHostKeyVerifier {
 	
 	/** The const name for the SSH target host */
 	public static final String SSH_HOST = "ssh.host";
@@ -69,11 +78,26 @@ public class SSHConnectionConfiguration {
 	/** The default key exchange timeout in ms. */
 	public static final int DEFAULT_KEX_TIMEOUT = 5000;
 	
+	/** The challenge prompt when a password is being requested */
+	public static final String PASSWORD_PROMPT = "Password: ";
+	
+	/** The public key authentication method value */
+	public static final String PK_AUTH = "publickey";
+	/** The password authentication method value */
+	public static final String PW_AUTH = "password";
+	/** The keyboard interactive authentication method value */
+	public static final String KBI_AUTH = "keyboard-interactive";
+
+	
+	
 	/** A cache of SSHConnectionConfiguration keyed by <b><code>IP ADDRESS:PORT</code></b> */
 	private static final ConcurrentHashMap<String, SSHConnectionConfiguration> configs = new ConcurrentHashMap<String, SSHConnectionConfiguration>(); 
 	
 	/** The tunnel manager instance */
 	private static final TunnelManager tm = TunnelManager.getInstance();
+	
+	/** Static class logger */
+	private static final Logger LOG = Logger.getLogger(SSHConnectionConfiguration.class);
 
 	/** The required host name */
 	final String host;
@@ -188,6 +212,151 @@ public class SSHConnectionConfiguration {
 	}
 	
 	/**
+	 * Manages the connect invocation on the passed connection
+	 * @param conn The connection to connect
+	 */
+	public void connect(final Connection conn) {
+		if(conn==null) throw new IllegalArgumentException("The passed connection was null");
+		try {
+			conn.connect(this, connectTimeout, kexTimeout);
+		} catch (Exception ex) {
+			ex.printStackTrace(System.err);			
+		}		
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see ch.ethz.ssh2.ServerHostKeyVerifier#verifyServerHostKey(java.lang.String, int, java.lang.String, byte[])
+	 */
+	@Override
+	public boolean verifyServerHostKey(final String hostname, final int port, final String serverHostKeyAlgorithm, final byte[] serverHostKey) throws Exception {
+		if(!verifyHosts) return true;
+		if(knownHosts!=null) {
+			knownHosts.verifyHostkey(hostname, serverHostKeyAlgorithm, serverHostKey);
+		}
+		return false;
+	}
+	
+	/**
+	 * Attempts to authenticate with all available methods
+	 * @param conn The connection to authenticate
+	 * @return true if successful, false otherwise
+	 */
+	public boolean auth(final Connection conn) {
+		final Set<String> authMethods = new HashSet<String>(Arrays.asList(PW_AUTH, KBI_AUTH, PK_AUTH));
+		final Iterator<String> methodIterator = authMethods.iterator();
+		try {
+			while(hasRemainingAuths(conn.getRemainingAuthMethods(userName), authMethods)) {
+				final String method = methodIterator.next();
+				try {
+					if(PK_AUTH.equals(method)) {
+						if(authWithPublicKey(conn)) {
+							LOG.debug("Authed with [" + method + "]");
+							return true;
+						}
+					} else if(PW_AUTH.equals(method)) {
+						if(authWithPassword(conn)) {
+							LOG.debug("Authed with [" + method + "]");
+							return true;
+						}
+					} else if(KBI_AUTH.equals(method)) {
+						if(authWithKeyboardInteractive(conn)) {
+							LOG.debug("Authed with [" + method + "]");
+							return true;
+						}
+					}
+				} finally {
+					methodIterator.remove();
+				}
+				LOG.info("No-go on auth method [" + method + "]");
+			}
+			return false;
+		} catch (Exception e) {
+			LOG.error("Auth loop on methods failed", e);
+			throw new RuntimeException("Auth loop on methods failed", e);
+		}
+	}
+	
+	private boolean hasRemainingAuths(final String[] theirMethods, final Set<String> ourMethods) {
+		ourMethods.retainAll(Arrays.asList(theirMethods));
+		return !ourMethods.isEmpty();
+	}
+	
+	/**
+	 * Attempts to authenticate with the passed connection using the config's private key and passphrase
+	 * @param conn The connection to authenticate with
+	 * @return true if authenticated, false otherwise
+	 */
+	public boolean authWithPublicKey(final Connection conn) {
+		try {
+			if(privateKey!=null) {
+				return conn.authenticateWithPublicKey(userName, privateKey, passPhrase);
+			} else if(privateKeyFile!=null) {
+				return conn.authenticateWithPublicKey(userName, privateKeyFile, passPhrase);
+			} else {
+				return false;
+			}
+		} catch (Exception ex) {
+			ex.printStackTrace(System.err);
+			return false;
+		}
+	}
+	
+	/**
+	 * Attempts to authenticate with the passed connection using the config's user name and password
+	 * @param conn The connection to authenticate with
+	 * @return true if authenticated, false otherwise
+	 */
+	public boolean authWithPassword(final Connection conn) {
+		try {
+			return conn.authenticateWithPassword(userName, userPassword);
+		} catch (Exception ex) {
+			LOG.error("authenticateWithKeyboardInteractive failed", ex);
+		}
+		return false;
+	}
+	
+	/**
+	 * Attempts to authenticate with the passed connection using the config's user name and password
+	 * but using the specific SSH keyboard interactive protocol.
+	 * @param conn The connection to authenticate with
+	 * @return true if authenticated, false otherwise
+	 */
+	public boolean authWithKeyboardInteractive(final Connection conn) {
+		try {
+			return conn.authenticateWithKeyboardInteractive(userName, this);
+		} catch (Exception ex) {
+			LOG.error("authenticateWithKeyboardInteractive failed", ex);
+		}
+		return false;
+	}
+	
+	
+	
+	
+	
+	@Override
+	public String[] replyToChallenge(final String name, final String instruction, final int numPrompts, final String[] prompt, final boolean[] echo) throws Exception {
+		if(userPassword!= null && numPrompts==1 && prompt.length==1 && PASSWORD_PROMPT.equals(prompt[0])) {
+			return new String[] {userPassword};
+		}
+		if(numPrompts==0) return new String[0];
+		
+		LOG.debug(new StringBuilder("Challenge: [")
+		.append("\n\tName:").append(name)
+		.append("\n\tInstruction:").append(name)
+		.append("\n\tPrompt Count:").append(numPrompts)
+		.append("\n\tPrompts:").append(Arrays.toString(prompt))
+		.append("\n\tEchoes:").append(Arrays.toString(echo))
+		.append("\n]")
+		.toString()
+		);
+		
+		
+		return null;
+	}
+	
+	/**
 	 * Returns the SSH connection cache key
 	 * @return the SSH connection cache key
 	 */
@@ -246,7 +415,7 @@ public class SSHConnectionConfiguration {
 		 * @param userName The required user name
 		 */
 		Builder(final String host, final String userName) {
-			this.host = tm.resolveToAddress(host);
+			this.host = TunnelManager.isIPAddress(host) ? host : tm.resolveToAddress(host);
 			this.userName = userName;
 		}
 		
@@ -266,7 +435,7 @@ public class SSHConnectionConfiguration {
 			final String key = key();
 			SSHConnectionConfiguration sshc = configs.get(key);
 			if(sshc==null) {
-				synchronized(sshc) {
+				synchronized(configs) {
 					sshc = configs.get(key);
 					if(sshc==null) {
 						sshc = new SSHConnectionConfiguration(this);
@@ -496,6 +665,9 @@ public class SSHConnectionConfiguration {
 		builder2.append("]");
 		return builder2.toString();
 	}
+
+
+
 
 	
 }

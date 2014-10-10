@@ -27,6 +27,7 @@ package org.helios.opentsdb;
 import java.io.File;
 import java.io.FileReader;
 import java.net.InetAddress;
+import java.util.Arrays;
 import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -131,7 +132,35 @@ public class TunnelManager {
 	public static void main(String[] args) {
 		BasicConfigurator.configure();
 		log.info("TunnelManager Test");
-		TunnelManager.getInstance();
+		final TunnelManager tm = TunnelManager.getInstance();
+		SSHConnectionConfiguration config = SSHConnectionConfiguration.
+				newBuilder("localhost", "oracle")
+				.setUserPassword("larry")
+				.setKeyExchangeTimeout(0)
+				.setVerifyHosts(false)
+				.build();
+		Connection conn = tm.getConnection(config);
+		try {			
+			config.connect(conn);
+			log.info("Auth Methods Available:" + Arrays.toString(conn.getRemainingAuthMethods(config.userName)));
+			config.auth(conn);
+			log.info("Authenticated:" + conn.isAuthenticationComplete());
+		} catch (Exception ex) {
+			log.error("Failed to process connection", ex);
+		}
+		
+	}
+	
+	/**
+	 * Determines if the passed stringy is an ip address
+	 * @param value The stringy to test
+	 * @return true if the passed stringy is an ip address, false otherwise
+	 */
+	public static boolean isIPAddress(final CharSequence value) {
+		if(value==null) return false;
+		if(IP4_ADDRESS_PATTERN.matcher(value).matches()) return true;
+		if(IP6_ADDRESS_PATTERN.matcher(value).matches()) return true;
+		return false;
 	}
 	
 	/**
@@ -233,18 +262,6 @@ public class TunnelManager {
 		return kh;
 	}
 	
-	/**
-	 * Indicates if the passed value pattern matches a V4 or v6 IP address
-	 * @param value The value to test
-	 * @return true if matched, false otherwise
-	 */
-	public static boolean isIPAddress(CharSequence value) {
-		if(value==null) return false;
-		Matcher m = IP4_ADDRESS_PATTERN.matcher(value);
-		if(m.matches()) return true;
-		m = IP6_ADDRESS_PATTERN.matcher(value);
-		return m.matches();		
-	}
 	
 	/**
 	 * Resolves the passed value to an address
@@ -270,6 +287,7 @@ public class TunnelManager {
 	public final String hostNameToAddress(final String hostName) {
 		if(hostName==null || hostName.trim().isEmpty()) throw new IllegalArgumentException("The passed host name was null or empty");
 		try {
+			if(isIPAddress(hostName)) return hostName;
 			final String _hostName = hostName.trim().toLowerCase();
 			String caddr = hostNameToIpAddress.get(_hostName);
 			if(caddr!=null) return caddr;			
@@ -361,7 +379,7 @@ public class TunnelManager {
 					}					
 					chars = null;
 				} catch (Exception ex) {
-					log.error("Could not load key [" + f + "]", ex);
+					log.warn("Could not load key [" + f + "]");
 				}
 			}
 		}
