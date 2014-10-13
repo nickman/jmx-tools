@@ -27,11 +27,11 @@ package org.helios.opentsdb;
 import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArraySet;
 
 import org.apache.log4j.Logger;
 
@@ -73,10 +73,22 @@ public class SSHConnectionConfiguration implements InteractiveCallback, ServerHo
 	/** The const name for the SSH key exchange timeout */
 	public static final String SSH_KT = "ssh.kextimeout";
 	
+	/** The const name for the SSH reconnection */
+	public static final String SSH_RC = "ssh.reconnect";
+	/** The const name for TCP No Delay */
+	public static final String SSH_ND = "ssh.nodelay";
+	
+	
 	/** The default connection timeout in ms. */
 	public static final int DEFAULT_CONNECT_TIMEOUT = 5000;
 	/** The default key exchange timeout in ms. */
 	public static final int DEFAULT_KEX_TIMEOUT = 5000;
+
+	/** The default reconnect */
+	public static final boolean DEFAULT_RECONNECT = true;
+	/** The default no delay */
+	public static final boolean DEFAULT_NODELAY = true;
+	
 	
 	/** The challenge prompt when a password is being requested */
 	public static final String PASSWORD_PROMPT = "Password: ";
@@ -121,6 +133,10 @@ public class SSHConnectionConfiguration implements InteractiveCallback, ServerHo
 	final int connectTimeout;
 	/** The key exchange timeout in ms. */
 	final int kexTimeout;
+	/** Indicates if the closed connection should be reconnected by the reconnect service */
+	final boolean reconnect;
+	/** Indicates if the connection's TCP socket should disable Nagle's algorithm by setting TCP no delay  */
+	final boolean noDelay;
 	
 	/** The known hosts instance */
 	final KnownHosts knownHosts;
@@ -173,6 +189,8 @@ public class SSHConnectionConfiguration implements InteractiveCallback, ServerHo
 		verifyHosts = bool(sshConfig.getProperty(SSH_VH));
 		connectTimeout = toint(sshConfig.getProperty(SSH_CT), DEFAULT_CONNECT_TIMEOUT);
 		kexTimeout = toint(sshConfig.getProperty(SSH_KT), DEFAULT_KEX_TIMEOUT);
+		reconnect = bool(sshConfig.getProperty(SSH_RC), DEFAULT_RECONNECT);
+		noDelay = bool(sshConfig.getProperty(SSH_ND), DEFAULT_NODELAY);
 		knownHosts = knowHosts();
 	}
 	
@@ -193,6 +211,8 @@ public class SSHConnectionConfiguration implements InteractiveCallback, ServerHo
 		verifyHosts = builder.verifyHosts;
 		connectTimeout = builder.connectTimeout;
 		kexTimeout = builder.kexTimeout;
+		reconnect = builder.reconnect;
+		noDelay = builder.noDelay;
 		knownHosts = knowHosts();
 	}
 	
@@ -237,17 +257,18 @@ public class SSHConnectionConfiguration implements InteractiveCallback, ServerHo
 		return false;
 	}
 	
+	
 	/**
 	 * Attempts to authenticate with all available methods
 	 * @param conn The connection to authenticate
 	 * @return true if successful, false otherwise
 	 */
 	public boolean auth(final Connection conn) {
-		final Set<String> authMethods = new HashSet<String>(Arrays.asList(PW_AUTH, KBI_AUTH, PK_AUTH));
-		final Iterator<String> methodIterator = authMethods.iterator();
+		final Set<String> authMethods = new CopyOnWriteArraySet<String>(Arrays.asList(PW_AUTH, KBI_AUTH, PK_AUTH));
+//		final Iterator<String> methodIterator = authMethods.iterator();
 		try {
 			while(hasRemainingAuths(conn.getRemainingAuthMethods(userName), authMethods)) {
-				final String method = methodIterator.next();
+				final String method = authMethods.iterator().next();
 				try {
 					if(PK_AUTH.equals(method)) {
 						if(authWithPublicKey(conn)) {
@@ -266,7 +287,7 @@ public class SSHConnectionConfiguration implements InteractiveCallback, ServerHo
 						}
 					}
 				} finally {
-					methodIterator.remove();
+					authMethods.remove(method);
 				}
 				LOG.info("No-go on auth method [" + method + "]");
 			}
@@ -406,6 +427,11 @@ public class SSHConnectionConfiguration implements InteractiveCallback, ServerHo
 		int connectTimeout = DEFAULT_CONNECT_TIMEOUT;
 		/** The key exchange timeout in ms. */
 		int kexTimeout = DEFAULT_KEX_TIMEOUT;
+		/** Indicates if the closed connection should be reconnected by the reconnect service */
+		boolean reconnect = DEFAULT_RECONNECT;
+		/** Indicates if the connection's TCP socket should disable Nagle's algorithm by setting TCP no delay  */
+		boolean noDelay = DEFAULT_NODELAY;
+		
 		
 		
 		
@@ -556,6 +582,28 @@ public class SSHConnectionConfiguration implements InteractiveCallback, ServerHo
 			this.verifyHosts = verifyHosts;
 			return this;
 		}
+		
+		/**
+		 * Specifies if connections should be auto-reconnected
+		 * @param reconnect True to auto-reconnect, false otherwise
+		 * @return this builder
+		 */
+		public final Builder setReconnect(final boolean reconnect) {
+			this.reconnect = reconnect;
+			return this;
+		}
+		
+		/**
+		 * Specifies if connections should disable Nagle's algorithm and enable TCP no delay
+		 * @param noDelay True to no-delay, false otherwise
+		 * @return this builder
+		 */
+		public final Builder setNoDelay(final boolean noDelay) {
+			this.noDelay = noDelay;
+			return this;
+		}
+		
+		
 	}
 
 	
@@ -590,6 +638,10 @@ public class SSHConnectionConfiguration implements InteractiveCallback, ServerHo
 		return !cfg.trim().toLowerCase().equals("false");
 	}
 
+	private static boolean bool(final String cfg, boolean defaultValue) {
+		if(cfg==null || cfg.trim().isEmpty()) return defaultValue;
+		return !cfg.trim().toLowerCase().equals("false");
+	}
 
 
 	/**
@@ -661,7 +713,14 @@ public class SSHConnectionConfiguration implements InteractiveCallback, ServerHo
 		builder2.append(", connectTimeout=");
 		builder2.append(connectTimeout);
 		builder2.append(", kexTimeout=");
-		builder2.append(kexTimeout);		
+		builder2.append(kexTimeout);
+		
+		builder2.append(", reconnect=");
+		builder2.append(reconnect);		
+		builder2.append(", noDelay=");
+		builder2.append(noDelay);		
+
+		
 		builder2.append("]");
 		return builder2.toString();
 	}

@@ -27,9 +27,10 @@ package org.helios.opentsdb;
 import java.io.File;
 import java.io.FileReader;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 import java.util.Arrays;
 import java.util.Properties;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.apache.log4j.BasicConfigurator;
@@ -82,6 +83,8 @@ public class TunnelManager {
 	
 	/** A map of SSH connections keyed by the <b><code>IP-ADDRESS:PORT</code></b> */
 	private final NonBlockingHashMap<String, ExtendedConnection> connections = new NonBlockingHashMap<String, ExtendedConnection>(); 
+	/** A map of local port forwarders keyed by the port fowarder key */
+	final NonBlockingHashMap<LocalPortForwarderKey, WrappedLocalPortForwarder> localPortForwarders = new NonBlockingHashMap<LocalPortForwarderKey, WrappedLocalPortForwarder>(); 
 	
 	/** A map of ip addresses keyed by their host names */
 	private final NonBlockingHashMap<String, String> hostNameToIpAddress = new NonBlockingHashMap<String, String>();  
@@ -139,12 +142,29 @@ public class TunnelManager {
 				.setKeyExchangeTimeout(0)
 				.setVerifyHosts(false)
 				.build();
-		Connection conn = tm.getConnection(config);
+		
+		ExtendedConnection conn = tm.getConnection(config);
 		try {			
-			config.connect(conn);
-			log.info("Auth Methods Available:" + Arrays.toString(conn.getRemainingAuthMethods(config.userName)));
-			config.auth(conn);
-			log.info("Authenticated:" + conn.isAuthenticationComplete());
+			if(conn.fullAuth()) {
+				SocketAddress sa = tm.localPortForward(conn, "tpmint", 80);
+				log.info("Port Forward Created at [" + sa + "]");
+				
+				WrappedSession ws = conn.createSession();
+//				ws.startShell();
+				
+//				ws.execShellCommand("ls -l --color=never");
+				ws.execShellCommand2("ls -l");
+				//ws.execShellCommand("echo $HOSTNAME");
+				
+				
+				Thread.currentThread().join();
+				log.info("Closing Connection....");
+				conn.close();
+				log.info("Connection Closed:  Is Connected:" + conn.isConnected());
+				Thread.currentThread().join();
+			} else {
+				throw new Exception("Failed to connect using [" + config + "]");
+			}
 		} catch (Exception ex) {
 			log.error("Failed to process connection", ex);
 		}
@@ -169,7 +189,7 @@ public class TunnelManager {
 	 * @param port The target port
 	 * @return the matching connection or null if one was not found
 	 */
-	public Connection getConnection(final String host, final int port) {
+	public ExtendedConnection getConnection(final String host, final int port) {
 		return connections.get(hostNameToAddress(host) + ":" + port);
 	}
 	
@@ -178,10 +198,9 @@ public class TunnelManager {
 	 * @param host The target host
 	 * @return the matching connection or null if one was not found
 	 */
-	public Connection getConnection(final String host) {
+	public ExtendedConnection getConnection(final String host) {
 		return getConnection(host, 22);
 	}
-	
 	
 	/**
 	 * Returns a connection for the passed config.
@@ -189,7 +208,7 @@ public class TunnelManager {
 	 * @param sshConfig The connection SSH configuration
 	 * @return an SSH connection
 	 */
-	public Connection getConnection(final SSHConnectionConfiguration sshConfig) {
+	public ExtendedConnection getConnection(final SSHConnectionConfiguration sshConfig) {
 		ExtendedConnection conn = connections.get(sshConfig.key());
 		if(conn==null) {
 			synchronized(connections) {
@@ -209,13 +228,12 @@ public class TunnelManager {
 	 * @param sshConfig The connection SSH configuration
 	 * @return an SSH connection
 	 */
-	public Connection getConnection(final Properties sshConfig) {
+	public ExtendedConnection getConnection(final Properties sshConfig) {
 		return getConnection(SSHConnectionConfiguration.getInstance(sshConfig));
 	}
 	
 	ExtendedConnection connect(final SSHConnectionConfiguration sshConfig) {
-		final ExtendedConnection conn = new ExtendedConnection(sshConfig);
-		
+		final ExtendedConnection conn = new ExtendedConnection(sshConfig);		
 		return conn;
 	}
 	
@@ -230,6 +248,51 @@ public class TunnelManager {
 		if(file==null) throw new IllegalArgumentException("The passed file was null or empty");
 		return getKnownHosts(file.getAbsolutePath());
 	}
+	
+	/**
+	 * Connects a new port forwarder
+	 * @param conn The connection to port forward through
+	 * @param localIface The local iface to bind to
+	 * @param localPort The local port to bind to
+	 * @param remoteHost The remote host to connect to
+	 * @param remotePort The remote port to connect to
+	 * @return the socket address of the port forward
+	 */
+	public SocketAddress localPortForward(final ExtendedConnection conn, final String localIface, final int localPort, final String remoteHost, final int remotePort) {
+		final String _remoteHost = hostNameToAddress(remoteHost);
+		final LocalPortForwarderKey pfKey = LocalPortForwarderKey.getInstance(localPort, _remoteHost, remotePort);
+		WrappedLocalPortForwarder portForwarder = localPortForwarders.get(pfKey);
+		if(portForwarder==null) {
+			synchronized(localPortForwarders) {
+				portForwarder = localPortForwarders.get(pfKey);
+				if(portForwarder==null) {
+					try {
+						if(!conn.isConnected()) {
+							conn.fullAuth();
+						}
+						portForwarder = conn.localPortForward(localIface, localPort, _remoteHost, remotePort);
+						localPortForwarders.put(pfKey, portForwarder);
+					} catch (Exception e) {
+						log.error("Failed to create PortForwarder to [" + pfKey + "]", e);
+						throw new RuntimeException("Failed to create PortForwarder to [" + pfKey + "]", e);
+					}
+				}
+			}
+		}
+		return portForwarder.getLocalSocketAddress();
+	}
+	
+	/**
+	 * Connects a new port forwarder
+	 * @param conn The connection to port forward through
+	 * @param remoteHost The remote host to connect to
+	 * @param remotePort The remote port to connect to
+	 * @return the socket address of the port forward
+	 */
+	public SocketAddress localPortForward(final ExtendedConnection conn, final String remoteHost, final int remotePort) {
+		return localPortForward(conn, "127.0.0.1", 0, remoteHost, remotePort);
+	}
+	
 	
 	
 	/**
