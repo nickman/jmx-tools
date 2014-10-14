@@ -26,15 +26,16 @@ package org.helios.opentsdb;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.net.SocketAddress;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
+import org.cliffc.high_scale_lib.NonBlockingHashSet;
 
 import ch.ethz.ssh2.Connection;
 import ch.ethz.ssh2.ConnectionInfo;
 import ch.ethz.ssh2.ConnectionMonitor;
 import ch.ethz.ssh2.ServerHostKeyVerifier;
+import ch.ethz.ssh2.Session;
 
 /**
  * <p>Title: ExtendedConnection</p>
@@ -56,6 +57,8 @@ public class ExtendedConnection extends Connection implements ConnectionMonitor 
 	
 	/** This connection's local port forwarders */
 	final NonBlockingHashMap<LocalPortForwarderKey, WrappedLocalPortForwarder> localPortForwarders = new NonBlockingHashMap<LocalPortForwarderKey, WrappedLocalPortForwarder>(); 
+	/** This connection's sessions */
+	final NonBlockingHashSet<WrappedSession> sessions = new NonBlockingHashSet<WrappedSession>(); 
 	
 	 
 	
@@ -111,11 +114,27 @@ public class ExtendedConnection extends Connection implements ConnectionMonitor 
 	 */
 	public WrappedSession createSession() {
 		try {
-			return new WrappedSession(super.openSession(), this);
+			final WrappedSession ws = new WrappedSession(super.openSession(), this);
+			sessions.add(ws);
+			return ws; 
 		} catch (Exception e) {
 			throw new RuntimeException("Failed to open new session", e);
 		}
 	}
+	
+	/**
+	 * Opens a new session configured as a command terminal
+	 * @return a new session
+	 */
+	public CommandTerminal createCommandTerminal() {
+		try {			
+			final WrappedSession ws = createSession();
+			return ws.openCommandTerminal();
+		} catch (Exception e) {
+			throw new RuntimeException("Failed to open new CommandTerminal", e);
+		}
+	}
+	
 	
 	/**
 	 * Connects a new port forwarder

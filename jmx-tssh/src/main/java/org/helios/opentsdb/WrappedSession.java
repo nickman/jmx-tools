@@ -37,10 +37,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PushbackInputStream;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import ch.ethz.ssh2.Session;
@@ -69,9 +65,10 @@ public class WrappedSession {
 	/** The size of the error stream buffer in bytes */
 	protected int errorBufferSize = 128;
 	
-	protected PushbackInputStream pbis = null;
 	
 	
+	/** The command terminal for this wrapped session */
+	protected volatile CommandTerminal commandTerminal = null;
 	
 	/** The bit mask of all channel conditions */
 	public static final int ALL_CONDITIONS = CLOSED | EOF | EXIT_SIGNAL | EXIT_STATUS | STDERR_DATA | STDOUT_DATA | TIMEOUT;
@@ -90,6 +87,23 @@ public class WrappedSession {
 	public WrappedSession(final Session session, final ExtendedConnection conn) {
 		this.session = session;
 		this.conn = conn;
+	}
+	
+	
+	
+	/**
+	 * Opens the command terminal for this session. Only one instance will be created.
+	 * @return the command terminal
+	 */
+	public CommandTerminal openCommandTerminal() {
+		if(commandTerminal==null) {
+			synchronized(this) {
+				if(commandTerminal==null) {
+					commandTerminal = new CommandTerminalImpl(this);
+				}
+			}
+		}
+		return commandTerminal;
 	}
 	
 	/**
@@ -199,60 +213,215 @@ public class WrappedSession {
 	/**
 	 * @param cmd
 	 * @throws IOException
-	 * @see ch.ethz.ssh2.Session#execCommand(java.lang.String)
 	 */
-	public void execShellCommand(String cmd) throws IOException {
-		execShellCommand(cmd, null);
+	public void execCommand(String cmd) throws IOException {
+		session.execCommand(cmd, null);
 	}
-	
-	
 	  
-	  
-	  public void execShellCommand2(String cmd) throws IOException {
-		  requestDumbPTY();
-		  startShell();
-		  final Collection<String> lines = new LinkedList<String>();
-		  pbis = new PushbackInputStream(new StreamGobbler(getStdout()));
-		   writeCmd(getStdin(), pbis, "PS1=" + PROMPT);
-	        readTillPrompt(pbis, null);
-		  writeCmd(getStdin(), pbis, cmd);
-	      readTillPrompt(pbis, lines);
-	      System.out.println("Out: " + join(lines, Character.toString(LF)));
+	/**
+	 * <p>Title: CommandTerminalImpl</p>
+	 * <p>Description: A wrapper of a session to provide a simplified command terminal</p> 
+	 * <p>Company: Helios Development Group LLC</p>
+	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
+	 * <p><code>org.helios.opentsdb.WrappedSession.CommandTerminalImpl</code></p>
+	 */
+	public class CommandTerminalImpl implements CommandTerminal {
+		  /** The underlying session */
+		protected Session session;
+		/** The underlying wrapped session */
+		protected final WrappedSession wsession;
+		/** The input stream to read terminal output from */
+		protected PushbackInputStream pbis;
+		/** The output stream to write to the terminal */
+		protected OutputStream terminalOut;
+		/** The captured terminal tty */
+		protected String tty = null;
+		/** The command exit codes */
+		protected Integer[] exitCodes = null;
+		
+		
+
+		/**
+		 * Creates a new CommandTerminalImpl
+		 * @param wsession The wrapped session
+		 */
+		public CommandTerminalImpl(final WrappedSession wsession) {
+			this.wsession = wsession;
+			this.session = wsession.session;
+			try {				
+				terminalOut = session.getStdin();				
+				this.session.requestDumbPTY();
+				this.session.startShell();
+				pbis = new PushbackInputStream(new StreamGobbler(session.getStdout()));
+				writeCommand("PS1=" + PROMPT);
+				readUntilPrompt(null);
+				try {
+					tty = exec("tty").toString().trim();					
+				}  catch (Exception x) {
+					tty = null;
+				}
+			} catch (Exception e) {
+				throw new RuntimeException("Failed to initialize session shell", e);
+			}
+		}
+		
+		/**
+		 * {@inheritDoc}
+		 * @see org.helios.opentsdb.CommandTerminal#close()
+		 */
+		public void close() {
+			try { session.close(); } catch (Exception x) {/* No Op */}
+			session = null;
+		}
+		
+		
+		/**
+		 * {@inheritDoc}
+		 * @see org.helios.opentsdb.CommandTerminal#exec(java.lang.String[])
+		 */
+		@Override
+		public StringBuilder exec(final String...commands) throws IOException {
+			return execWithDelim(null, commands);
+		}
+		
+		/**
+		 * {@inheritDoc}
+		 * @see org.helios.opentsdb.CommandTerminal#execSplit(java.lang.String[])
+		 */
+		@Override
+		public StringBuilder[] execSplit(String...commands) throws IOException {
+			final StringBuilder[] results = new StringBuilder[commands.length];
+			exitCodes = new Integer[commands.length];
+			int index = 0;
+			for(String command: commands) {
+				results[index] = new StringBuilder();
+				writeCommand(command);				
+				readUntilPrompt(results[index]);
+				exitCodes[index] = session.getExitStatus();
+			    index++;
+			}			
+			return results;
+		}
+		
+		/**
+		 * {@inheritDoc}
+		 * @see org.helios.opentsdb.CommandTerminal#execWithDelim(java.lang.String, java.lang.String[])
+		 */
+		@Override
+		public StringBuilder execWithDelim(final String outputDelim, final String... commands) throws IOException {
+			final StringBuilder b = new StringBuilder();
+			final StringBuilder[] results = execSplit(commands);
+			for(StringBuilder r: results) {
+				b.append(r);
+				if(outputDelim!=null) {
+					b.append(outputDelim);
+				}
+			}
+			return b;
+		}
+		
+		/**
+		 * Reads the input stream until the end of the submitted command
+		 * @throws IOException thrown on any IO error
+		 */
+		void skipTillEndOfCommand() throws IOException {
+		    boolean eol = false;
+		    while (true) {
+		      final char ch = (char) pbis.read();
+		      switch (ch) {
+		      case CR:
+		      case LF:
+		        eol = true;
+		        break;
+		      default:
+		        if (eol) {
+		          pbis.unread(ch);
+		          return;
+		        }
+		      }
+		    }
+		  }
+		
+		/**
+		 * Reads the input stream until the end of the expected prompt
+		 * @param buff The buffer to append into. Content is discarded if null.
+		 * @throws IOException thrown on any IO errors
+		 */
+		void readUntilPrompt(final StringBuilder buff) throws IOException {
+			final StringBuilder cl = new StringBuilder();
+			boolean eol = true;
+			int match = 0;
+			while (true) {
+				final char ch = (char) pbis.read();
+//				if(65535==(int)ch) return;
+				switch (ch) {
+				case CR:
+				case LF:
+					if (!eol) {
+						if (buff != null) {
+							buff.append(cl.toString()).append(LF);
+						}
+						cl.setLength(0);
+					}
+					eol = true;
+					break;
+				default:
+					if (eol) {
+						eol = false;
+					}
+					cl.append(ch);
+					break;
+				}
+
+				if (cl.length() > 0
+						&& match < PROMPT.length()
+						&& cl.charAt(match) == PROMPT.charAt(match)) {
+					match++;
+					if (match == PROMPT.length()) {
+						return;
+					}
+				} else {
+					match = 0;
+				}
+			}
+		}
+		
+		/**
+		 * Writes a command to the terminal
+		 * @param cmd The command to write
+		 * @throws IOException thrown on any IO error
+		 */
+		void writeCommand(final String cmd) throws IOException {
+			terminalOut.write(cmd.getBytes());
+			terminalOut.write(LF);
+			skipTillEndOfCommand();
+		}
+
+		/**
+		 * Returns the tty of this terminal
+		 * @return the tty of this terminal
+		 */
+		public final String getTty() {
+			return tty;
+		}
+
+		@Override
+		public Integer[] getExitStatuses() {
+			return exitCodes;
+		}
+
+		
+		
+
 	  }
 
 	/**
 	 * @param cmd
 	 * @param charsetName
 	 * @throws IOException
-	 * @see ch.ethz.ssh2.Session#execCommand(java.lang.String, java.lang.String)
 	 */
-	public void execShellCommand(String cmd, String charsetName) throws IOException {
-		ByteArrayOutputStream output = new ByteArrayOutputStream(outputBufferSize); 
-		ByteArrayOutputStream error = new ByteArrayOutputStream(errorBufferSize);
-
-//		session.getStdin().write(("export PS1=" + PROMPT + LF).getBytes());
-//		session.getStdin().flush();
-		System.out.println("=====================================================");
-		session.getStdin().write((cmd + "\n").getBytes());
-		session.getStdin().flush();
-//		session.execCommand(cmd, charsetName);
-		while(true) {			
-			int cond = session.waitForCondition(ALL_CONDITIONS, 1000);
-			System.out.println("State: " + getState() + ", CONDITIONS: " + Arrays.toString(ChannelCond.enabled(cond)));
-			if(((cond & (CLOSED|TIMEOUT)) != 0)) {
-				System.out.println("Output:" + new String(output.toByteArray()));
-				break;
-				//throw new RuntimeException("Command [" + cmd + "] timed out or connection was closed");
-			}
-			if(((cond & STDOUT_DATA) != 0)) {
-				int[] result = pipe(getStdout(), output);
-				System.out.println("Read [" + result[0] + "] bytes, Outcome: " + result[1]);
-			}
-			if(((cond & STDERR_DATA) != 0)) {
-				pipe(getStderr(), error);
-			}			
-		}
-		System.out.println("=====================================================");
+	public void execCommand(final String cmd, final String charsetName) throws IOException {
+		session.execCommand(cmd, charsetName);
 	}
 	
 	
@@ -324,18 +493,7 @@ public class WrappedSession {
 	 * @see ch.ethz.ssh2.Session#startShell()
 	 */
 	public void startShell() throws IOException {
-		session.requestDumbPTY();
 		session.startShell();
-		int[] result = pipe(getStdout(), null);
-		System.out.println("Shell Start Result:" + Arrays.toString(result));		
-		getStdin().write(("PS1=" + PROMPT + LF).getBytes());
-		getStdin().flush();
-		result = pipe(getStdout(), null);
-		System.out.println("Shell Start Result:" + Arrays.toString(result));
-		
-//		pbis = new PushbackInputStream(new StreamGobbler(getStdout()));
-//		writeCmd(getStdin(), pbis, "PS1=" + PROMPT);
-//		readTillPrompt(pbis, null);
 	}
 
 	/**
@@ -442,83 +600,6 @@ public class WrappedSession {
 		this.commandTimeout = commandTimeout;
 	}
 	
-	public static String join(final Collection<String> str, final String sep) {
-	    final StringBuilder sb = new StringBuilder();
-	    final Iterator<String> i = str.iterator();
-	    while (i.hasNext()) {
-	      sb.append(i.next());
-	      if (i.hasNext()) {
-	        sb.append(sep);
-	      }
-	    }
-	    return sb.toString();
-	  }	
 
-	public static void writeCmd(final OutputStream os,
-			final PushbackInputStream is,
-			final String cmd) throws IOException {
-		System.out.println("In: " + cmd);
-		os.write(cmd.getBytes());
-		os.write(LF);
-		skipTillEndOfCommand(is);
-	}
-
-	public static void readTillPrompt(final InputStream is,
-			final Collection<String> lines) throws IOException {
-		final StringBuilder cl = new StringBuilder();
-		boolean eol = true;
-		int match = 0;
-		while (true) {
-			final char ch = (char) is.read();
-			if(65535==(int)ch) return;
-			switch (ch) {
-			case CR:
-			case LF:
-				if (!eol) {
-					if (lines != null) {
-						lines.add(cl.toString());
-					}
-					cl.setLength(0);
-				}
-				eol = true;
-				break;
-			default:
-				if (eol) {
-					eol = false;
-				}
-				cl.append(ch);
-				break;
-			}
-
-			if (cl.length() > 0
-					&& match < PROMPT.length()
-					&& cl.charAt(match) == PROMPT.charAt(match)) {
-				match++;
-				if (match == PROMPT.length()) {
-					return;
-				}
-			} else {
-				match = 0;
-			}
-		}
-	}
-
-	public static void skipTillEndOfCommand(final PushbackInputStream is) throws IOException {
-		boolean eol = false;
-		while (true) {
-			final char ch = (char) is.read();
-			switch (ch) {
-			case CR:
-			case LF:
-				eol = true;
-				break;
-			default:
-				if (eol) {
-					is.unread(ch);
-					return;
-				}
-			}
-		}
-	}	
 	
 }

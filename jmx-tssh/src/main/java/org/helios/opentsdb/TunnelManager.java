@@ -148,20 +148,31 @@ public class TunnelManager {
 			if(conn.fullAuth()) {
 				SocketAddress sa = tm.localPortForward(conn, "tpmint", 80);
 				log.info("Port Forward Created at [" + sa + "]");
-				
-				WrappedSession ws = conn.createSession();
+				CommandTerminal ct = conn.createCommandTerminal();
+				log.info("Acquired command terminal [" + ct.getTty() + "]");
+				CharSequence cs = ct.execWithDelim("========================\n", "ls -l", "sar -P ALL 1 1", "vmstat", "iostat");
+				log.info("Command Terminal Exit Codes:" + Arrays.toString(ct.getExitStatuses()));
+				log.info("Command Terminal Output:\n" + cs);
+//				WrappedSession ws = conn.createSession();
 //				ws.startShell();
-				
+				/*
+				 * 1. Return Options:
+				 * 		- Stringy
+				 * 		- 
+				 * 2. Initialize with pty, shell and prompt
+				 */
 //				ws.execShellCommand("ls -l --color=never");
-				ws.execShellCommand2("ls -l");
+//				ws.execShellCommand2("ls -l");
+//				ws.execShellCommand2("cat foobar.txt");
+				
 				//ws.execShellCommand("echo $HOSTNAME");
 				
 				
-				Thread.currentThread().join();
+//				Thread.currentThread().join();
 				log.info("Closing Connection....");
 				conn.close();
 				log.info("Connection Closed:  Is Connected:" + conn.isConnected());
-				Thread.currentThread().join();
+//				Thread.currentThread().join();
 			} else {
 				throw new Exception("Failed to connect using [" + config + "]");
 			}
