@@ -365,7 +365,7 @@ public class TunnelManager {
 			final String _hostName = hostName.trim().toLowerCase();
 			String caddr = hostNameToIpAddress.get(_hostName);
 			if(caddr!=null) return caddr;			
-			final InetAddress[] inets = InetAddress.getAllByName(caddr);
+			final InetAddress[] inets = InetAddress.getAllByName(_hostName);
 			if(inets==null || inets.length==0) throw new Exception("No inets returned");
 			for(final InetAddress inet: inets) {
 				try {

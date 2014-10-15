@@ -1,0 +1,70 @@
+The JMX-SSH Protocol
+====================
+
+Example:  service:jmx:tunnel://localhost:8006/ssh/jmxmp:u=nwhitehead,h=pdk-pt-ceas-03,pt=22,k=c,jmxu=admin,kp=helios
+
+Here's how it breaks down:
+
+ -	service:jmx:tunnel://
+ 	service url prefix and protocol declaration, the tunnel part specifies we're going to tunnel this connection
+ 	
+ -	localhost:8006 	
+ 	The local socket we'll physically connect to
+ 	
+ -	/ssh/jmxmp:
+ 	Once the tunnel is established, this subprotocol declaration specifies that we're tunneling using SSH (what else ? I don't know...)
+ 	and jmxmp is another JMX remoting protocol that will be tunneled through SSH.
+ 	
+ -	(the remaining options are enumerated in org.helios.jmx.remote.tunnel.SSHOption) 	
+ 	
+ -	u=<user name>
+ 	The user name to initiate the SSH connection with
+ 	 	
+ -	h=<host-name or ip address>
+ 	The ssh host to tunnel through, i.e. where we will SSH connect to
+ 	
+ -	pt=<ssh listener port, default is 22>
+ 	The ssh port to tunnel through, i.e. where we will SSH connect to
+ 	
+ -	k=<path to private ssh key>
+ 	The path and file name of the private key to connect with
+ 	the example above is bogus. Here's a good one: k=/home/hankhill/.ssh/id_dsa
+ 	
+ -	jmxu=<jmx user name>
+ 	The jmx user name for jmx authentication
+
+ - 	kp=<private key passphrase>
+ 	The passphrase for the private key
+ 	
+
+Other options are:
+
+ -	jmxp=<jmx password>
+ 	The jmx password for jmx authentication
+
+ -	p=<ssh user password>
+ 	The user password for ssh authentication
+ 	
+ -	lp=<local tunnel port>
+ 	The port of the local side of the tunnel
+ 	
+ -	sk=<validate server key>
+ 	(true/false) Indicates if the server key should be verified
+ 	requires the known host file to be configured (hf)
+ 	
+ -	hf=<known hosts file>
+ 	the file name of the known hosts file to verify server keys
+ 	
+ -	pr=<config props file>
+ 	the URL or file name of a properties from which all these properties can be read from
+ 	
+ -	pref=<target server prefix>
+ 	the properties prefix to use when reading a props file containing multiple configurations
+ 	
+ -	to=<connect timeout in ms>
+ 	The ssh connect timeout in ms.
+ 	
+ -	kto=<key exchange timeout in ms>
+ 	The key exchange timeout in ms.
+ 	 		 	
+

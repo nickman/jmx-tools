@@ -32,6 +32,12 @@ import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
 
+import org.apache.log4j.BasicConfigurator;
+import org.helios.opentsdb.CommandTerminal;
+import org.helios.opentsdb.ExtendedConnection;
+import org.helios.opentsdb.SSHConnectionConfiguration;
+import org.helios.opentsdb.TunnelManager;
+
 /**
  * <p>Title: TestClient</p>
  * <p>Description: </p> 
@@ -50,12 +56,34 @@ public class TestClient {
 	 * Creates a new TestClient
 	 */
 	public TestClient(String url) {
+		BasicConfigurator.configure();
 		try {
 			serviceURL = new JMXServiceURL(url);
 			jmxConnector = JMXConnectorFactory.connect(serviceURL);
 			log("Connected.");
 			conn = jmxConnector.getMBeanServerConnection();
 			log("Runtime: [%s]", conn.getAttribute(new ObjectName(ManagementFactory.RUNTIME_MXBEAN_NAME), "Name"));
+			
+			final TunnelManager tm = TunnelManager.getInstance();
+			SSHConnectionConfiguration config = SSHConnectionConfiguration.
+					newBuilder("tpsolaris", "nwhitehe")
+					.setUserPassword("mysol!1")
+					.setKeyExchangeTimeout(0)
+					.setVerifyHosts(false)
+					.build();
+			log("SSHConfig:\n%s", config);
+			
+			ExtendedConnection conn = tm.getConnection(config);
+			conn.fullAuth();
+			CommandTerminal ct = conn.createCommandTerminal();
+			
+			StringBuilder[] results = ct.execSplit("ps -ef | grep 1655 | grep -v grep");
+			for(StringBuilder s: results) {
+				log("Command Result:\n\t%s", s);
+			}
+			
+			jmxConnector.close();
+			
 		} catch (Exception ex) {
 			String msg = log("Failed to connect client with JMXServiceURL [%s]", url);
 			throw new RuntimeException(msg, ex);
@@ -67,7 +95,12 @@ public class TestClient {
 	 */
 	public static void main(String[] args) {
 		log("Test Client");
-		new TestClient("service:jmx:rmi://njwmintx:8005/jndi/rmi://njwmintx:8009/jmxrmi");
+		//new TestClient("service:jmx:rmi://njwmintx:8005/jndi/rmi://njwmintx:8009/jmxrmi");
+		final String URL_TEMPLATE = "service:jmx:tunnel://localhost:%s/ssh/jmxmp:u=%s,p=%s,h=%s,lp=%s,sk=%s";
+		new TestClient(String.format(URL_TEMPLATE,
+			8006,"nwhitehe", "mysol!1", "tpsolaris", 8006, false			
+		));
+		
 
 	}
 	
