@@ -264,9 +264,17 @@ public class SSHConnectionConfiguration implements InteractiveCallback, ServerHo
 	 * @return true if successful, false otherwise
 	 */
 	public boolean auth(final Connection conn) {
+		if(conn.isAuthenticationComplete()) return true;
 		final Set<String> authMethods = new CopyOnWriteArraySet<String>(Arrays.asList(PW_AUTH, KBI_AUTH, PK_AUTH));
 //		final Iterator<String> methodIterator = authMethods.iterator();
 		try {
+			if(authWithPassword(conn)) {
+				return true;
+			}
+			
+			if(conn.authenticateWithNone(userName)) {
+				return true;
+			}
 			while(hasRemainingAuths(conn.getRemainingAuthMethods(userName), authMethods)) {
 				final String method = authMethods.iterator().next();
 				try {

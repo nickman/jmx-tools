@@ -22,63 +22,23 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package org.helios.jmx.remote.tunnel;
-
-import java.io.IOException;
-import java.util.Map;
-
-import javax.management.remote.JMXServiceURL;
-import javax.management.remote.jmxmp.JMXMPConnector;
+package org.helios.opentsdb;
 
 /**
- * <p>Title: JMXTSSHConnector</p>
- * <p>Description: </p> 
+ * <p>Title: TracerFactory</p>
+ * <p>Description: Factory for creating context aware tracers for OpenTSDB</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>org.helios.jmx.remote.tunnel.JMXTSSHConnector</code></p>
+ * <p><code>org.helios.opentsdb.TracerFactory</code></p>
  */
 
-public class JMXTSSHConnector extends JMXMPConnector {
-
-	/**  */
-	private static final long serialVersionUID = -5118225875394702489L;
+public class TracerFactory {
 
 	/**
-	 * Creates a new JMXTSSHConnector
-	 * @param address
-	 * @throws IOException
+	 * Creates a new TracerFactory
 	 */
-	public JMXTSSHConnector(JMXServiceURL address) throws IOException {
-		super(address);
-
+	public TracerFactory() {
+		// TODO Auto-generated constructor stub
 	}
 
-	/**
-	 * Creates a new JMXTSSHConnector
-	 * @param address
-	 * @param env
-	 * @throws IOException
-	 */
-	public JMXTSSHConnector(JMXServiceURL address, Map<?, ?> env) throws IOException {
-		super(address, env);
-	}
-
-	/**
-	 * {@inheritDoc}
-	 * @see javax.management.remote.JMXConnector#connect(java.util.Map)
-	 */
-	@Override
-	public void connect(Map env) throws IOException {
-		super.connect(env);
-	}
-
-	
-	/**
-	 * {@inheritDoc}
-	 * @see javax.management.remote.generic.GenericConnector#connect()
-	 */
-	@Override
-	public void connect() throws IOException {
-		super.connect();
-	}
 }

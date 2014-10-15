@@ -172,6 +172,21 @@ public enum SSHOption {
 	/** The option reader for this enum member */
 	public final ISSHOptionReader<?> optionReader;
 	
+	public static void main(String[] args) {
+		String prefix = "";
+		if(args.length>0) {
+			prefix = args[0] + ".";
+		}
+		for(SSHOption opt: values()) {
+			//System.out.println(opt.name() + " : " + opt.propertyName + "   (" + opt.defaultValue + ")");
+			if(opt.defaultValue==null) {
+				System.out.println("#" + prefix +  opt.propertyName + "=");
+			} else {
+				System.out.println(prefix +  opt.propertyName + "=" + opt.defaultValue);
+			}
+		}
+	}
+	
 
 	/** Static class logger */
 	public static final Logger log = Logger.getLogger(SSHOption.class);

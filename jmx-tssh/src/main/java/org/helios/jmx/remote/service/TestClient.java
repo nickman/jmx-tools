@@ -62,25 +62,36 @@ public class TestClient {
 			jmxConnector = JMXConnectorFactory.connect(serviceURL);
 			log("Connected.");
 			conn = jmxConnector.getMBeanServerConnection();
-			log("Runtime: [%s]", conn.getAttribute(new ObjectName(ManagementFactory.RUNTIME_MXBEAN_NAME), "Name"));
+			final String runtime = conn.getAttribute(new ObjectName(ManagementFactory.RUNTIME_MXBEAN_NAME), "Name").toString();
+			log("Runtime: [%s]", runtime);
+//			final String PID = runtime.split("@")[0];
 			
-			final TunnelManager tm = TunnelManager.getInstance();
-			SSHConnectionConfiguration config = SSHConnectionConfiguration.
-					newBuilder("tpsolaris", "nwhitehe")
-					.setUserPassword("mysol!1")
-					.setKeyExchangeTimeout(0)
-					.setVerifyHosts(false)
-					.build();
-			log("SSHConfig:\n%s", config);
-			
-			ExtendedConnection conn = tm.getConnection(config);
-			conn.fullAuth();
-			CommandTerminal ct = conn.createCommandTerminal();
-			
-			StringBuilder[] results = ct.execSplit("ps -ef | grep 1655 | grep -v grep");
-			for(StringBuilder s: results) {
-				log("Command Result:\n\t%s", s);
-			}
+//			final TunnelManager tm = TunnelManager.getInstance();
+//			SSHConnectionConfiguration config = SSHConnectionConfiguration.
+//					newBuilder("tpsolaris", "nwhitehe")
+//					.setUserPassword("mysol!1")
+//					.setKeyExchangeTimeout(0)
+//					.setVerifyHosts(false)
+//					.build();
+//			SSHConnectionConfiguration config = SSHConnectionConfiguration.
+//					newBuilder("10.12.114.48", "nwhitehe")
+//					.setUserPassword("jer1029")
+//					.setKeyExchangeTimeout(2000)
+//					.setConnectTimeout(2000)
+//					.setVerifyHosts(false)
+//					.build();
+//			
+//			log("SSHConfig:\n%s", config);
+//			final String PID = "3766"; //runtime.split("@")[0];
+//			ExtendedConnection conn = tm.getConnection(config);
+//			conn.fullAuth();
+//			log("Full Authed.");
+//			CommandTerminal ct = conn.createCommandTerminal();
+//			log("Command Terminal Created.");
+//			StringBuilder[] results = ct.execSplit("ps -ef | grep " + PID + " | grep -v grep");
+//			for(StringBuilder s: results) {
+//				log("Command Result:\n\t%s", s);
+//			}
 			
 			jmxConnector.close();
 			
@@ -96,10 +107,14 @@ public class TestClient {
 	public static void main(String[] args) {
 		log("Test Client");
 		//new TestClient("service:jmx:rmi://njwmintx:8005/jndi/rmi://njwmintx:8009/jmxrmi");
-		final String URL_TEMPLATE = "service:jmx:tunnel://localhost:%s/ssh/jmxmp:u=%s,p=%s,h=%s,lp=%s,sk=%s";
-		new TestClient(String.format(URL_TEMPLATE,
-			8006,"nwhitehe", "mysol!1", "tpsolaris", 8006, false			
-		));
+//		final String URL_TEMPLATE = "service:jmx:tunnel://localhost:%s/ssh/jmxmp:u=%s,p=%s,h=%s,lp=%s,sk=%s";
+//		new TestClient(String.format(URL_TEMPLATE,
+//			//8006,"nwhitehe", "mysol!1", "tpsolaris", 8006, false			
+//			8006,"nwhitehe", "jer1029", "10.12.114.48", 8006, false
+//		));
+		
+		new TestClient("service:jmx:tunnel://pdk-pt-ceas-01:17083/ssh/jmxmp:pr=C:/ProdMonitors/ssh.properties,pref=pdk-ecs,h=pdk-pt-ceas-01,p=XXXX");
+		new TestClient("service:jmx:tunnel://pdk-pt-ceas-01:17082/ssh/jmxmp:pr=C:/ProdMonitors/ssh.properties,pref=pdk-ecs,h=pdk-pt-ceas-01,p=XXXX");
 		
 
 	}

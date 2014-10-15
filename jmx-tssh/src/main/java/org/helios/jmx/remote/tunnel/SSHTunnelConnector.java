@@ -227,7 +227,7 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 				subProtocol = optionValue.toString();
 				break;
 			case SVRKEY:
-				validateServer = (Boolean)optionValue;
+				validateServer = Boolean.parseBoolean(optionValue.toString());
 				break;
 			case USER:
 				userName = optionValue.toString();
@@ -280,7 +280,8 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 		if(env==null) {
 			env = new HashMap();
 		}
-		JMXServiceURL serviceURL = JMXHelper.serviceUrl("service:jmx:%s://%s:%s", tc.getDelegateProtocol(), tc.getJmxConnectorHost(), tc.getJmxConnectorPort());
+		JMXServiceURL serviceURL = JMXHelper.serviceUrl("service:jmx:%s://%s:%s", tc.getDelegateProtocol(), "localhost", tunnelHandle.getLocalPort());
+		log("Rewritten Tunneled JMXServiceURL [%s]", serviceURL);
 		env.put("JMXServiceURL", serviceURL);
 		env.put("TunnelHandle", tunnelHandle);
 		return env;
@@ -339,8 +340,8 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 			} else {
 				conn.connect(null, sshConnectTimeout, sshKeyExchangeTimeout);
 			}
-			authenticated = conn.authenticateWithNone(userName);
-			if(authenticated) return conn;
+//			authenticated = conn.authenticateWithNone(userName);
+//			if(authenticated) return conn;
 			authFailures.add("authenticateWithNone failed for user [" + userName + "]");
 			if(userPassword!=null) {
 				authenticated = conn.authenticateWithPassword(userName, userPassword);
@@ -623,6 +624,13 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 		merge(gatherFromSource(ConfigurationHelper.getSystemThenEnvProperty(SSHOption.SSHPROPS.propertyName, "")), top);
 		merge(gatherFromMap(env), top);
 		merge(extractJMXServiceURLOpts(serviceURL), top);
+		for(SSHOption opt: SSHOption.values()) {
+			if(!top.containsKey(opt)) {
+				Object dv = opt.defaultValue;
+				if(dv!=null) top.put(opt, dv);
+			}
+		}
+
 //		if(!top.isEmpty()) {
 //			StringBuilder b = new StringBuilder("\n\tFinal SSHoptions:\n\t===================================================");
 //			for(Map.Entry<SSHOption, Object> entry: top.entrySet()) {

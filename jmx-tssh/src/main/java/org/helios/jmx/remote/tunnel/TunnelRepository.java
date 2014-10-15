@@ -37,6 +37,7 @@ import org.helios.jmx.remote.InetAddressCache;
 
 import ch.ethz.ssh2.Connection;
 import ch.ethz.ssh2.ConnectionMonitor;
+import ch.ethz.ssh2.LocalPortForwarder;
 
 /**
  * <p>Title: TunnelRepository</p>
@@ -59,6 +60,9 @@ public class TunnelRepository {
 	/** A map of open tunnels keyed by <b><code>&lt;address&gt;:&lt;remote-jmxPort&gt;</code></b> */
 	private final Map<String, LocalPortForwarderWrapper> tunnelsByAddress = new ConcurrentHashMap<String, LocalPortForwarderWrapper>();
 	
+	public static void log(Object format, Object...args) {
+		System.out.println(String.format("[SSHTunnelConnector]" + format.toString(),args));
+	}
 	
 	/**
 	 * Acquires the TunnelRepository singleton instance
@@ -108,10 +112,13 @@ public class TunnelRepository {
 					if(tunnel == null) {
 						ConnectionWrapper cw = _connect(tunnelConnector);
 						try {
+							LocalPortForwarder lpw = cw.createLocalPortForwarder(localPort, jmxHost, jmxPort); 
 							tunnel = new LocalPortForwarderWrapper(
-									cw.createLocalPortForwarder(localPort, jmxHost, jmxPort),
+									lpw,
 									jmxHost, jmxPort, true
 							);
+							localPort = lpw.getLocalSocketAddress().getPort();
+							log("Created Tunnel [%s:%s:%s]", tunnel.getLocalPort(), jmxHost, jmxPort);
 							registerTunnel(tunnel);
 						} catch (IOException e) {
 							throw new RuntimeException("Failed to tunnel to [" + jmxHost + ":" + jmxPort + "]", e);
