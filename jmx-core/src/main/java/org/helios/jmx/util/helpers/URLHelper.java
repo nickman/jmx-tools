@@ -34,6 +34,7 @@ import java.io.InputStreamReader;
 import java.net.URI;
 import java.net.URL;
 import java.net.URLConnection;
+import java.util.Properties;
 
 /**
  * <p>Title: URLHelper</p>
@@ -90,6 +91,34 @@ public class URLHelper {
 	public static String getTextFromURL(URL url) {
 		return getTextFromURL(url, defaultConnectTimeout(), defaultReadTimeout());
 	}
+	
+	/**
+	 * Reads the content of a URL as text using the default connect and read timeouts.
+	 * @param urlStr The url stringy to get the text from
+	 * @return a string representing the text read from the passed URL
+	 */
+	public static String getTextFromURL(final CharSequence urlStr) {
+		return getTextFromURL(toURL(urlStr), defaultConnectTimeout(), defaultReadTimeout());
+	}
+	
+	/**
+	 * Reads the content of a URL as a char array using the default connect and read timeouts.
+	 * @param url The url to get the text from
+	 * @return a char array representing the text read from the passed URL
+	 */
+	public static char[] getCharsFromURL(URL url) {
+		return getTextFromURL(url, defaultConnectTimeout(), defaultReadTimeout()).toCharArray();
+	}
+	
+	/**
+	 * Reads the content of a URL as a char array using the default connect and read timeouts.
+	 * @param urlStr The url stringy to get the text from
+	 * @return a char array representing the text read from the passed URL
+	 */
+	public static char[] getCharsFromURL(final CharSequence urlStr) {
+		return getCharsFromURL(toURL(urlStr));
+	}
+	
 	
 	/**
 	 * Reads the content of a URL as text
@@ -150,12 +179,34 @@ public class URLHelper {
 	}
 	
 	/**
+	 * Determines if the passed stringy represents an existing file name
+	 * @param urlStr The stringy to test
+	 * @return true if the passed stringy represents an existing file name, false otherwise
+	 */
+	public static boolean isFile(final CharSequence urlStr) {
+		if(urlStr==null || urlStr.toString().trim().isEmpty()) throw new IllegalArgumentException("The passed URL stringy was null or empty");
+		return new File(urlStr.toString().trim()).exists();
+	}
+	
+	/**
+	 * Determines if the passed stringy looks like a URL by checking for URL like symbols like <b><code>:/</code></b>
+	 * @param urlStr The stringy to test
+	 * @return true if it looks like, false otherwise
+	 */
+	public static boolean looksLikeUrl(final CharSequence urlStr) {
+		if(urlStr==null || urlStr.toString().trim().isEmpty()) throw new IllegalArgumentException("The passed URL stringy was null or empty");
+		return urlStr.toString().indexOf(":/") != -1;
+	}
+	
+	/**
 	 * Creates a URL from the passed string 
 	 * @param urlStr A char sequence containing a URL representation
 	 * @return a URL
 	 */
-	public static URL toURL(CharSequence urlStr) {
+	public static URL toURL(final CharSequence urlStr) {
+		if(urlStr==null || urlStr.toString().trim().isEmpty()) throw new IllegalArgumentException("The passed URL stringy was null or empty");
 		try {
+			if(isFile(urlStr)) return toURL(new File(urlStr.toString()));
 			return new URL(nvl(urlStr, "Passed string was null").toString());
 		} catch (Exception e) {
 			throw new RuntimeException("Failed to create URL from string [" + urlStr + "]", e);
@@ -237,7 +288,7 @@ public class URLHelper {
 	 * @param url The URL to test
 	 * @return true if is resolves, false otherwise
 	 */
-	public static boolean resolves(URL url) {
+	public static boolean resolves(final URL url) {
 		if(url==null) return false;
 		InputStream is = null;
 		try {
@@ -248,6 +299,29 @@ public class URLHelper {
 		} finally {
 			if(is!=null) try { is.close(); } catch (Exception e) {/* No Op */}
 		}
+	}
+	
+	/**
+	 * Loads and returns a {@link Properties} from the passed URL
+	 * @param url The URL to read from
+	 * @return the read properties which will be empty if no properties were read, or
+	 * any error occurred while reading.
+	 */
+	public static Properties readProperties(final URL url) {
+		Properties p = new Properties();
+		InputStream is = null;
+		try {
+			is = url.openStream();
+			if("XML".equalsIgnoreCase(getExtension(url))) {
+				p.loadFromXML(is);
+			} else {
+				p.load(is);
+			}
+		} catch (Exception e) {/* No Op */
+		} finally {
+			if(is!=null) try { is.close(); } catch (Exception e) {/* No Op */}
+		}		
+		return p;
 	}
 	
 	/**

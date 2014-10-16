@@ -22,7 +22,7 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package sun.net.www.protocol.tunnel;
+package sun.net.www.protocol.ssh;
 
 import java.net.URL;
 
@@ -31,7 +31,7 @@ import java.net.URL;
  * <p>Description: A tunnel URL connection for the tunnel protocol</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>sun.net.www.protocol.tunnel.TunnelURLConnection</code></p>
+ * <p><code>sun.net.www.protocol.ssh.TunnelURLConnection</code></p>
  */
 
 public class TunnelURLConnection extends sun.net.www.protocol.TunnelURLConnection {

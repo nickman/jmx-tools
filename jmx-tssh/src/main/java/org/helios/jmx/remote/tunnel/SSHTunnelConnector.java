@@ -46,6 +46,7 @@ import javax.management.remote.JMXServiceURL;
 import org.helios.jmx.remote.InetAddressCache;
 import org.helios.jmx.util.helpers.ConfigurationHelper;
 import org.helios.jmx.util.helpers.JMXHelper;
+import org.helios.jmx.util.helpers.URLHelper;
 
 import ch.ethz.ssh2.Connection;
 import ch.ethz.ssh2.ConnectionMonitor;
@@ -132,6 +133,10 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 	/** The pattern of the TSSH URL Path */
 	public static final Pattern TSSH_URL_PATH_PATTERN = Pattern.compile("/(.*?)/(.*?):(.*)");
 	
+	/** An empty connector useful as a placeholder so we don't jam up the caches when synchronizing */
+	public static final SSHTunnelConnector EMPTY_CONNECTOR = new SSHTunnelConnector(); 
+	
+	
 	/**
 	 * Creates a new SSHTunnelConnector
 	 * @param jmxServiceURL The JMXServiceURL requested to connect to 
@@ -181,6 +186,13 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 	}
 	
 	/**
+	 * Creates a new placeholder SSHTunnelConnector
+	 */
+	private SSHTunnelConnector() {
+		
+	}
+	
+	/**
 	 * Initializes this SSHTunnelConnector with the passed map of options
 	 * @param options The SSHOptions specifying how a tunnel should be created
 	 */
@@ -202,7 +214,16 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 				}
 				break;
 			case KEY:
-				privateKey = (char[])optionValue;				 
+				if(optionValue!=null) {
+					if(optionValue instanceof char[]) {
+						privateKey = (char[])optionValue;
+					} else {
+						final String urlStr = optionValue.toString().trim();
+						if(URLHelper.isFile(urlStr) || URLHelper.isValidURL(urlStr)) {
+							privateKey = URLHelper.getCharsFromURL(urlStr);
+						}
+					}
+				}						 
 				break;
 			case KEYPHR:
 				passPhrase = optionValue.toString();
@@ -217,7 +238,7 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 				userPassword = optionValue.toString();
 				break;
 			case PORT:
-				sshPort = (Integer)optionValue;
+				sshPort = Integer.parseInt(optionValue.toString().trim());
 				break;
 			case PROPSPREF:
 				break;
@@ -233,10 +254,10 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 				userName = optionValue.toString();
 				break;
 			case SSHTO:
-				sshConnectTimeout = (Integer)optionValue;
+				sshConnectTimeout = Integer.parseInt(optionValue.toString().trim());
 				break;
 			case SSHKTO:
-				sshKeyExchangeTimeout = (Integer)optionValue;
+				sshKeyExchangeTimeout = Integer.parseInt(optionValue.toString().trim());
 				break;
 //			case JMXHOST:
 //				jmxConnectorHost = optionValue.toString();
@@ -306,7 +327,7 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 		if(url==null) throw new IllegalArgumentException("The passed URL was null");
 		String protocol = url.getProtocol();
 		if(protocol==null || protocol.trim().isEmpty()) throw new IllegalArgumentException("The passed URL [" + url + "] had a null or empty protocol");
-		if(!"tunnel".equals(url.getProtocol().trim().toLowerCase()))  throw new IllegalArgumentException("Unrecognized tunnel protocol [" + protocol + "]");		
+		if(!"tunnel".equals(url.getProtocol().trim().toLowerCase()) && !"ssh".equals(url.getProtocol().trim().toLowerCase()))  throw new IllegalArgumentException("Unrecognized tunnel protocol [" + protocol + "]");		
 		return new SSHTunnelConnector(url);
 	}
 
@@ -624,13 +645,27 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 		merge(gatherFromSource(ConfigurationHelper.getSystemThenEnvProperty(SSHOption.SSHPROPS.propertyName, "")), top);
 		merge(gatherFromMap(env), top);
 		merge(extractJMXServiceURLOpts(serviceURL), top);
+		// derives any missing options from the service URL, where applicable
+		if(!top.containsKey(SSHOption.HOST)) {
+			top.put(SSHOption.HOST, serviceURL.getHost());
+		}
+		
+		// dereferences options from the defined properties file
+		decodePropsFile(top);
+		
+		// fills in any missing options with defaults
 		for(SSHOption opt: SSHOption.values()) {
 			if(!top.containsKey(opt)) {
 				Object dv = opt.defaultValue;
 				if(dv!=null) top.put(opt, dv);
 			}
 		}
-
+		StringBuilder b = new StringBuilder("\nSSHOptions: [");
+		for(Map.Entry<SSHOption, Object> entry: top.entrySet()) {
+			b.append("\n\t").append(entry.getKey()).append(" : [").append(entry.getValue()).append("]");
+		}
+		b.append("\n]");
+		log(b);
 //		if(!top.isEmpty()) {
 //			StringBuilder b = new StringBuilder("\n\tFinal SSHoptions:\n\t===================================================");
 //			for(Map.Entry<SSHOption, Object> entry: top.entrySet()) {
@@ -644,6 +679,58 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 		
 		return top;
 	}	
+	
+	/**
+	 * Overrides any props from the defined {@link: SSHOption#SSHPROPS} and {@link: SSHOption#PROPSPREF} prefix if defined. 
+	 * @param top The map to enrich
+	 */
+	public static void decodePropsFile(final Map<SSHOption, Object> top) {
+		String prefix = (String)top.get(SSHOption.PROPSPREF);
+		if(prefix!=null) {
+			prefix = prefix.trim() + ".";
+		} else {
+			prefix = "";
+		}
+		String propFile = (String)top.get(SSHOption.SSHPROPS);
+		if(propFile==null || propFile.trim().isEmpty()) {
+			if(prefix.isEmpty()) {
+				return;
+			}
+		}
+		// if a prefix was defined, but a prop file was not
+		// then we use the default.
+		propFile = (String) SSHOption.SSHPROPS.defaultValue;
+		URL url = URLHelper.toURL(propFile.trim());
+		
+		Properties p = load(url, prefix);
+		for(SSHOption opt: SSHOption.values()) {
+			String value = p.getProperty(opt.propertyName);
+			if(value==null || value.trim().isEmpty()) continue;
+			top.put(opt, value.trim());
+		}
+	}
+	
+	/**
+	 * Loads props and returns from the passed URL.
+	 * If the lower case file ends with <b><code>.xml</code></b>, will load as XML format. 
+	 * @param url The URL endpoint for the properties
+	 * @param prefix The optional prefix
+	 * @return the read properties which will be empty if the read failed, or no matching props were found.
+	 */
+	private static Properties load(final URL url, final String prefix) {		
+		final Properties p = URLHelper.readProperties(url);
+		if(p.isEmpty()) return p;
+		if(prefix!=null && !prefix.trim().isEmpty()) {
+			final Properties filtered = new Properties();
+			for(String key: p.stringPropertyNames()) {
+				if(key.startsWith(prefix)) {
+					filtered.setProperty(key.replace(prefix, ""), p.getProperty(key));
+				}
+			}
+			return filtered;
+		}
+		return p;
+	}
 	
 	
 	/**

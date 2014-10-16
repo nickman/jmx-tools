@@ -26,18 +26,20 @@ package org.helios.jmx.remote.tunnel;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.URL;
 import java.net.UnknownHostException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import javax.management.remote.JMXServiceURL;
-
 import org.helios.jmx.remote.InetAddressCache;
+import org.helios.ssh.terminal.CommandTerminal;
+import org.helios.ssh.terminal.WrappedSession;
 
+import sun.net.www.protocol.TunnelURLConnection;
 import ch.ethz.ssh2.Connection;
 import ch.ethz.ssh2.ConnectionMonitor;
 import ch.ethz.ssh2.LocalPortForwarder;
+import ch.ethz.ssh2.Session;
 
 /**
  * <p>Title: TunnelRepository</p>
@@ -79,7 +81,57 @@ public class TunnelRepository {
 		return instance;
 	}
 	
+	/**
+	 * Closes all connections
+	 */
+	public void purge() {
+		for(ConnectionWrapper cw: connectionsByAddress.values()) {
+			cw.close();
+		}
+		connectionsByAddress.clear();
+		tunnelsByAddressWithLocal.clear();
+		tunnelsByAddress.clear();
+		log("Remaining Connections: %s", connectionsByAddress.size());
+		log("Remaining Tunnels: %s", tunnelsByAddress.size() + tunnelsByAddressWithLocal.size());
+	}
 	
+	/**
+	 * Creates, opens and returns a command terminal
+	 * @param sshUrl An SSH URL defining the connection parameters
+	 * @return a command terminal through which command line directives can be issued
+	 */
+	public CommandTerminal openCommandTerminal(final URL sshUrl) {
+		if(sshUrl==null) throw new IllegalArgumentException("The passed SSH URL was null");
+		try {
+			final SSHTunnelConnector sshConnector = new TunnelURLConnection(sshUrl).getTunnelConnector();
+			final String host = sshConnector.getSSHHost();
+			final int port = sshConnector.getSSHPort();
+			String[] aliases = InetAddressCache.getInstance().getAliases(host);
+			final String key = String.format("%s:%s", aliases[0], port);		
+			ConnectionWrapper cw = connectionsByAddress.get(key);
+			if(cw==null) {
+				synchronized(connectionsByAddress) {
+					cw = connectionsByAddress.get(key);
+					if(cw==null) {
+						connectionsByAddress.put(key, ConnectionWrapper.EMPTY_CONNECTION);
+					}
+				}
+			}
+			if(cw==null) {
+				try {
+					cw = _connect(sshConnector);
+					connectionsByAddress.put(key, cw);
+				} catch (Exception ex) {
+					connectionsByAddress.remove(key);
+					throw ex;
+				}
+			}
+			final Session session = cw.openSession();
+			return new WrappedSession(session, cw).openCommandTerminal();
+		} catch (Exception ex) {
+			throw new RuntimeException("Failed to open command terminal for SSH URL [" + sshUrl + "]", ex);
+		}
+	}
 	
 //	/**
 //	 * Creates a new tunnel
@@ -251,8 +303,8 @@ public class TunnelRepository {
 	
 	/**
 	 * Determines if the repo has an open tunnel to this remote socket and the local sshPort
-	 * @param sshHost The remote sshHost name or address
-	 * @param sshPort The remote sshPort
+	 * @param host The remote sshHost name or address
+	 * @param port The remote sshPort
 	 * @param localPort The local sshPort
 	 * @return true if the tunnel exists
 	 */

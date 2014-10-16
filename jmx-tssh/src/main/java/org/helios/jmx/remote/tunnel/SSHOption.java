@@ -50,7 +50,7 @@ public enum SSHOption {
 //	/** The JMX connector server sshPort */
 //	JMXPORT("jmxp", ClientProvider.PROTOCOL_NAME + ".jmxport", -1, OptionReaders.INT_READER),	
 	/** The JMX user name */
-	JMXUSER("jmxu", ClientProvider.PROTOCOL_NAME + ".jmxuser", System.getProperty("user.name"), OptionReaders.STRING_READER),
+	JMXUSER("jmxu", ClientProvider.PROTOCOL_NAME + ".jmxuser", null, OptionReaders.STRING_READER),
 	/** The JMX user password */
 	JMXPASS("jmxp", ClientProvider.PROTOCOL_NAME + ".jmxpassword", null, OptionReaders.STRING_READER),	
 	/** The SSH private key (file, URL, char[] or CharSequence) */

@@ -24,35 +24,23 @@
  */
 package sun.net.www.protocol.tunnel;
 
-import java.io.IOException;
-import java.net.URL;
-import java.net.URLConnection;
-import java.net.URLStreamHandler;
+
 
 /**
  * <p>Title: Handler</p>
- * <p>Description: A {@link URLStreamHandler} supporting the tunnel encoding URL protocol</p> 
+ * <p>Description: A URL handler for the tunnel protocol</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
  * <p><code>sun.net.www.protocol.tunnel.Handler</code></p>
  */
 
-public class Handler extends URLStreamHandler {
+public class Handler extends sun.net.www.protocol.Handler {
 
 	/**
 	 * Creates a new Handler
 	 */
 	public Handler() {
-
-	}
-
-	/**
-	 * {@inheritDoc}
-	 * @see java.net.URLStreamHandler#openConnection(java.net.URL)
-	 */
-	@Override
-	protected URLConnection openConnection(URL u) throws IOException {
-		return new TunnelURLConnection(u);
+		super();
 	}
 
 }

@@ -22,25 +22,25 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package sun.net.www.protocol.tunnel;
+package sun.net.www.protocol.ssh;
 
-import java.net.URL;
+
 
 /**
- * <p>Title: TunnelURLConnection</p>
- * <p>Description: A tunnel URL connection for the tunnel protocol</p> 
+ * <p>Title: Handler</p>
+ * <p>Description: A URL handler for the ssh protocol</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>sun.net.www.protocol.tunnel.TunnelURLConnection</code></p>
+ * <p><code>sun.net.www.protocol.ssh.Handler</code></p>
  */
 
-public class TunnelURLConnection extends sun.net.www.protocol.TunnelURLConnection {
+public class Handler extends sun.net.www.protocol.Handler {
 
 	/**
-	 * Creates a new TunnelURLConnection
+	 * Creates a new Handler
 	 */
-	public TunnelURLConnection(final URL url) {
-		super(url);
+	public Handler() {
+		super();
 	}
 
 }

@@ -25,6 +25,7 @@
 package org.helios.jmx.remote.service;
 
 import java.lang.management.ManagementFactory;
+import java.net.URL;
 
 import javax.management.MBeanServerConnection;
 import javax.management.ObjectName;
@@ -33,10 +34,9 @@ import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
 
 import org.apache.log4j.BasicConfigurator;
-import org.helios.opentsdb.CommandTerminal;
-import org.helios.opentsdb.ExtendedConnection;
-import org.helios.opentsdb.SSHConnectionConfiguration;
-import org.helios.opentsdb.TunnelManager;
+import org.helios.jmx.remote.tunnel.TunnelRepository;
+import org.helios.jmx.util.helpers.URLHelper;
+import org.helios.ssh.terminal.CommandTerminal;
 
 /**
  * <p>Title: TestClient</p>
@@ -104,17 +104,46 @@ public class TestClient {
 	/**
 	 * @param args
 	 */
+	@SuppressWarnings("unused")
 	public static void main(String[] args) {
 		log("Test Client");
-		//new TestClient("service:jmx:rmi://njwmintx:8005/jndi/rmi://njwmintx:8009/jmxrmi");
-//		final String URL_TEMPLATE = "service:jmx:tunnel://localhost:%s/ssh/jmxmp:u=%s,p=%s,h=%s,lp=%s,sk=%s";
-//		new TestClient(String.format(URL_TEMPLATE,
-//			//8006,"nwhitehe", "mysol!1", "tpsolaris", 8006, false			
-//			8006,"nwhitehe", "jer1029", "10.12.114.48", 8006, false
-//		));
+		//new TestClient("service:jmx:rmi://tpsolaris:8005/jndi/rmi://njwmintx:8009/jmxrmi");
+		String URL_TEMPLATE = "service:jmx:tunnel://%s:%s/ssh/jmxmp:u=%s,p=%s,h=%s,sk=%s";
+		log("UserName and Pass Test, SSH Host Specified");
+		new TestClient(String.format(URL_TEMPLATE,
+			//8006,"nwhitehe", "mysol!1", "tpsolaris", 8006, false			
+			"tpsolaris", 8006,"nwhitehe", "mysol!1", "tpsolaris", false
+		));
+		TunnelRepository.getInstance().purge();
+		log("=============================================");
+		URL_TEMPLATE = "service:jmx:tunnel://%s:%s/ssh/jmxmp:u=%s,p=%s,sk=%s";
+		log("UserName and Pass Test, No SSH Host");
+		new TestClient(String.format(URL_TEMPLATE,
+			//8006,"nwhitehe", "mysol!1", "tpsolaris", 8006, false			
+			"tpsolaris", 8006,"nwhitehe", "mysol!1", false
+		));
+		TunnelRepository.getInstance().purge();
+		log("=============================================");
+		URL_TEMPLATE = "service:jmx:tunnel://%s:%s/ssh/jmxmp:pref=tpsol";
+		log("Default ssh props file, User Name, No Passphrase Key");
+		new TestClient(String.format(URL_TEMPLATE,
+			//8006,"nwhitehe", "mysol!1", "tpsolaris", 8006, false			
+			"tpsolaris", 8006
+		));
 		
-		new TestClient("service:jmx:tunnel://pdk-pt-ceas-01:17083/ssh/jmxmp:pr=C:/ProdMonitors/ssh.properties,pref=pdk-ecs,h=pdk-pt-ceas-01,p=XXXX");
-		new TestClient("service:jmx:tunnel://pdk-pt-ceas-01:17082/ssh/jmxmp:pr=C:/ProdMonitors/ssh.properties,pref=pdk-ecs,h=pdk-pt-ceas-01,p=XXXX");
+		log("=============================================");
+		URL sshUrl = URLHelper.toURL("ssh://tpsolaris");
+		log("SSHURL: [%s]", sshUrl);
+		CommandTerminal ct = TunnelRepository.getInstance().openCommandTerminal(sshUrl);
+		
+		
+		//pref=
+		
+		// tpsol.tunnel.propfile=/home/nwhitehead/.ssh/jmx.tssh
+		
+		
+//		new TestClient("service:jmx:tunnel://pdk-pt-ceas-01:17083/ssh/jmxmp:pr=C:/ProdMonitors/ssh.properties,pref=pdk-ecs,h=pdk-pt-ceas-01,p=XXXX");
+//		new TestClient("service:jmx:tunnel://pdk-pt-ceas-01:17082/ssh/jmxmp:pr=C:/ProdMonitors/ssh.properties,pref=pdk-ecs,h=pdk-pt-ceas-01,p=XXXX");
 		
 
 	}

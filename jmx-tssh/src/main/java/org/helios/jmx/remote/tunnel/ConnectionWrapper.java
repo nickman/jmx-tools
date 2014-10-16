@@ -87,6 +87,10 @@ public class ConnectionWrapper implements Closeable, ConnectionMonitor, CloseLis
 	/** The transport manager's socket field name */
 	public static final String SOCKET_FIELD_NAME = "sock";
 	
+	/** An empty connection useful as a placeholder so we don't jam up the caches when synchronizing */
+	public static final ConnectionWrapper EMPTY_CONNECTION = new ConnectionWrapper(); 
+
+	
 	/** The connection's transport manager field  */
 	protected static final Field connectionTransportMgr;
 	/** The transport manager's socket field */
@@ -107,6 +111,17 @@ public class ConnectionWrapper implements Closeable, ConnectionMonitor, CloseLis
 		}		
 	}
 	
+	
+	/**
+	 * Creates a new empty placeholder ConnectionWrapper
+	 */
+	private ConnectionWrapper() {
+		socket = null;
+		port = -1;
+		host = null;
+		connection = null;
+		closeOnZeroUsage = false;
+	}
 	
 	/**
 	 * Creates a new ConnectionWrapper

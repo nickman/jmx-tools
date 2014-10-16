@@ -22,25 +22,37 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package sun.net.www.protocol.tunnel;
+package sun.net.www.protocol;
 
+import java.io.IOException;
 import java.net.URL;
+import java.net.URLConnection;
+import java.net.URLStreamHandler;
 
 /**
- * <p>Title: TunnelURLConnection</p>
- * <p>Description: A tunnel URL connection for the tunnel protocol</p> 
+ * <p>Title: Handler</p>
+ * <p>Description: A {@link URLStreamHandler} supporting the tunnel encoding URL protocol</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>sun.net.www.protocol.tunnel.TunnelURLConnection</code></p>
+ * <p><code>sun.net.www.protocol.Handler</code></p>
  */
 
-public class TunnelURLConnection extends sun.net.www.protocol.TunnelURLConnection {
+public class Handler extends URLStreamHandler {
 
 	/**
-	 * Creates a new TunnelURLConnection
+	 * Creates a new Handler
 	 */
-	public TunnelURLConnection(final URL url) {
-		super(url);
+	public Handler() {
+
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see java.net.URLStreamHandler#openConnection(java.net.URL)
+	 */
+	@Override
+	protected URLConnection openConnection(URL u) throws IOException {
+		return new TunnelURLConnection(u);
 	}
 
 }
