@@ -54,5 +54,32 @@ public class Handler extends URLStreamHandler {
 	protected URLConnection openConnection(URL u) throws IOException {
 		return new TunnelURLConnection(u);
 	}
+	
+	   /**
+     * {@inheritDoc}
+     * @see java.net.URLStreamHandler#setURL(java.net.URL, java.lang.String, java.lang.String, int, java.lang.String, java.lang.String, java.lang.String, java.lang.String, java.lang.String)
+     */
+    @Override
+    protected void setURL(URL u, String protocol, String host, int port,
+            String authority, String userInfo, String path,
+            String query, String ref) {    	
+    	if(host==null || host.trim().isEmpty()) {
+    		host = "localhost";
+    	}
+    	if(port==-1) {
+    		port = 22;
+    	}
+    	super.setURL(u, protocol, host, port, authority, userInfo, path, query, ref);
+    }
+    	
+    
+    /**
+     * {@inheritDoc}
+     * @see java.net.URLStreamHandler#getDefaultPort()
+     */
+    @Override
+    protected int getDefaultPort() {
+    	return 22;
+    }    
 
 }

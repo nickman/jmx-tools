@@ -33,6 +33,8 @@ import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXConnectorProvider;
 import javax.management.remote.JMXServiceURL;
 
+import org.helios.jmx.remote.CloseListener;
+import org.helios.jmx.remote.tunnel.LocalPortForwarderWrapper;
 import org.helios.jmx.remote.tunnel.SSHTunnelConnector;
 import org.helios.jmx.remote.tunnel.TunnelHandle;
 
@@ -53,15 +55,22 @@ public class ClientProvider implements JMXConnectorProvider {
      * {@inheritDoc}
      * @see javax.management.remote.JMXConnectorProvider#newJMXConnector(javax.management.remote.JMXServiceURL, java.util.Map)
      */
-    public JMXConnector newJMXConnector(JMXServiceURL serviceURL, Map environment) throws IOException {
+    @SuppressWarnings("unchecked")
+	public JMXConnector newJMXConnector(JMXServiceURL serviceURL, Map environment) throws IOException {
 		if (!serviceURL.getProtocol().equals(PROTOCOL_NAME)) {
 		    throw new MalformedURLException("Protocol not [" + PROTOCOL_NAME + "]: " +
 						    serviceURL.getProtocol());
 		}
 		Map newenv = SSHTunnelConnector.tunnel(serviceURL, environment);
 		final TunnelHandle th = (TunnelHandle)newenv.remove("TunnelHandle");
-        JMXConnector connector = JMXConnectorFactory.newJMXConnector((JMXServiceURL)newenv.remove("JMXServiceURL"), newenv);
-        
+        final JMXConnector connector = JMXConnectorFactory.newJMXConnector((JMXServiceURL)newenv.remove("JMXServiceURL"), newenv);
+        ((LocalPortForwarderWrapper)th).addCloseListener(new CloseListener<LocalPortForwarderWrapper>(){
+        	public void onClosed(LocalPortForwarderWrapper closeable) {
+        		try {
+					connector.close();
+				} catch (IOException x) { /* No Op */}
+        	}
+        });
         return connector;
     }
 }

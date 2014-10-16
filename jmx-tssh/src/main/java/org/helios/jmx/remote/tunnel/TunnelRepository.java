@@ -119,7 +119,7 @@ public class TunnelRepository {
 			}
 			if(cw==null) {
 				try {
-					cw = _connect(sshConnector);
+					cw = _connect(sshConnector, true);
 					connectionsByAddress.put(key, cw);
 				} catch (Exception ex) {
 					connectionsByAddress.remove(key);
@@ -279,24 +279,44 @@ public class TunnelRepository {
 	}
 	
 	/**
-	 * Acquires a connection for the passed tunnel connector, creating one if one does not exist
+	 * Acquires a connection for the passed tunnel connector, creating one if one does not exist. Will not force cache.
 	 * @param tunnelConnector The tunnel connector specifying the connection
 	 * @return a connection
 	 */
+	protected ConnectionWrapper _connect(final SSHTunnelConnector tunnelConnector) {
+		return _connect(tunnelConnector, false);
+	}
+	
+	
+	/**
+	 * Acquires a connection for the passed tunnel connector, creating one if one does not exist
+	 * @param tunnelConnector The tunnel connector specifying the connection
+	 * @param nocache If true, replaces any connection found in cache
+	 * @return a connection
+	 */
 	@SuppressWarnings("resource")
-	protected ConnectionWrapper _connect(SSHTunnelConnector tunnelConnector) {
+	protected ConnectionWrapper _connect(final SSHTunnelConnector tunnelConnector, final boolean nocache) {
+		if(nocache) {
+			return _rawConnect(tunnelConnector);
+		}
 		ConnectionWrapper cw = getConnectionFor(tunnelConnector);
 		if(cw==null) {
 			synchronized(connectionsByAddress) {
 				cw = getConnectionFor(tunnelConnector);
 				if(cw==null) {
-					Connection connection = tunnelConnector.connectAndAuthenticate();
-					cw = new ConnectionWrapper(connection, true);
-					registerConnection(cw);					
+					cw = _rawConnect(tunnelConnector);
 				}
 			}
 		}
 		return cw;
+	}
+	
+	private ConnectionWrapper _rawConnect(final SSHTunnelConnector tunnelConnector) {
+		Connection connection = tunnelConnector.connectAndAuthenticate();
+		ConnectionWrapper cw = new ConnectionWrapper(connection, true);
+		registerConnection(cw);
+		return cw;
+		
 	}
 	
 	

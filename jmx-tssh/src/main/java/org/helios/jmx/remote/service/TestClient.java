@@ -26,6 +26,7 @@ package org.helios.jmx.remote.service;
 
 import java.lang.management.ManagementFactory;
 import java.net.URL;
+import java.util.Arrays;
 
 import javax.management.MBeanServerConnection;
 import javax.management.ObjectName;
@@ -108,33 +109,35 @@ public class TestClient {
 	public static void main(String[] args) {
 		log("Test Client");
 		//new TestClient("service:jmx:rmi://tpsolaris:8005/jndi/rmi://njwmintx:8009/jmxrmi");
-		String URL_TEMPLATE = "service:jmx:tunnel://%s:%s/ssh/jmxmp:u=%s,p=%s,h=%s,sk=%s";
-		log("UserName and Pass Test, SSH Host Specified");
-		new TestClient(String.format(URL_TEMPLATE,
-			//8006,"nwhitehe", "mysol!1", "tpsolaris", 8006, false			
-			"tpsolaris", 8006,"nwhitehe", "mysol!1", "tpsolaris", false
-		));
-		TunnelRepository.getInstance().purge();
-		log("=============================================");
-		URL_TEMPLATE = "service:jmx:tunnel://%s:%s/ssh/jmxmp:u=%s,p=%s,sk=%s";
-		log("UserName and Pass Test, No SSH Host");
-		new TestClient(String.format(URL_TEMPLATE,
-			//8006,"nwhitehe", "mysol!1", "tpsolaris", 8006, false			
-			"tpsolaris", 8006,"nwhitehe", "mysol!1", false
-		));
-		TunnelRepository.getInstance().purge();
-		log("=============================================");
-		URL_TEMPLATE = "service:jmx:tunnel://%s:%s/ssh/jmxmp:pref=tpsol";
-		log("Default ssh props file, User Name, No Passphrase Key");
-		new TestClient(String.format(URL_TEMPLATE,
-			//8006,"nwhitehe", "mysol!1", "tpsolaris", 8006, false			
-			"tpsolaris", 8006
-		));
+//		String URL_TEMPLATE = "service:jmx:tunnel://%s:%s/ssh/jmxmp:u=%s,p=%s,h=%s,sk=%s";
+//		log("UserName and Pass Test, SSH Host Specified");
+//		new TestClient(String.format(URL_TEMPLATE,
+//			//8006,"nwhitehe", "mysol!1", "tpsolaris", 8006, false			
+//			"tpsolaris", 8006,"nwhitehe", "mysol!1", "tpsolaris", false
+//		));
+//		TunnelRepository.getInstance().purge();
+//		log("=============================================");
+//		URL_TEMPLATE = "service:jmx:tunnel://%s:%s/ssh/jmxmp:u=%s,p=%s,sk=%s";
+//		log("UserName and Pass Test, No SSH Host");
+//		new TestClient(String.format(URL_TEMPLATE,
+//			//8006,"nwhitehe", "mysol!1", "tpsolaris", 8006, false			
+//			"tpsolaris", 8006,"nwhitehe", "mysol!1", false
+//		));
+//		TunnelRepository.getInstance().purge();
+//		log("=============================================");
+//		URL_TEMPLATE = "service:jmx:tunnel://%s:%s/ssh/jmxmp:pref=tpsol";
+//		log("Default ssh props file, User Name, No Passphrase Key");
+//		new TestClient(String.format(URL_TEMPLATE,
+//			//8006,"nwhitehe", "mysol!1", "tpsolaris", 8006, false			
+//			"tpsolaris", 8006
+//		));
 		
 		log("=============================================");
-		URL sshUrl = URLHelper.toURL("ssh://tpsolaris");
-		log("SSHURL: [%s]", sshUrl);
+		URL sshUrl = URLHelper.toURL("ssh://nwhitehe@pdk-pt-ceas-01:22");
+		log("SSHURL: [%s], Port: [%s]", sshUrl, sshUrl.getPort());
 		CommandTerminal ct = TunnelRepository.getInstance().openCommandTerminal(sshUrl);
+		log(ct.exec("ls -l"));
+		new TestClient("service:jmx:tunnel://pdk-pt-ceas-01:17083/ssh/jmxmp:");   //:pr=C:/ProdMonitors/ssh.properties,pref=pdk-ecs,h=pdk-pt-ceas-01,p=XXXX
 		
 		
 		//pref=

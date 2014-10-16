@@ -39,8 +39,8 @@ import java.io.OutputStream;
 import java.io.PushbackInputStream;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import org.helios.jmx.remote.CloseListener;
 import org.helios.jmx.remote.tunnel.ConnectionWrapper;
-import org.helios.opentsdb.ExtendedConnection;
 
 import ch.ethz.ssh2.Session;
 import ch.ethz.ssh2.StreamGobbler;
@@ -53,7 +53,7 @@ import ch.ethz.ssh2.StreamGobbler;
  * <p><code>org.helios.ssh.terminal.WrappedSession</code></p>
  */
 
-public class WrappedSession {
+public class WrappedSession implements CloseListener<ConnectionWrapper> {
 	/** The delegate session */
 	protected Session session = null;
 	/** The parent connection */
@@ -90,6 +90,7 @@ public class WrappedSession {
 	public WrappedSession(final Session session, final ConnectionWrapper conn) {
 		this.session = session;
 		this.conn = conn;
+		this.conn.addCloseListener(this);
 	}
 	
 	
@@ -243,6 +244,7 @@ public class WrappedSession {
 		protected Integer[] exitCodes = null;
 		
 		
+		
 
 		/**
 		 * Creates a new CommandTerminalImpl
@@ -251,6 +253,7 @@ public class WrappedSession {
 		public CommandTerminalImpl(final WrappedSession wsession) {
 			this.wsession = wsession;
 			this.session = wsession.session;
+			
 			try {				
 				terminalOut = session.getStdin();				
 				this.session.requestDumbPTY();
@@ -263,9 +266,14 @@ public class WrappedSession {
 				}  catch (Exception x) {
 					tty = null;
 				}
+				connected.set(true);
 			} catch (Exception e) {
 				throw new RuntimeException("Failed to initialize session shell", e);
 			}
+		}
+		
+		public boolean isConnected() {
+			return this.wsession.isOpen();
 		}
 		
 		/**
@@ -283,7 +291,7 @@ public class WrappedSession {
 		 * @see org.helios.opentsdb.CommandTerminal#exec(java.lang.String[])
 		 */
 		@Override
-		public StringBuilder exec(final String...commands) throws IOException {
+		public StringBuilder exec(final String...commands) {
 			return execWithDelim(null, commands);
 		}
 		
@@ -292,18 +300,22 @@ public class WrappedSession {
 		 * @see org.helios.opentsdb.CommandTerminal#execSplit(java.lang.String[])
 		 */
 		@Override
-		public StringBuilder[] execSplit(String...commands) throws IOException {
-			final StringBuilder[] results = new StringBuilder[commands.length];
-			exitCodes = new Integer[commands.length];
-			int index = 0;
-			for(String command: commands) {
-				results[index] = new StringBuilder();
-				writeCommand(command);				
-				readUntilPrompt(results[index]);
-				exitCodes[index] = session.getExitStatus();
-			    index++;
-			}			
-			return results;
+		public StringBuilder[] execSplit(String...commands) {
+			try {
+				final StringBuilder[] results = new StringBuilder[commands.length];
+				exitCodes = new Integer[commands.length];
+				int index = 0;
+				for(String command: commands) {
+					results[index] = new StringBuilder();
+					writeCommand(command);				
+					readUntilPrompt(results[index]);
+					exitCodes[index] = session.getExitStatus();
+				    index++;
+				}			
+				return results;
+			} catch (Exception ex) {
+				throw new RuntimeException("Command execution failed", ex);
+			}
 		}
 		
 		/**
@@ -311,7 +323,7 @@ public class WrappedSession {
 		 * @see org.helios.opentsdb.CommandTerminal#execWithDelim(java.lang.String, java.lang.String[])
 		 */
 		@Override
-		public StringBuilder execWithDelim(final String outputDelim, final String... commands) throws IOException {
+		public StringBuilder execWithDelim(final String outputDelim, final String... commands) {
 			final StringBuilder b = new StringBuilder();
 			final StringBuilder[] results = execSplit(commands);
 			for(StringBuilder r: results) {
@@ -584,7 +596,8 @@ public class WrappedSession {
 	 * @see ch.ethz.ssh2.Session#close()
 	 */
 	public void close() {
-		session.close();
+		try { session.close(); } catch (Exception x) {/* No Op */}
+		connected.set(false);
 	}
 
 	/**
@@ -601,6 +614,17 @@ public class WrappedSession {
 	 */
 	public final void setCommandTimeout(long commandTimeout) {
 		this.commandTimeout = commandTimeout;
+	}
+
+
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.helios.jmx.remote.CloseListener#onClosed(java.io.Closeable)
+	 */
+	@Override
+	public void onClosed(ConnectionWrapper closeable) {
+		close();		
 	}
 	
 

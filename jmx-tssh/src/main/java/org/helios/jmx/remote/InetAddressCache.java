@@ -48,6 +48,9 @@ public class InetAddressCache {
 	
 	/** A cache of sshHost address/sshHost name arrays keyed by the inquired name */
 	protected final NonBlockingHashMap<String, String[]> nameCache = new NonBlockingHashMap<String, String[]>();
+	/** A cache of sshHost address/sshHost name arrays keyed by the inquired address */
+	protected final NonBlockingHashMap<String, String[]> addressCache = new NonBlockingHashMap<String, String[]>();
+	
 	
 	/** IPV4 Pattern */
 	public static final Pattern IP4_ADDRESS_PATTERN = Pattern.compile( 
@@ -95,7 +98,10 @@ public class InetAddressCache {
 	 * @param hostName The sshHost string or address to resolve
 	 * @return a string array with the address and sshHost name
 	 */
-	public String[] getAliases(String hostName) {
+	public String[] getAliases(final String hostName) {
+		if(isIPAddress(hostName)) {
+			return getAliasesByAddress(hostName);
+		}
 		try {
 			String[] item = nameCache.get(hostName);
 			if(item==null) {
@@ -104,10 +110,14 @@ public class InetAddressCache {
 					if(item==null) {						
 						long start = System.currentTimeMillis();
 						InetAddress ia =  InetAddress.getByName(hostName);
-						item = new String[] {ia.getHostAddress(), ia.getCanonicalHostName(), ""};
+						item = new String[] {ia.getHostAddress(), ia.getHostName(), ""};
 						long elapsed = System.currentTimeMillis()-start;						
-						log("Aliases %s Elapsed: %s ms.", Arrays.toString(item), elapsed);
-						item[2] = "" + start;
+						log("Host: [%s] Aliases %s Elapsed: %s ms.", hostName, Arrays.toString(item), elapsed);
+						nameCache.put(hostName, item);
+						if(!addressCache.containsKey(item[0])) {
+							addressCache.put(item[0], item);
+						}
+						//item[2] = "" + start;
 					}
 				}
 			}
@@ -117,6 +127,34 @@ public class InetAddressCache {
 		}
 	}	
 	
+	
+	/**
+	 * Returns the address and sshHost name for the passed string
+	 * @param address The sshHost address to resolve
+	 * @return a string array with the address and sshHost name
+	 */
+	protected String[] getAliasesByAddress(final String address) {
+		try {
+			String[] item = addressCache.get(address);
+			if(item==null) {
+				synchronized(addressCache) {
+					item = nameCache.get(address);
+					if(item==null) {												
+						InetAddress ia =  InetAddress.getByName(address);
+						item = new String[] {ia.getHostAddress(), ia.getCanonicalHostName(), ""};											
+						addressCache.put(address, item);
+						if(!nameCache.containsKey(item[1])) {
+							nameCache.put(item[1], item);
+						}
+						
+					}
+				}
+			}
+			return item;
+		} catch (Exception ex) {
+			throw new RuntimeException("Failed to resolve address [" + address + "]", ex);
+		}
+	}	
 	
 	/**
 	 * Pattern logger

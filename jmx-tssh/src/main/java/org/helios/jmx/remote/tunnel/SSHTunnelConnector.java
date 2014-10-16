@@ -142,7 +142,7 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 	 * @param jmxServiceURL The JMXServiceURL requested to connect to 
 	 * @param env An optional environment map
 	 */
-	public SSHTunnelConnector(JMXServiceURL jmxServiceURL, Map env) {
+	public SSHTunnelConnector(JMXServiceURL jmxServiceURL, Map<?, Object> env) {
 		if(jmxServiceURL==null) throw new IllegalArgumentException("The passed JMXServiceURL was null");
 		Map<SSHOption, Object> options = gather(jmxServiceURL, env);
 		initialize(options);
@@ -159,8 +159,34 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 	 * @param url A tunnel URL with the SSH options encoded 
 	 */
 	public SSHTunnelConnector(URL url) {
-		Map<SSHOption, Object> options = gather(null, null);
+		Map<SSHOption, Object> options = new EnumMap<SSHOption, Object>(SSHOption.class);
+
+		String u = url.getUserInfo();
+		if(u!=null && !u.trim().isEmpty()) {
+			String[] auth = parseUserInfo(url);
+			if(auth[0] != null) {
+				options.put(SSHOption.USER, auth[0].trim());
+			}
+			if(auth[1] != null) {
+				options.put(SSHOption.PASS, auth[1].trim());
+			}			
+		}
+		
+		if(!options.containsKey(SSHOption.PORT) && url.getPort()!=-1) {
+			options.put(SSHOption.PORT, url.getPort());
+		}
+		
+		
 		options.putAll(parseOptions(url));
+		final Map<SSHOption, Object> top = gather(null, options);
+		options.putAll(top);
+		if(!options.containsKey(SSHOption.HOST)) {
+			options.put(SSHOption.HOST, url.getHost());
+		}
+		if(!options.containsKey(SSHOption.PORT)) {
+			options.put(SSHOption.PORT, url.getPort()==-1 ? SSHOption.PORT.defaultValue : url.getPort());
+		}
+		
 		initialize(options);
 		try {
 			jmxConnectorPort = url.getPort();
@@ -172,6 +198,21 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 			sshHost = jmxConnectorHost;
 		}		
 		log(this.toString());
+	}
+	
+	private String[] parseUserInfo(final URL url) {
+		final String[] parsed = new String[2];
+		final String u = url.getUserInfo();
+		if(u!=null && !u.trim().isEmpty()) {
+			final int index = u.indexOf(':');
+			if(index==-1) {
+				parsed[0] = u;
+			} else {
+				parsed[0] = u.substring(0, index);
+				parsed[1] = u.substring(index+1);
+			}
+		}
+		return parsed;
 	}
 	
 	
@@ -282,7 +323,7 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 	 * jmxConnectorHost/jmxConnectorPort:  option [jmxh] specified, the SSH bridge sshHost. If not specified, is the same as the sshHost 
 	 */
 	
-	public static Map tunnel(JMXServiceURL jmxServiceURL) {
+	public static Map<?, Object> tunnel(JMXServiceURL jmxServiceURL) {
 		return tunnel(jmxServiceURL, null);
 	}
 	
@@ -294,12 +335,12 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 	 * @param env The JMX environment map
 	 * @return the modified environment map
 	 */
-	public static Map tunnel(JMXServiceURL jmxServiceURL, Map env) {
+	public static Map<?, Object> tunnel(JMXServiceURL jmxServiceURL, Map<String, Object> env) {
 		SSHTunnelConnector tc = new SSHTunnelConnector(jmxServiceURL, env);
 		TunnelRepository.getInstance().connect(tc);
 		TunnelHandle tunnelHandle = TunnelRepository.getInstance().tunnel(tc);
 		if(env==null) {
-			env = new HashMap();
+			env = new HashMap<String, Object>();
 		}
 		JMXServiceURL serviceURL = JMXHelper.serviceUrl("service:jmx:%s://%s:%s", tc.getDelegateProtocol(), "localhost", tunnelHandle.getLocalPort());
 		log("Rewritten Tunneled JMXServiceURL [%s]", serviceURL);
@@ -535,9 +576,16 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 	 */
 	protected static Map<SSHOption, Object> parseOptions(URL tunnelURL) {
 		String query = tunnelURL.getQuery();
-		if(query==null || query.trim().isEmpty()) return Collections.EMPTY_MAP;
+		String file = tunnelURL.getFile();
+		String line = null;
+		if(query!=null && !query.trim().isEmpty()) {
+			line = query;
+		} else if (file!=null && !file.trim().isEmpty()) {
+			line = file.substring(1);
+		}
+		if(line==null || line.trim().isEmpty()) return Collections.EMPTY_MAP;
 		Map<SSHOption, Object> map = new EnumMap<SSHOption, Object>(SSHOption.class);
-		for(String pair: SPLIT_TRIM_URL_SSH.split(query.trim())) {
+		for(String pair: SPLIT_TRIM_URL_SSH.split(line.trim())) {
 			String[] kv = SPLIT_SSH_ARG.split(pair);
 			if(kv!=null && kv.length==2) {
 				SSHOption option = SSHOption.decode(kv[0]);
@@ -637,17 +685,19 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 	 * @param env The optional JMXServiceURL environment map
 	 * @return a map of final options
 	 */
-	public static Map<SSHOption, Object> gather(JMXServiceURL serviceURL, Map env) {
-		Map<SSHOption, Object> top = new EnumMap<SSHOption, Object>(SSHOption.class);
+	public static Map<SSHOption, Object> gather(JMXServiceURL serviceURL, Map<?, Object> env) {
+		Map<SSHOption, Object> top = new EnumMap<SSHOption, Object>(SSHOption.class); 
 		merge(gatherDefaults(), top);
 		merge(gatherConfigHelper(), top);
 		merge(gatherFromSource(DEFAULT_PROPS), top);
 		merge(gatherFromSource(ConfigurationHelper.getSystemThenEnvProperty(SSHOption.SSHPROPS.propertyName, "")), top);
 		merge(gatherFromMap(env), top);
-		merge(extractJMXServiceURLOpts(serviceURL), top);
+		if(serviceURL!=null) merge(extractJMXServiceURLOpts(serviceURL), top);
 		// derives any missing options from the service URL, where applicable
 		if(!top.containsKey(SSHOption.HOST)) {
-			top.put(SSHOption.HOST, serviceURL.getHost());
+			if(serviceURL!=null) {
+				top.put(SSHOption.HOST, serviceURL.getHost());
+			}
 		}
 		
 		// dereferences options from the defined properties file
@@ -738,15 +788,17 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 	 * @param map The map to gather from
 	 * @return a possibly empty map of SSHOptions and values
 	 */
-	public static Map<SSHOption, Object> gatherFromMap(Map map) {
+	public static Map<SSHOption, Object> gatherFromMap(Map<?, Object> map) {
 		if(map==null || map.isEmpty()) return Collections.emptyMap();
 		Map<SSHOption, Object> config = new EnumMap<SSHOption, Object>(SSHOption.class);
 		for(Object e: map.entrySet()) {
 			Map.Entry<Object, Object> entry = (Map.Entry<Object, Object>)e;
 			String key = entry.getKey().toString();
+			Object v = entry.getValue();
 			SSHOption option = SSHOption.decode(key);
 			if(option==null) continue;
-			Object value = option.optionReader.getRawOption(option.propertyName, option.defaultValue);
+			
+			Object value = v!=null ? v : option.optionReader.getRawOption(option.propertyName, option.defaultValue);
 			if(value!=null) {
 				config.put(option, value);
 			}
@@ -814,10 +866,12 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 			key = OptionReaders.CHAR_ARR_READER.getOption(DEFAULT_DSA, null);
 			if(key!=null) keys.put(SSHOption.KEY, key);
 		}
-		if(OptionReaders.isFile(DEFAULT_RSA)) {
-			key = OptionReaders.CHAR_ARR_READER.getOption(DEFAULT_RSA, null);
-			if(key!=null) keys.put(SSHOption.KEY, key);
-		}		
+		if(!keys.containsKey(SSHOption.KEY)) {
+			if(OptionReaders.isFile(DEFAULT_RSA)) {
+				key = OptionReaders.CHAR_ARR_READER.getOption(DEFAULT_RSA, null);
+				if(key!=null) keys.put(SSHOption.KEY, key);
+			}
+		}
 		if(OptionReaders.isFile(SSHOption.HOSTFILE.defaultValue.toString())) {
 			keys.put(SSHOption.HOSTFILE, SSHOption.HOSTFILE.defaultValue.toString());
 		}

@@ -41,26 +41,26 @@ public interface CommandTerminal extends Closeable {
 	 * @param outputDelim The output delimeter written in between each of the output contents of each command
 	 * @param commands An array of command line directives
 	 * @return A stringy of the results
-	 * @throws IOException thrown on any IO error
+	 * @throws RuntimeException thrown on any IO error
 	 */
-	public StringBuilder execWithDelim(String outputDelim, String...commands) throws IOException;
+	public StringBuilder execWithDelim(String outputDelim, String...commands);
 	
 	/**
 	 * Invokes an array of command line executions with no output delim
 	 * @param commands An array of command line directives
 	 * @return A stringy of the results
-	 * @throws IOException thrown on any IO error
+	 * @throws RuntimeException thrown on any IO error
 	 */
-	public StringBuilder exec(String...commands) throws IOException;
+	public StringBuilder exec(String...commands);
 	
 	/**
 	 * Invokes an array of command line execution directives, 
 	 * returning the output of each in a seperate array slot.
 	 * @param commands An array of command line directives
 	 * @return A stringy array of the results
-	 * @throws IOException thrown on any IO error
+	 * @throws RuntimeException thrown on any IO error
 	 */
-	public StringBuilder[] execSplit(String...commands) throws IOException;
+	public StringBuilder[] execSplit(String...commands);
 	
 	/**
 	 * Closes the command terminal.
@@ -79,6 +79,12 @@ public interface CommandTerminal extends Closeable {
 	 * @return an array of command execution exit status codes
 	 */
 	public Integer[] getExitStatuses();
+	
+	/**
+	 * Indicates if this command terminal is connected
+	 * @return true if this command terminal is connected, false otherwise
+	 */
+	public boolean isConnected();
 	
 	
 }
