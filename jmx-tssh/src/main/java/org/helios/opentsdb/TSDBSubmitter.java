@@ -24,17 +24,30 @@
  */
 package org.helios.opentsdb;
 
-import java.io.BufferedReader;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.OutputStream;
-import java.io.OutputStreamWriter;
+import java.lang.management.GarbageCollectorMXBean;
+import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryPoolMXBean;
+import java.lang.management.MemoryUsage;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketException;
 import java.nio.charset.Charset;
-import java.util.zip.GZIPInputStream;
-import java.util.zip.GZIPOutputStream;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArraySet;
+
+import javax.management.ObjectName;
+
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
+import org.helios.jmx.util.helpers.StringHelper;
+import org.jboss.netty.buffer.ChannelBuffer;
+import org.jboss.netty.buffer.ChannelBuffers;
+import org.jboss.netty.buffer.DirectChannelBufferFactory;
 
 /**
  * <p>Title: TSDBSubmitter</p>
@@ -42,6 +55,18 @@ import java.util.zip.GZIPOutputStream;
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
  * <p><code>org.helios.opentsdb.TSDBSubmitter</code></p>
+ * TODO:
+ * fluent metric builder
+ * jmx response trace formatters
+ * 		transforms
+ * 		object name matcher
+ * 		formatter cache and invoker
+ * Delta Service
+ * terminal output parser -> trace
+ * disconnector & availability trace
+ * root tags
+ * dup checks mode
+ * off line accumulator and flush on connect
  */
 
 public class TSDBSubmitter {
@@ -60,6 +85,14 @@ public class TSDBSubmitter {
 	/** The socket tcp nodelay flag */
 	protected boolean tcpNoDelay = true;
 	
+	
+	/** Deltas for long values */
+	protected final NonBlockingHashMap<String, Long> longDeltas = new NonBlockingHashMap<String, Long>(); 
+	/** Deltas for double values */
+	protected final NonBlockingHashMap<String, Double> doubleDeltas = new NonBlockingHashMap<String, Double>(); 
+	/** Deltas for int values */
+	protected final NonBlockingHashMap<String, Integer> intDeltas = new NonBlockingHashMap<String, Integer>(); 
+	
 	/** The socket receive buffer size in bytes */
 	protected int receiveBufferSize = DEFAULT_RECEIVE_BUFFER_SIZE;
 	/** The socket send buffer size in bytes */
@@ -73,15 +106,19 @@ public class TSDBSubmitter {
 	protected OutputStream os = null;
 	/** The socket input stream */
 	protected InputStream is = null;
-	/** The gzip output stream */
-	protected GZIPOutputStream gzip = null;
-	/** The gzip input stream */
-	protected GZIPInputStream gzipIn = null;
+	/** The buffer for incoming data */
+	protected final ChannelBuffer dataBuffer = ChannelBuffers.dynamicBuffer(bufferFactory);
 	
 	/** The default socket send buffer size in bytes */
 	public static final int DEFAULT_SEND_BUFFER_SIZE;
 	/** The default socket receive buffer size in bytes */
 	public static final int DEFAULT_RECEIVE_BUFFER_SIZE;
+	
+	/** The default character set */
+	public static final Charset CHARSET = Charset.forName("UTF-8");
+	
+	/** The buffered data direct buffer factory */
+	private static final DirectChannelBufferFactory bufferFactory = new DirectChannelBufferFactory(1024); 
 	
 	static {
 		@SuppressWarnings("resource")
@@ -125,8 +162,36 @@ public class TSDBSubmitter {
 	
 	public static void main(String[] args) {
 		log("Submitter Test");
-		TSDBSubmitter submitter = new TSDBSubmitter("opentsdb", 8080);
+//		TSDBSubmitter submitter = new TSDBSubmitter("opentsdb", 8080);
+		TSDBSubmitter submitter = new TSDBSubmitter("localhost");
 		submitter.setTimeout(2000).connect();
+		while(true) {
+			final long start = System.currentTimeMillis();
+			for(final MemoryPoolMXBean pool: ManagementFactory.getMemoryPoolMXBeans()) {
+				final MemoryUsage mu = pool.getUsage();			
+				final String poolName = pool.getName();
+				submitter.trace("used", mu.getUsed(), "type", "MemoryPool", "name", poolName);
+				submitter.trace("max", mu.getMax(), "type", "MemoryPool", "name", poolName);
+				submitter.trace("committed", mu.getCommitted(), "type", "MemoryPool", "name", poolName);
+			}
+			for(final GarbageCollectorMXBean gc: ManagementFactory.getGarbageCollectorMXBeans()) {
+				final ObjectName on = gc.getObjectName();
+				final String gcName = gc.getName();
+				final Long count = submitter.longDelta(gc.getCollectionCount(), on.toString(), gcName, "count");
+				final Long time = submitter.longDelta(gc.getCollectionTime(), on.toString(), gcName, "time");
+				if(count!=null) {
+					submitter.trace("collectioncount", count, "type", "GarbageCollector", "name", gcName);
+				}
+				if(time!=null) {
+					submitter.trace("collectiontime", time, "type", "GarbageCollector", "name", gcName);
+				}
+			}
+			submitter.flush();
+			final long elapsed = System.currentTimeMillis() - start;
+			log("Completed flush in %s ms", elapsed);
+			System.gc();
+			try { Thread.currentThread().join(5000); } catch (Exception x) {/* No Op */}
+		}		
 	}
 	
 	/**
@@ -158,16 +223,141 @@ public class TSDBSubmitter {
 			log("Connected to [%s:%s]", host, port);
 			os = socket.getOutputStream();
 			is = socket.getInputStream();
-			
-			//gzipIn = new GZIPInputStream(is, receiveBufferSize*2);			
 			log("Version: %s", getVersion());
-			gzip = new GZIPOutputStream(os, sendBufferSize*2);
 		} catch (Exception ex) {
 			throw new RuntimeException("Failed to connect to [" + host + ":" + port + "]", ex);
 		}
 	}
 	
+	private final Set<StringBuilder> SBs = new CopyOnWriteArraySet<StringBuilder>();
 	
+	private final ThreadLocal<StringBuilder> SB = new ThreadLocal<StringBuilder>() {
+		@Override
+		protected StringBuilder initialValue() {
+			final StringBuilder b = new StringBuilder(1024);
+			SBs.add(b);
+			return b;
+		}
+	};
+	
+	private StringBuilder getSB() {
+		StringBuilder b = SB.get();
+		b.setLength(0);
+		return b;
+	}
+	
+	/**
+	 * Traces a double metric
+	 * @param metric The metric name
+	 * @param value The value
+	 * @param tags The metric tags
+	 */
+	public void trace(final String metric, final double value, final Map<String, String> tags) {
+		// put $metric $now $value host=$HOST "
+		StringBuilder b = getSB();
+		b.append("put ").append(clean(metric)).append(" ").append(System.currentTimeMillis()/1000).append(" ").append(value).append(" ");
+		for(Map.Entry<String, String> entry: tags.entrySet()) {
+			b.append(clean(entry.getKey())).append("=").append(clean(entry.getValue())).append(" ");
+		}
+		final byte[] trace = b.deleteCharAt(b.length()-1).append("\n").toString().getBytes(CHARSET);
+		synchronized(dataBuffer) {
+			dataBuffer.writeBytes(trace);
+		}
+	}
+	
+	/**
+	 * Traces a double metric
+	 * @param metric The metric name
+	 * @param value The value
+	 * @param tags The metric tags
+	 */
+	public void trace(final String metric, final double value, final String...tags) {
+		if(tags==null) return;
+		if(tags.length%2!=0) throw new IllegalArgumentException("The tags varg " + Arrays.toString(tags) + "] has an odd number of values");
+		final int pairs = tags.length/2;
+		final Map<String, String> map = new LinkedHashMap<String, String>(pairs);
+		for(int i = 0; i < tags.length; i++) {
+			map.put(tags[i], tags[++i]);
+		}
+		trace(metric, value, map);
+	}
+	
+	
+	/**
+	 * Traces a long metric
+	 * @param metric The metric name
+	 * @param value The value
+	 * @param tags The metric tags
+	 */
+	public void trace(final String metric, final long value, final Map<String, String> tags) {
+		// put $metric $now $value host=$HOST "
+		StringBuilder b = getSB();
+		b.append("put ").append(clean(metric)).append(" ").append(System.currentTimeMillis()/1000).append(" ").append(value).append(" ");
+		for(Map.Entry<String, String> entry: tags.entrySet()) {
+			b.append(clean(entry.getKey())).append("=").append(clean(entry.getValue())).append(" ");
+		}
+		final String s = b.deleteCharAt(b.length()-1).append("\n").toString();
+//		log("Traced: [%s]", s);
+		final byte[] trace = s.getBytes(CHARSET);
+		synchronized(dataBuffer) {
+			dataBuffer.writeBytes(trace);
+		}
+	}
+	
+	private static String clean(final String s) {
+		return s.replace(" ", "");
+	}
+	
+	/**
+	 * Traces a long metric
+	 * @param metric The metric name
+	 * @param value The value
+	 * @param tags The metric tags
+	 */
+	public void trace(final String metric, final long value, final String...tags) {
+		if(tags==null) return;
+		if(tags.length%2!=0) throw new IllegalArgumentException("The tags varg " + Arrays.toString(tags) + "] has an odd number of values");
+		final int pairs = tags.length/2;
+		final Map<String, String> map = new LinkedHashMap<String, String>(pairs);
+		for(int i = 0; i < tags.length; i++) {
+			map.put(tags[i], tags[++i]);
+		}
+		trace(metric, value, map);
+	}
+	
+	
+
+	/**
+	 * Flushes the databuffer to the socket output stream and on success, clears the data buffer
+	 * @return the number of bytes flushed
+	 */
+	public int[] flush() {
+		final int[] bytesWritten = new int[]{0, 0};
+//		GZIPOutputStream gzip = null;
+		synchronized(dataBuffer) {
+			if(dataBuffer.readableBytes()<1) return bytesWritten;
+			int pos = -1;
+			try {				
+				final int r = dataBuffer.readableBytes();
+//				gzip = new GZIPOutputStream(os, r * 2);
+				pos = dataBuffer.readerIndex();
+				dataBuffer.readBytes(os, dataBuffer.readableBytes());
+//				gzip.finish();
+//				gzip.flush();
+				os.flush();
+				dataBuffer.clear();
+				bytesWritten[0] = r;
+				log("Flushed %s bytes", r);
+			} catch (Exception ex) {
+				log("Failed to flush. Stack trace follows...");
+				ex.printStackTrace(System.err);
+				if(pos!=-1) dataBuffer.readerIndex(pos);
+			} finally {
+//				if(gzip!=null) try { gzip.close(); } catch (Exception x) {/* No Op */}
+			}
+		}
+		return bytesWritten;
+	}
 	/**
 	 * Returns the connected OpenTSDB version
 	 * @return the connected OpenTSDB version
@@ -195,8 +385,97 @@ public class TSDBSubmitter {
 			socket.close();
 		} catch (Exception x) {
 			/* No Op */
+		} finally {
+			for(StringBuilder b: SBs) {
+				b.setLength(0);
+				b.trimToSize();
+			}
 		}
 	}
+	
+	/**
+	 * Computes the positive delta between the submitted value and the prior value for the same id
+	 * @param value The value to compute the delta for
+	 * @param id The id of the delta, a compound array of names which will be concatenated
+	 * @return the delta value, or null if this was the first submission for the id, or the delta was reset
+	 */
+	public Double doubleDelta(final double value, final String...id) {
+		Double state = null;
+		if(id==null || id.length==0) return null;
+		if(id.length==1) {
+			state = doubleDeltas.put(id[0], value);
+		} else {
+			state = doubleDeltas.put(StringHelper.fastConcat(id), value);			
+		}
+		if(state!=null) {
+			double delta = value - state;
+			if(delta<0) {
+				return null;
+			}
+			return delta;
+		}
+		return null;		
+	}
+	
+	/**
+	 * Computes the positive delta between the submitted value and the prior value for the same id
+	 * @param value The value to compute the delta for
+	 * @param id The id of the delta, a compound array of names which will be concatenated
+	 * @return the delta value, or null if this was the first submission for the id, or the delta was reset
+	 */
+	public Long longDelta(final long value, final String...id) {
+		Long state = null;
+		if(id==null || id.length==0) return null;
+		if(id.length==1) {
+			state = longDeltas.put(id[0], value);
+		} else {
+			state = longDeltas.put(StringHelper.fastConcat(id), value);			
+		}
+		if(state!=null) {
+			long delta = value - state;
+			if(delta<0) {
+				return null;
+			}
+			return delta;
+		}
+		return null;		
+	}
+	
+	/**
+	 * Computes the positive delta between the submitted value and the prior value for the same id
+	 * @param value The value to compute the delta for
+	 * @param id The id of the delta, a compound array of names which will be concatenated
+	 * @return the delta value, or null if this was the first submission for the id, or the delta was reset
+	 */
+	public Integer longInteger(final int value, final String...id) {
+		Integer state = null;
+		if(id==null || id.length==0) return null;
+		if(id.length==1) {
+			state = intDeltas.put(id[0], value);
+		} else {
+			state = intDeltas.put(StringHelper.fastConcat(id), value);			
+		}
+		if(state!=null) {
+			int delta = value - state;
+			if(delta<0) {
+				return null;
+			}
+			return delta;
+		}
+		return null;		
+	}
+	
+	
+	/**
+	 * Flushes all the delta states
+	 */
+	public void flushDeltas() {
+		longDeltas.clear();
+		intDeltas.clear();
+		doubleDeltas.clear();
+	}
+	
+	
 
 	/**
 	 * Sets the keep alive flag on the socket 
