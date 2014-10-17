@@ -262,6 +262,7 @@ public class SSHTunnelConnector implements ServerHostKeyVerifier, ConnectionMoni
 						final String urlStr = optionValue.toString().trim();
 						if(URLHelper.isFile(urlStr) || URLHelper.isValidURL(urlStr)) {
 							privateKey = URLHelper.getCharsFromURL(urlStr);
+							log("PrivateKey read from [%s]", urlStr);
 						}
 					}
 				}						 

@@ -133,12 +133,27 @@ public class TestClient {
 //		));
 		
 		log("=============================================");
-		URL sshUrl = URLHelper.toURL("ssh://nwhitehe@pdk-pt-ceas-01:22");
-		log("SSHURL: [%s], Port: [%s]", sshUrl, sshUrl.getPort());
-		CommandTerminal ct = TunnelRepository.getInstance().openCommandTerminal(sshUrl);
-		log(ct.exec("ls -l"));
-		new TestClient("service:jmx:tunnel://pdk-pt-ceas-01:17083/ssh/jmxmp:");   //:pr=C:/ProdMonitors/ssh.properties,pref=pdk-ecs,h=pdk-pt-ceas-01,p=XXXX
+//		URL sshUrl = URLHelper.toURL("ssh://nwhitehe@pdk-pt-ceas-01:22");
+//		log("SSHURL: [%s], Port: [%s]", sshUrl, sshUrl.getPort());
+//		CommandTerminal ct = TunnelRepository.getInstance().openCommandTerminal(sshUrl);
+//		log(ct.exec("ls -l"));
+		//new TestClient("service:jmx:tunnel://pdk-pt-ceas-01:17083/ssh/jmxmp:");   //:pr=C:/ProdMonitors/ssh.properties,pref=pdk-ecs,h=pdk-pt-ceas-01,p=XXXX
+		JMXConnector connector = null;
+		MBeanServerConnection conn = null;
 		
+		try {
+			JMXServiceURL surl = new JMXServiceURL("service:jmx:tunnel://pdk-pt-ceas-01:18089/ssh/jmxmp:");
+//			JMXServiceURL surl = new JMXServiceURL("service:jmx:tunnel://njwmintx:8006/ssh/jmxmp:");
+		    connector = JMXConnectorFactory.connect(surl);
+		    conn = connector.getMBeanServerConnection();
+		    String runtime = conn.getAttribute(new ObjectName(ManagementFactory.RUNTIME_MXBEAN_NAME), "Name").toString();
+		    log("Runtime: [%s]", runtime);
+		    Thread.currentThread().join();
+		} catch (Exception ex) {
+			ex.printStackTrace(System.err);
+		} finally {
+		    if(connector!=null) try { connector.close(); } catch(Exception x) {/* No Op */}
+		}		
 		
 		//pref=
 		

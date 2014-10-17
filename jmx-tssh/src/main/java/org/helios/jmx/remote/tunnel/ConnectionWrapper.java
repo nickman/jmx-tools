@@ -52,6 +52,7 @@ import ch.ethz.ssh2.ServerHostKeyVerifier;
 import ch.ethz.ssh2.Session;
 import ch.ethz.ssh2.auth.AgentProxy;
 import ch.ethz.ssh2.transport.ClientTransportManager;
+import ch.ethz.ssh2.transport.TransportManager;
 
 /**
  * <p>Title: ConnectionWrapper</p>
@@ -123,6 +124,19 @@ public class ConnectionWrapper implements Closeable, ConnectionMonitor, CloseLis
 		closeOnZeroUsage = false;
 	}
 	
+	
+	/**
+	 * Pattern logger
+	 * @param format The pattern format
+	 * @param args The pattern values
+	 * @return the formatted message 
+	 */
+	public static String log(Object format, Object...args) {
+		String msg = String.format("[TestServers]" + format.toString(),args);
+		System.out.println(msg);
+		return msg;
+	}		
+	
 	/**
 	 * Creates a new ConnectionWrapper
 	 * @param connection The connection to wrap
@@ -133,9 +147,18 @@ public class ConnectionWrapper implements Closeable, ConnectionMonitor, CloseLis
 		host = connection.getHostname();
 		port = connection.getPort();
 		this.closeOnZeroUsage = closeOnZeroUsage;
+		
 		try {
-			ClientTransportManager ctm = (ClientTransportManager)connectionTransportMgr.get(connection);
-			socket = (Socket)sock.get(ctm);
+			//ClientTransportManager
+			final Object o = connectionTransportMgr.get(connection);
+//			log("CTM -------------> : %s", o.getClass().getName());
+			if(o instanceof ClientTransportManager) {
+				ClientTransportManager ctm = (ClientTransportManager)o;
+				socket = (Socket)sock.get(ctm);
+			} else {
+				log("CTM Class Source: %s", o.getClass().getProtectionDomain().getCodeSource().getLocation());
+				socket = null;
+			}
 		} catch (Exception ex) {
 			throw new RuntimeException("Failed to get connection socket", ex);
 		}
@@ -309,7 +332,14 @@ public class ConnectionWrapper implements Closeable, ConnectionMonitor, CloseLis
 
 	@Override
 	public void connectionLost(Throwable reason) {
-		
+		log("Connection to [%s:%s] closed. Reason was: %s", host, port, reason);
+		if(reason!=null) {
+			reason.printStackTrace(System.err);
+		}
+		for(LocalPortForwarderWrapper lpfw: tunnels.values()) {
+			try { lpfw.close(); } catch (Exception x) {/* No Op */}
+		}
+		tunnels.clear();
 	}
 
 	/**

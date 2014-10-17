@@ -228,6 +228,7 @@ public class TunnelRepository {
 	protected void registerTunnel(LocalPortForwarderWrapper tunnel) {
 		tunnelsByAddress.put(String.format("%s:%s", tunnel.getHostAddress(), tunnel.getRemotePort()), tunnel);
 		tunnelsByAddressWithLocal.put(String.format("%s:%s:%s", tunnel.getHostAddress(), tunnel.getLocalPort(), tunnel.getRemotePort()), tunnel);
+		log("Created tunnel [%s:%s  ----->   %s:%s]", tunnel.getLocalSocketAddress().getAddress(), tunnel.getLocalPort(), tunnel.getHostName(), tunnel.getRemotePort());
 	}
 	
 	

@@ -67,6 +67,7 @@ public class ClientProvider implements JMXConnectorProvider {
         ((LocalPortForwarderWrapper)th).addCloseListener(new CloseListener<LocalPortForwarderWrapper>(){
         	public void onClosed(LocalPortForwarderWrapper closeable) {
         		try {
+        			System.err.println("PortForward [" + closeable + "] Closed. Closing Connector [" + connector.getConnectionId() + "].....");
 					connector.close();
 				} catch (IOException x) { /* No Op */}
         	}

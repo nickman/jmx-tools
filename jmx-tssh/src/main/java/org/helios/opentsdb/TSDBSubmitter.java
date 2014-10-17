@@ -26,24 +26,31 @@ package org.helios.opentsdb;
 
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
-import java.lang.management.MemoryPoolMXBean;
-import java.lang.management.MemoryUsage;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketException;
 import java.nio.charset.Charset;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
-import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 
+import javax.management.Attribute;
+import javax.management.AttributeList;
+import javax.management.MBeanAttributeInfo;
+import javax.management.MBeanInfo;
+import javax.management.MBeanServer;
 import javax.management.ObjectName;
+import javax.management.openmbean.CompositeData;
+import javax.management.openmbean.CompositeType;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
+import org.helios.jmx.util.helpers.JMXHelper;
 import org.helios.jmx.util.helpers.StringHelper;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
@@ -67,6 +74,8 @@ import org.jboss.netty.buffer.DirectChannelBufferFactory;
  * root tags
  * dup checks mode
  * off line accumulator and flush on connect
+ * option for TSDB time as seconds or milliseconds
+ * option to log all traced metrics
  */
 
 public class TSDBSubmitter {
@@ -83,8 +92,19 @@ public class TSDBSubmitter {
 	/** The socket linger flag */
 	protected boolean linger = false;
 	/** The socket tcp nodelay flag */
-	protected boolean tcpNoDelay = true;
+	protected boolean tcpNoDelay = true;	
+	/** Indicates if times are traced in seconds (true) or milliseconds (false) */
+	protected boolean traceInSeconds = true;
+	/** Indicates if traces should be logged */
+	protected boolean logTraces = false;
+	/** Indicates if traces are disabled */
+	protected boolean disableTraces = false;
 	
+	/** The ObjectName transform cache */
+	protected final TransformCache transformCache = new TransformCache();
+	
+	/** The root tags applied to all traced metrics */
+	protected final Set<String> rootTags = new LinkedHashSet<String>();
 	
 	/** Deltas for long values */
 	protected final NonBlockingHashMap<String, Long> longDeltas = new NonBlockingHashMap<String, Long>(); 
@@ -162,30 +182,54 @@ public class TSDBSubmitter {
 	
 	public static void main(String[] args) {
 		log("Submitter Test");
+		final MBeanServer ser = ManagementFactory.getPlatformMBeanServer();
 //		TSDBSubmitter submitter = new TSDBSubmitter("opentsdb", 8080);
-		TSDBSubmitter submitter = new TSDBSubmitter("localhost");
-		submitter.setTimeout(2000).connect();
+		TSDBSubmitter submitter = new TSDBSubmitter("localhost").addRootTag("host", "nicholas").addRootTag("app", "MyApp").setLogTraces(true).setTimeout(2000).connect();
+		log(submitter);
 		while(true) {
 			final long start = System.currentTimeMillis();
-			for(final MemoryPoolMXBean pool: ManagementFactory.getMemoryPoolMXBeans()) {
-				final MemoryUsage mu = pool.getUsage();			
-				final String poolName = pool.getName();
-				submitter.trace("used", mu.getUsed(), "type", "MemoryPool", "name", poolName);
-				submitter.trace("max", mu.getMax(), "type", "MemoryPool", "name", poolName);
-				submitter.trace("committed", mu.getCommitted(), "type", "MemoryPool", "name", poolName);
-			}
-			for(final GarbageCollectorMXBean gc: ManagementFactory.getGarbageCollectorMXBeans()) {
-				final ObjectName on = gc.getObjectName();
-				final String gcName = gc.getName();
-				final Long count = submitter.longDelta(gc.getCollectionCount(), on.toString(), gcName, "count");
-				final Long time = submitter.longDelta(gc.getCollectionTime(), on.toString(), gcName, "time");
-				if(count!=null) {
-					submitter.trace("collectioncount", count, "type", "GarbageCollector", "name", gcName);
+			final Map<ObjectName, Map<String, Object>> mbeanMap = new HashMap<ObjectName, Map<String, Object>>(ser.getMBeanCount());
+			for(ObjectName on: ser.queryNames(null, null)) {
+				try {
+					MBeanInfo minfo = ser.getMBeanInfo(on);
+					MBeanAttributeInfo[] ainfos = minfo.getAttributes();					
+					String[] attrNames = new String[ainfos.length];
+					for(int i = 0; i < ainfos.length; i++) {
+						attrNames[i] = ainfos[i].getName();
+					}
+					AttributeList attrList = ser.getAttributes(on, attrNames);
+					Map<String, Object> attrValues = new HashMap<String, Object>(attrList.size());
+					for(Attribute a: attrList.asList()) {
+						attrValues.put(a.getName(), a.getValue());
+					}
+					mbeanMap.put(on, attrValues);
+				} catch (Exception ex) {
+					ex.printStackTrace(System.err);
 				}
-				if(time!=null) {
-					submitter.trace("collectiontime", time, "type", "GarbageCollector", "name", gcName);
-				}
 			}
+			log("Tracing All Attributes for [%s] MBeans", mbeanMap.size());
+			submitter.trace(mbeanMap);
+			
+			
+//			for(final MemoryPoolMXBean pool: ManagementFactory.getMemoryPoolMXBeans()) {
+//				final MemoryUsage mu = pool.getUsage();			
+//				final String poolName = pool.getName();
+//				submitter.trace("used", mu.getUsed(), "type", "MemoryPool", "name", poolName);
+//				submitter.trace("max", mu.getMax(), "type", "MemoryPool", "name", poolName);
+//				submitter.trace("committed", mu.getCommitted(), "type", "MemoryPool", "name", poolName);
+//			}
+//			for(final GarbageCollectorMXBean gc: ManagementFactory.getGarbageCollectorMXBeans()) {
+//				final ObjectName on = gc.getObjectName();
+//				final String gcName = gc.getName();
+//				final Long count = submitter.longDelta(gc.getCollectionCount(), on.toString(), gcName, "count");
+//				final Long time = submitter.longDelta(gc.getCollectionTime(), on.toString(), gcName, "time");
+//				if(count!=null) {
+//					submitter.trace("collectioncount", count, "type", "GarbageCollector", "name", gcName);
+//				}
+//				if(time!=null) {
+//					submitter.trace("collectiontime", time, "type", "GarbageCollector", "name", gcName);
+//				}
+//			}
 			submitter.flush();
 			final long elapsed = System.currentTimeMillis() - start;
 			log("Completed flush in %s ms", elapsed);
@@ -205,11 +249,12 @@ public class TSDBSubmitter {
 	/**
 	 * Connects this submitter.
 	 * Does nothing if already connected.
+	 * @return this submitter
 	 * @throws RuntimeException if connection fails
 	 */
-	public void connect() {
+	public TSDBSubmitter connect() {
 		try {
-			if(socket.isConnected()) return;
+			if(socket.isConnected()) return this;
 			log("Connecting to [%s:%s]....", host, port);
 			socket = new Socket();
 			socket.setKeepAlive(keepAlive);
@@ -224,6 +269,7 @@ public class TSDBSubmitter {
 			os = socket.getOutputStream();
 			is = socket.getInputStream();
 			log("Version: %s", getVersion());
+			return this;
 		} catch (Exception ex) {
 			throw new RuntimeException("Failed to connect to [" + host + ":" + port + "]", ex);
 		}
@@ -247,6 +293,14 @@ public class TSDBSubmitter {
 	}
 	
 	/**
+	 * Returns the current time.
+	 * @return the current time in seconds if {@link #traceInSeconds} is true, otherwise in milliseconds
+	 */
+	public long time() {
+		return traceInSeconds ? System.currentTimeMillis()/1000 : System.currentTimeMillis(); 
+	}
+	
+	/**
 	 * Traces a double metric
 	 * @param metric The metric name
 	 * @param value The value
@@ -255,7 +309,8 @@ public class TSDBSubmitter {
 	public void trace(final String metric, final double value, final Map<String, String> tags) {
 		// put $metric $now $value host=$HOST "
 		StringBuilder b = getSB();
-		b.append("put ").append(clean(metric)).append(" ").append(System.currentTimeMillis()/1000).append(" ").append(value).append(" ");
+		b.append("put ").append(clean(metric)).append(" ").append(time()).append(" ").append(value).append(" ");
+		appendRootTags(b);
 		for(Map.Entry<String, String> entry: tags.entrySet()) {
 			b.append(clean(entry.getKey())).append("=").append(clean(entry.getValue())).append(" ");
 		}
@@ -264,6 +319,29 @@ public class TSDBSubmitter {
 			dataBuffer.writeBytes(trace);
 		}
 	}
+	
+	/**
+	 * Traces a double metric
+	 * @param metric The full metric as a JMX {@link ObjectName}
+	 * @param value The value
+	 */
+	public void trace(final ObjectName metric, final double value) {
+		if(metric==null) throw new IllegalArgumentException("The passed ObjectName was null");
+		if(metric==null || metric.isPattern()) return;
+		StringBuilder b = getSB();
+		b.append("put ").append(clean(metric.getDomain())).append(" ").append(time()).append(" ").append(value).append(" ");
+		appendRootTags(b);
+		for(Map.Entry<String, String> entry: metric.getKeyPropertyList().entrySet()) {
+			b.append(clean(entry.getKey())).append("=").append(clean(entry.getValue())).append(" ");
+		}
+		final String s = b.deleteCharAt(b.length()-1).append("\n").toString();
+		if(logTraces) log("Trace: [%s]", s.trim());
+		final byte[] trace = s.getBytes(CHARSET);		
+		synchronized(dataBuffer) {
+			dataBuffer.writeBytes(trace);
+		}
+	}
+	
 	
 	/**
 	 * Traces a double metric
@@ -290,23 +368,125 @@ public class TSDBSubmitter {
 	 * @param tags The metric tags
 	 */
 	public void trace(final String metric, final long value, final Map<String, String> tags) {
-		// put $metric $now $value host=$HOST "
 		StringBuilder b = getSB();
-		b.append("put ").append(clean(metric)).append(" ").append(System.currentTimeMillis()/1000).append(" ").append(value).append(" ");
+		b.append("put ").append(clean(metric)).append(" ").append(time()).append(" ").append(value).append(" ");
+		appendRootTags(b);
 		for(Map.Entry<String, String> entry: tags.entrySet()) {
 			b.append(clean(entry.getKey())).append("=").append(clean(entry.getValue())).append(" ");
 		}
 		final String s = b.deleteCharAt(b.length()-1).append("\n").toString();
-//		log("Traced: [%s]", s);
+		if(logTraces) log("Trace: [%s]", s.trim());
 		final byte[] trace = s.getBytes(CHARSET);
 		synchronized(dataBuffer) {
 			dataBuffer.writeBytes(trace);
 		}
 	}
 	
-	private static String clean(final String s) {
-		return s.replace(" ", "");
+	/**
+	 * Traces a long metric
+	 * @param metric The full metric as a JMX {@link ObjectName}
+	 * @param value The value
+	 */
+	public void trace(final ObjectName metric, final long value) {
+		if(metric==null || metric.isPattern()) return;
+		StringBuilder b = getSB();
+		b.append("put ").append(clean(metric.getDomain())).append(" ").append(time()).append(" ").append(value).append(" ");
+		appendRootTags(b);
+		for(Map.Entry<String, String> entry: metric.getKeyPropertyList().entrySet()) {
+			b.append(clean(entry.getKey())).append("=").append(clean(entry.getValue())).append(" ");
+		}
+		final String s = b.deleteCharAt(b.length()-1).append("\n").toString();
+		if(logTraces) log("Trace: [%s]", s.trim());
+		final byte[] trace = s.getBytes(CHARSET);
+		synchronized(dataBuffer) {
+			dataBuffer.writeBytes(trace);
+		}
 	}
+	
+	/**
+	 * Traces raw JMX BatchService lookup results
+	 * @param batchResults A map of JMX attribute values keyed by the attribute name within a map keyed by the ObjectName
+	 */
+	public void trace(final Map<ObjectName, Map<String, Object>> batchResults) {
+		if(batchResults==null || batchResults.isEmpty()) return;
+		for(Map.Entry<ObjectName, Map<String, Object>> entry: batchResults.entrySet()) {
+			final ObjectName on = entry.getKey();
+			TSDBJMXResultTransformer transformer = transformCache.getTransformer(on);
+			if(transformer!=null) {
+				 Map<ObjectName, Number> transformed = transformer.transform(on, entry.getValue());
+				 for(Map.Entry<ObjectName, Number> t: transformed.entrySet()) {
+					 final Number v = t.getValue();
+					 if(v==null) continue;
+					 if(v instanceof Double) {
+						 trace(t.getKey(), v.doubleValue());
+					 } else {
+						 trace(t.getKey(), v.longValue());
+					 }
+				 }
+			} else {
+				for(Map.Entry<String, Object> attr: entry.getValue().entrySet()) {
+					final Object v = attr.getValue();
+					if(v==null) continue;
+					if(v instanceof Number) {
+						if(v instanceof Double) {
+							trace(JMXHelper.objectName(clean(new StringBuilder(on.toString()).append(",metric=").append(attr.getKey()))), ((Number)v).doubleValue());
+						} else {
+							trace(JMXHelper.objectName(clean(new StringBuilder(on.toString()).append(",metric=").append(attr.getKey()))), ((Number)v).longValue());
+						}
+					} else if(v instanceof CompositeData) {
+						Map<ObjectName, Number> cmap = fromOpenType(on, (CompositeData)v);
+						for(Map.Entry<ObjectName, Number> ce: cmap.entrySet()) {
+							final Number cv = ce.getValue();
+							if(v instanceof Double) {
+								trace(ce.getKey(), cv.doubleValue());
+							} else {
+								trace(ce.getKey(), cv.longValue());
+							}
+						}
+					} 
+				}
+			}
+		}
+	}
+	
+	
+	/**
+	 * Decomposes a composite data type so it can be traced
+	 * @param objectName The ObjectName of the MBean the composite data came from
+	 * @param cd The composite data instance
+	 * @return A map of values keyed by synthesized ObjectNames that represent the structure down to the numeric composite data items
+	 */
+	protected Map<ObjectName, Number> fromOpenType(final ObjectName objectName, final CompositeData cd) {
+		if(objectName==null) throw new IllegalArgumentException("The passed ObjectName was null");
+		if(cd==null) throw new IllegalArgumentException("The passed CompositeData was null");
+		final Map<ObjectName, Number> map = new HashMap<ObjectName, Number>();
+		final CompositeType ct = cd.getCompositeType();
+		for(final String key: ct.keySet()) {
+			final Object value = cd.get(key);
+			if(value==null || !(value instanceof Number)) continue;
+			StringBuilder b = new StringBuilder(objectName.toString());
+			b.append(",ctype=").append(simpleName(ct.getTypeName()));
+			b.append(",metric=").append(key);			
+			ObjectName on = JMXHelper.objectName(clean(b));
+			map.put(on, (Number)value);
+			
+		}
+		return map;
+	}
+	
+	private static String clean(final CharSequence s) {
+		if(s==null) return null;
+		return s.toString().trim().replace(" ", "");
+	}
+	
+	private static String simpleName(final CharSequence s) {
+		if(s==null) return null;
+		String str = clean(s);
+		final int index = str.lastIndexOf('.');
+		return index==-1 ? str : str.substring(index+1);
+	}
+	
+
 	
 	/**
 	 * Traces a long metric
@@ -634,5 +814,157 @@ public class TSDBSubmitter {
 	public int getTimeout() {
 		return timeout;
 	}
+
+
+	/**
+	 * Indicates if TSDB times are traced in seconds, or milliseconds
+	 * @return true if TSDB times are traced in seconds, false if in milliseconds 
+	 */
+	public boolean isTraceInSeconds() {
+		return traceInSeconds;
+	}
+
+
+	/**
+	 * Sets the tracing time unit
+	 * @param traceInSeconds true to trace in seconds, false to trace in milliseconds
+	 * @return this submitter
+	 */
+	public TSDBSubmitter setTraceInSeconds(final boolean traceInSeconds) {
+		this.traceInSeconds = traceInSeconds;
+		return this;
+	}
+
+
+	/**
+	 * Returns the root tags
+	 * @return the rootTags
+	 */
+	public Set<String> getRootTags() {
+		return Collections.unmodifiableSet(rootTags);
+	}
+	
+	/**
+	 * Adds a root tag
+	 * @param key The root tag key
+	 * @param value The root tag value
+	 * @return this submitter
+	 */
+	public TSDBSubmitter addRootTag(final String key, final String value) {
+		if(key==null || key.trim().isEmpty()) throw new IllegalArgumentException("The passed key was null or empty");
+		if(value==null || value.trim().isEmpty()) throw new IllegalArgumentException("The passed value was null or empty");
+		rootTags.add(clean(key) + "=" + clean(value));
+		return this;
+	}
+	
+	/**
+	 * Appends the root tags to the passed buffer
+	 * @param b The buffer to append to
+	 * @return the same buffer
+	 */
+	protected StringBuilder appendRootTags(final StringBuilder b) {
+		if(b==null) throw new IllegalArgumentException("The passed string builder was null");
+		if(!rootTags.isEmpty()) {
+			for(String tag: rootTags) {
+				b.append(tag).append(" ");
+			}
+		}
+		return b;
+	}
+	
+	/**
+	 * Indicates if traces are being logged 
+	 * @return true if traces are being logged, false otherwise
+	 */
+	public boolean isLogTraces() {
+		return logTraces;
+	}
+
+
+	/**
+	 * Sets the trace logging
+	 * @param logTraces true to trace logs, false otherwise
+	 * @return this submitter
+	 */
+	public TSDBSubmitter setLogTraces(final boolean logTraces) {
+		this.logTraces = logTraces;
+		return this;
+	}
+	
+	/**
+	 * Indicates if tracing is disabled
+	 * @return true if tracing is disabled, false otherwise
+	 */
+	public boolean isTracingDisabled() {
+		return disableTraces;
+	}
+
+
+	/**
+	 * Enables or disables actual tracing. To view what would be traced,
+	 * without actually tracing, set {@link #setLogTraces(boolean)} to true
+	 * and this to false;
+	 * @param disableTraces true to disable, false otherwise
+	 * @return this submitter
+	 */
+	public TSDBSubmitter setTracingDisabled(final boolean disableTraces) {
+		this.disableTraces = disableTraces;
+		return this;
+	}
+	
+
+
+	/**
+	 * {@inheritDoc}
+	 * @see java.lang.Object#toString()
+	 */
+	@Override
+	public String toString() {
+		StringBuilder builder = new StringBuilder();
+		builder.append("TSDBSubmitter [");
+		if (host != null) {
+			builder.append("\n\thost=");
+			builder.append(host);
+		}
+		builder.append("\n\tport=");
+		builder.append(port);
+		builder.append("\n\tlogTraces=");
+		builder.append(logTraces);
+		builder.append("\n\ttracingDisabled=");
+		builder.append(disableTraces);		
+		builder.append("\n\tkeepAlive=");
+		builder.append(keepAlive);
+		builder.append("\n\treuseAddress=");
+		builder.append(reuseAddress);
+		builder.append("\n\tlinger=");
+		builder.append(linger);
+		builder.append("\n\ttcpNoDelay=");
+		builder.append(tcpNoDelay);
+		builder.append("\n\ttraceInSeconds=");
+		builder.append(traceInSeconds);
+		if (rootTags != null) {
+			builder.append("\n\trootTags=");
+			builder.append(rootTags);
+		}
+		builder.append("\n\treceiveBufferSize=");
+		builder.append(receiveBufferSize);
+		builder.append("\n\tsendBufferSize=");
+		builder.append(sendBufferSize);
+		builder.append("\n\tlingerTime=");
+		builder.append(lingerTime);
+		builder.append("\n\ttimeout=");
+		builder.append(timeout);
+		if (dataBuffer != null) {
+			builder.append("\n\tdataBufferCapacity=");
+			builder.append(dataBuffer.capacity());
+		}
+		builder.append("]");
+		return builder.toString();
+	}
+
+
+
+
+	
 
 }
